@@ -13,8 +13,9 @@ requires a fixed vocabulary of task names each adapter implements.
 Use immich's names verbatim: `install`, `format`, `format-fix`, `lint`,
 `check`, `test`, `build`, plus the aggregates `ci-unit` and `checklist`.
 `format`, `lint`, and `check` never modify files; the `-fix` variants do.
-`format-fix` appears both quoted and bare across real `mise.toml` files —
-both are valid TOML keys — so the linter tolerates either spelling.
+Dashes are legal in TOML bare keys, and immich itself writes both spellings:
+every file that defines `format-fix` quotes it, while other dashed names such
+as `ci-unit` and `dev-down` are written bare — so the linter tolerates either.
 
 A name joins the contract only when every configured root implements it and CI
 needs to call it. Tasks outside the contract — `migrate`, `queue`, `tinker` —
