@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# scaffold — create and extend projects that follow the task contract.
+
+set -euo pipefail
+
+SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SCAFFOLD_ROOT
+
+# shellcheck source=lib/log.sh
+source "${SCAFFOLD_ROOT}/lib/log.sh"
+# shellcheck source=lib/contract.sh
+source "${SCAFFOLD_ROOT}/lib/contract.sh"
+# shellcheck source=lib/lint.sh
+source "${SCAFFOLD_ROOT}/lib/lint.sh"
+# shellcheck source=lib/adapter.sh
+source "${SCAFFOLD_ROOT}/lib/adapter.sh"
+
+usage() {
+  cat <<'EOF'
+usage:
+  scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
+  scaffold add <dir> --adapter <adapter>
+  scaffold list
+  scaffold lint
+EOF
+}
+
+cmd_list() {
+  local adapter
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    [ -d "$adapter" ] || continue
+    ( load_adapter "$(basename "$adapter")"
+      # shellcheck disable=SC2153
+      printf '%s\t%s\t%s\n' "$ADAPTER_NAME" "$ADAPTER_ROLE" "$ADAPTER_TIER" )
+  done | sort
+}
+
+cmd_lint() {
+  lint_adapters "${SCAFFOLD_ROOT}/adapters"
+}
+
+main() {
+  [ $# -gt 0 ] || { usage >&2; exit 1; }
+
+  local command="$1"; shift
+  case "$command" in
+    list) cmd_list "$@" ;;
+    lint) cmd_lint "$@" ;;
+    -h|--help) usage ;;
+    *) die "unknown command: ${command}" ;;
+  esac
+}
+
+main "$@"
