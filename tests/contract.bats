@@ -27,6 +27,13 @@ setup() {
   [[ "$output" == *"sample: missing file Dockerfile"* ]]
 }
 
+@test "lint_adapters reports the broken adapter but not the complete one" {
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/mixed"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"broken: missing file Dockerfile"* ]]
+  [[ "$output" != *"good:"* ]]
+}
+
 @test "lint_adapters accepts a quoted task header" {
   run grep -q '^\[tasks\."format-fix"\]' \
     "${SCAFFOLD_ROOT}/tests/fixtures/lint/complete/sample/mise.toml"

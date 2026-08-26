@@ -9,17 +9,21 @@ pin = true
 lockfile = true
 
 [tasks.lint]
-run = "shellcheck lib/*.sh"
+# discovers tracked shell files rather than listing them, so a new one is
+# caught automatically; xargs -r skips the run when nothing matches yet.
+run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' | xargs -r shellcheck"
 
 [tasks.test]
 run = "bats tests/"
 
 [tasks."test-unit"]
 description = "the suites that need no network"
-run = "bats tests/contract.bats"
+# tests/new-*.bats hit a real network or generator by convention; everything
+# else is offline and belongs in ci.
+run = "find tests -maxdepth 1 -name '*.bats' ! -name 'new-*' | xargs -r bats"
 
 [tasks.ci-unit]
-run = [{ task = ":lint" }, { task = ":test-unit" }]
+run = [{ task = "lint" }, { task = "test-unit" }]
 
 [tasks.checklist]
-run = [{ task = ":lint" }, { task = ":test" }]
+run = [{ task = "lint" }, { task = "test" }]

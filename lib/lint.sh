@@ -20,7 +20,7 @@ lint_adapters() {
     [ -f "${adapter}mise.toml" ] || continue
 
     for task in "${CONTRACT_TASKS[@]}"; do
-      # the header is quoted when the task name contains a dash
+      # both the bare and quoted spelling are valid toml, so tolerate either
       if ! grep -Eq "^\[tasks\.\"?${task}\"?\]" "${adapter}mise.toml"; then
         printf '%s: missing task %s\n' "$name" "$task"
         status=1
