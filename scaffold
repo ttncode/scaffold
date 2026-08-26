@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-: "${SCAFFOLD_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SCAFFOLD_ROOT
 
 # shellcheck source=lib/log.sh

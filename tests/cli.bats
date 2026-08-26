@@ -38,7 +38,7 @@ setup() {
 }
 
 @test "scaffold list reports broken adapters and continues" {
-  SCAFFOLD_ROOT="${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters" run scaffold list
+  run "${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters/scaffold" list
   [ "$status" -ne 0 ]
   [[ "$output" == *"sample"* ]]
   [[ "$output" == *"[error]"* ]]
