@@ -146,7 +146,7 @@ because flags multiply the combinations that must be tested.
 
 Copied verbatim into every generated project:
 
-- Four thin workflow files that call into `you/.github`.
+- Five thin workflow files that call into `you/.github`.
 - A seeded VitePress documentation site under `docs/`, registered as a config
   root so a broken documentation build fails CI like any other test.
 - `.editorconfig`, `.gitattributes`, `.gitignore`, `.git-blame-ignore-revs`.
@@ -163,8 +163,8 @@ Tooling choices and their reasons:
   already adopted by Vite and Plane, `eslint-config-next` and the React and
   accessibility plugins have no full equivalent yet. The lint configuration is
   isolated so the swap is a single change later.
-- **release-please**, not changesets — changesets targets monorepos publishing
-  many packages to npm; these are applications delivered to clients.
+- **release-please**, not changesets — see section 9.1. A client project has one
+  version and publishes no packages, so changesets contributes cost only.
 
 ## 8. CI
 
@@ -191,12 +191,51 @@ replaced with `dorny/paths-filter`.
 
 ## 9. Release and distribution
 
+### 9.1 Building is not releasing
+
+The two are separate workflows, because they answer to different clocks.
+
+```
+push to main      → build and push  :main  and  :sha-<commit>
+                    no bot pull request stands in the way
+
+merge the release → tag, GitHub Release, compose.yaml and example.env attached
+pull request        :1.4.0  :1.4  :latest
+```
+
+Continuous builds keep "merge and it is live" available. Cut releases give a
+number to pin, a changelog, and a marker to roll back to. Neither blocks the
+other.
+
+Release Please is chosen over changesets because changesets solves a problem
+these repositories do not have: independently versioned packages published to
+npm, each pull request carrying a hand-written changeset file. A client project
+has exactly one version and publishes no packages, so changesets would
+contribute cost and nothing else. Release Please, reading conventional commits,
+produces the four things self-hosting actually needs — a version to pin, a
+changelog, a Release to attach the compose file and `example.env` to, and a
+rollback marker.
+
 Conventional commits are enforced twice — by `commitlint` at `commit-msg`, and
 by a pull-request check that still fires when someone commits with
-`--no-verify`. Release Please turns those commits into a version bump and a
-changelog, and merging its pull request produces the tag and four image tags:
-the exact version to pin against, the minor line that follows patches, `latest`
-for development, and the commit SHA for provenance during a rollback.
+`--no-verify`. Merging the release pull request produces the tag and four image
+tags: the exact version to pin against, the minor line that follows patches,
+`latest` for development, and the commit SHA for provenance during a rollback.
+
+### 9.2 Two delivery modes, one pipeline
+
+Both are supported, selected per engagement. They differ by one variable.
+
+| | Client operates the host | Author operates the host |
+| --- | --- | --- |
+| Image tag in use | `1.4.0`, pinned deliberately | `main`, moving |
+| Upgrades | The client chooses when | Every merge |
+| `install.sh` | Handed to the client | Used by the author |
+| Release cadence | Every shipped change | Periodic, for the changelog and rollback markers |
+| Documentation audience | An outside operator | The author |
+
+The generated documentation covers both paths and states which one the project
+uses. `IMAGE_TAG` is the only difference at the compose level.
 
 Distribution follows immich's model, which is worth stating plainly: **immich
 does not deploy the application, it distributes it.** Images are published, and
@@ -222,7 +261,7 @@ Four artefacts, each answering a different question, all anchored to real files.
   `adapted` (which requires a reason and an ADR) or `original`. The pinned
   upstream commit lives in a single `UPSTREAM` file, and
   `scripts/check-provenance.sh` re-diffs the `verbatim` rows against it.
-- **`docs/decisions/`** — ADRs 0001–0014, each with Context, Decision,
+- **`docs/decisions/`** — ADRs 0001–0015, each with Context, Decision,
   Consequences and Alternatives considered. ADRs are never edited to reflect a
   change of mind; a new ADR supersedes the old one, which is marked
   `Superseded`.
@@ -331,6 +370,7 @@ no manual steps.
 | 0012 | Tiered adapter support |
 | 0013 | `config_roots` is the manifest |
 | 0014 | Deployment deferred, with seams |
+| 0015 | Continuous builds separate from cut releases; both delivery modes supported |
 
 ## 15. Risks
 
