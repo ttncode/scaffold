@@ -1,0 +1,2 @@
+# nextjs needs no extra hook; prettier in the common layer already covers it.
+{}

@@ -59,10 +59,34 @@ cmd_new() {
 
   local target="$1"; shift
   local name; name="$(basename "$target")"
+  local -a requested=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --web|--api|--app)
+        [ $# -ge 2 ] || die "${1} requires an adapter name"
+        requested+=("${1#--}:${2}")
+        shift 2
+        ;;
+      *) die "unknown option: ${1}" ;;
+    esac
+  done
 
   init_project "$target" "$name"
-  finalize_project "$target"
 
+  local entry flag adapter
+  if [ "${#requested[@]}" -gt 0 ]; then
+    for entry in "${requested[@]}"; do
+      flag="${entry%%:*}"
+      adapter="${entry#*:}"
+      load_adapter "$adapter"
+      [ "$ADAPTER_ROLE" = "$flag" ] \
+        || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
+      apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
+    done
+  fi
+
+  finalize_project "$target"
   log "created ${target}"
 }
 
