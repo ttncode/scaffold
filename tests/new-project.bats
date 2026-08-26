@@ -85,6 +85,21 @@ teardown() {
   [[ "$output" == *'["apps/web","apps/api","docs"]'* ]]
 }
 
+# init_project must trust only the config it just wrote, never a parent
+# directory's config it did not create (mise trust -a walks parents too).
+@test "new does not trust a parent config it did not create" {
+  printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = [\n  "x",\n]\n' \
+    > "${WORKDIR}/mise.toml"
+  run mise trust --show -C "$WORKDIR"
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]]
+
+  scaffold new "$PROJECT"
+
+  run mise trust --show -C "$PROJECT"
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]]
+  [[ "$output" == *"${PROJECT}: trusted"* ]]
+}
+
 collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"

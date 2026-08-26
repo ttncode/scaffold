@@ -14,7 +14,7 @@ init_project() {
   rm -f "${dir}/mise.root.toml"
 
   # a config not yet trusted makes mise prompt or refuse instead of working.
-  mise trust -a -y --quiet -C "$dir"
+  mise trust -y --quiet -C "$dir"
 }
 
 # register_config_root <project> <relative-path>
