@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${SCAFFOLD_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 export SCAFFOLD_ROOT
 
 # shellcheck source=lib/log.sh
@@ -26,13 +26,26 @@ EOF
 }
 
 cmd_list() {
-  local adapter
+  local adapter name status=0
+  local -a output
+
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
     [ -d "$adapter" ] || continue
-    ( load_adapter "$(basename "$adapter")"
-      # shellcheck disable=SC2153
-      printf '%s\t%s\t%s\n' "$ADAPTER_NAME" "$ADAPTER_ROLE" "$ADAPTER_TIER" )
-  done | sort
+    name="$(basename "$adapter")"
+
+    if load_adapter "$name" 2>/dev/null; then
+      # shellcheck disable=SC2153 # ADAPTER_NAME, ADAPTER_ROLE, ADAPTER_TIER are sourced from adapter.env
+      output+=("$ADAPTER_NAME"$'\t'"$ADAPTER_ROLE"$'\t'"$ADAPTER_TIER")
+    else
+      output+=("[error]"$'\t'"$name"$'\t'"(malformed adapter)")
+      status=1
+    fi
+
+    unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_GENERATOR
+  done
+
+  printf '%s\n' "${output[@]}" | sort
+  return "$status"
 }
 
 cmd_lint() {

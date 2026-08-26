@@ -36,3 +36,11 @@ setup() {
   [ "$ADAPTER_ROLE" = "api" ]
   [ "$ADAPTER_NAME" = "sample" ]
 }
+
+@test "scaffold list reports broken adapters and continues" {
+  SCAFFOLD_ROOT="${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters" run scaffold list
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"sample"* ]]
+  [[ "$output" == *"[error]"* ]]
+  [[ "$output" == *"bad"* ]]
+}

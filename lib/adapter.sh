@@ -7,7 +7,8 @@ load_adapter() {
 
   [ -d "$dir" ] || die "unknown adapter: ${name} (run: scaffold list)"
 
-  export ADAPTER_DIR="$dir"
+  # shellcheck disable=SC2034 # ADAPTER_DIR is consumed by apply_adapter, which Task 4 adds
+  ADAPTER_DIR="$dir"
   # shellcheck source=/dev/null
   source "${dir}/adapter.env"
 }
