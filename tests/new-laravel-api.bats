@@ -15,10 +15,10 @@ teardown() {
   [ -f "${PROJECT}/apps/api/mise.toml" ]
 }
 
-# php is not pinned through mise (see docs/decisions/0012 and ruling 2 of the
-# task brief): mise's only php backends compile from source and fail on this
-# machine. the guard the install task opens with still names php, so this
-# checks presence rather than a specific `php = "..."` tools entry.
+# php is not pinned through mise (see docs/decisions/0016): mise's only php
+# backends compile from source and fail on this machine. the guard the
+# install task opens with still names php, so this checks presence rather
+# than a specific `php = "..."` tools entry.
 @test "php is declared in the app and never at the project root" {
   scaffold new "$PROJECT" --api laravel-api
   run grep -q 'php' "${PROJECT}/mise.toml"

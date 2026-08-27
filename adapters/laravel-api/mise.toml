@@ -1,6 +1,6 @@
 # composer is the only tool pinned here — mise's php backends compile from
 # source and this machine's build fails on missing system libraries, so php
-# comes from the system instead (see docs/decisions/0012). php still lives
+# comes from the system instead (see docs/decisions/0016). php still lives
 # only in this file and nowhere else in the project: the root mise.toml never
 # learns that this app is written in php.
 [tools]
@@ -30,9 +30,8 @@ run = "./vendor/bin/pint --test"
 run = "./vendor/bin/phpstan analyse --no-progress --memory-limit=512M"
 
 [tasks.test]
-# the skeleton ships phpunit, not pest — pest is opt-in and adds nothing here
-# (see docs/decisions/0012 and the task-6 report); run what the generator
-# already ships.
+# the skeleton ships phpunit, not pest — pest is opt-in and adds nothing
+# here; run what the generator already ships.
 run = "./vendor/bin/phpunit"
 
 [tasks.build]
