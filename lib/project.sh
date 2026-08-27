@@ -112,15 +112,19 @@ resolve_minimum_release_age() {
 
     all_entries="$(printf '%s\n%s\n' "$all_entries" "$entries" | sed '/^$/d' | sort -u)"
 
-    # this comment+list is always the last thing appended, so replacing from
-    # its marker line to eof is safe — it drops only a prior round's block.
-    sed -i '/^# too fresh at generation time/,$d' "$workspace_file"
+    # bounded by an explicit start AND end marker, not a delete-to-eof: a
+    # range open on the end (,$d) would silently swallow anything appended
+    # after this block by a later step or caller, with nothing printed.
+    # both markers are always written together below, so the range is
+    # always well-formed by the time this runs a second time.
+    sed -i '/^# too fresh at generation time/,/^# end minimumReleaseAgeExclude$/d' "$workspace_file"
     {
       printf '# too fresh at generation time; pnpm re-checks this on every frozen\n'
       printf '# install forever, not just this one, so it is recorded once here\n'
       printf '# instead of turned off for every dependency this project adds later.\n'
       printf 'minimumReleaseAgeExclude:\n'
       printf '%s\n' "$all_entries" | while IFS= read -r entry; do printf '  - "%s"\n' "$entry"; done
+      printf '# end minimumReleaseAgeExclude\n'
     } >> "$workspace_file"
   done
 }
