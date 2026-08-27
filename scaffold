@@ -122,6 +122,8 @@ cmd_new() {
 
   if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
     enable_typescript_workspace "$target"
+    sync_workspace_lockfile "$target"
+    resolve_minimum_release_age "$target"
   else
     rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"
   fi

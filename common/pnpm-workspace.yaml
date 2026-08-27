@@ -2,15 +2,6 @@ packages:
   - apps/*
   - packages/*
   - docs
-# generated apps churn dependencies fast; pnpm's default minimum-release-age
-# supply-chain check otherwise rejects a package published hours ago, which
-# is routine here, not a signal of anything compromised.
-minimumReleaseAge: 0
-# an app's own generator installs before packages/types joins the workspace,
-# so the contract's install task is always the first install to see both
-# members together; pnpm needs to relink node_modules for that and must not
-# stop to ask — every contract task runs non-interactively, with no TTY.
-confirmModulesPurge: false
 # unrs-resolver (pulled in by typescript-eslint) ships a native postinstall
 # build; pnpm blocks an unreviewed build script on first install in a
 # workspace instead of just warning, which would abort ci-unit non-interactively.

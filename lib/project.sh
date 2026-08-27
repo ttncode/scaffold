@@ -35,6 +35,96 @@ enable_typescript_workspace() {
   register_config_root "$project" "packages/types"
 }
 
+# sync_workspace_lockfile <project>
+# not every adapter's own generator notices the ambient pnpm-workspace.yaml
+# that init_project already wrote before it ran. nestjs's generator installs
+# straight into the shared root lockfile; nextjs's writes its own, orphaned
+# apps/web/pnpm-lock.yaml instead (leaving that app entirely absent from the
+# root one) and its own nested apps/web/pnpm-workspace.yaml (which pnpm's
+# upward search from inside apps/web finds before the real root one,
+# shadowing it — the app never resolves as part of the outer workspace when
+# a task's cwd is the app itself, as every contract task's is). both are
+# harmless for a standalone nextjs project; both break a multi-app workspace
+# outright. drop any stray per-app copy of either file and let one ordinary
+# install rebuild a single, correct, root-level lockfile covering every
+# member. minimum-release-age is relaxed only for this one resolution pass
+# so it does not error out on a version pnpm has not verified before; it is
+# not persisted, and resolve_minimum_release_age below still enforces the
+# real default against the result.
+sync_workspace_lockfile() {
+  local project="$1"
+
+  find "$project" -mindepth 3 -maxdepth 3 \
+    \( -name pnpm-lock.yaml -o -name pnpm-workspace.yaml \) -delete
+
+  ( cd "$project" && mise exec -- pnpm install \
+      --config.confirm-modules-purge=false \
+      --config.minimum-release-age=0 >/dev/null ) \
+    || die "pnpm install failed while reconciling the workspace lockfile"
+}
+
+# resolve_minimum_release_age <project>
+# packages/types joins the workspace only after each app's own generator has
+# already installed once, so the contract's own frozen install is always the
+# first one to re-verify the lockfile the generator just wrote, against
+# pnpm's default minimum-release-age policy — verified by hand that this
+# check re-applies on every future frozen install of the same lockfile, not
+# just this first one, so relaxing it only for this call would not hold.
+# record the exact entries pnpm reports as too fresh, once, in the
+# generated project's own file, so the guard stays live for every
+# dependency this project adds from here on. a bigger workspace (more apps,
+# more transitive deps) can reveal a second batch of violations only once
+# the first batch is excluded, so this loops until pnpm has nothing left to
+# flag, capped so a genuinely different failure cannot loop forever.
+resolve_minimum_release_age() {
+  local project="$1"
+  local workspace_file="${project}/pnpm-workspace.yaml"
+  [ -f "$workspace_file" ] || return 0
+
+  local max_rounds=10 round=0 log entries all_entries=""
+  log="$(mktemp)"
+
+  while true; do
+    if ( cd "$project" && mise exec -- pnpm install --frozen-lockfile --config.confirm-modules-purge=false >"$log" 2>&1 ); then
+      rm -f "$log"
+      return 0
+    fi
+
+    grep -q ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION "$log" || {
+      cat "$log" >&2
+      rm -f "$log"
+      die "pnpm install failed for a reason other than minimum-release-age (see above)"
+    }
+
+    round=$((round + 1))
+    [ "$round" -le "$max_rounds" ] || {
+      cat "$log" >&2
+      rm -f "$log"
+      die "pnpm install still hits new minimum-release-age violations after ${max_rounds} rounds of recording exceptions"
+    }
+
+    entries="$(sed -E 's/\x1b\[[0-9;]*m//g' "$log" | sed -n 's/^  \(.*\) was published.*/\1/p')"
+    [ -n "$entries" ] || {
+      cat "$log" >&2
+      rm -f "$log"
+      die "pnpm reported a minimum-release-age failure but no entries could be parsed from it (see above)"
+    }
+
+    all_entries="$(printf '%s\n%s\n' "$all_entries" "$entries" | sed '/^$/d' | sort -u)"
+
+    # this comment+list is always the last thing appended, so replacing from
+    # its marker line to eof is safe — it drops only a prior round's block.
+    sed -i '/^# too fresh at generation time/,$d' "$workspace_file"
+    {
+      printf '# too fresh at generation time; pnpm re-checks this on every frozen\n'
+      printf '# install forever, not just this one, so it is recorded once here\n'
+      printf '# instead of turned off for every dependency this project adds later.\n'
+      printf 'minimumReleaseAgeExclude:\n'
+      printf '%s\n' "$all_entries" | while IFS= read -r entry; do printf '  - "%s"\n' "$entry"; done
+    } >> "$workspace_file"
+  done
+}
+
 # register_config_root <project> <relative-path>
 register_config_root() {
   local project="$1" root="$2"
