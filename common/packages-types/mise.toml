@@ -1,0 +1,26 @@
+[tasks.install]
+run = "pnpm install --frozen-lockfile"
+
+[tasks.format]
+run = "pnpm exec prettier --check ."
+
+[tasks."format-fix"]
+run = "pnpm exec prettier --write ."
+
+[tasks.lint]
+run = "pnpm exec eslint \"src/**/*.ts\" --max-warnings 0"
+
+[tasks.check]
+run = "pnpm exec tsc --noEmit"
+
+[tasks.test]
+run = "pnpm exec vitest --run --passWithNoTests"
+
+[tasks.build]
+run = "true"
+
+[tasks.ci-unit]
+run = [{ task = ":install" }, { task = ":format" }, { task = ":check" }]
+
+[tasks.checklist]
+run = [{ task = ":ci-unit" }]

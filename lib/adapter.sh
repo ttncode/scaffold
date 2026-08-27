@@ -15,6 +15,11 @@ load_adapter() {
   source "${dir}/adapter.env"
 }
 
+# adapter_is_typescript <name>
+adapter_is_typescript() {
+  ( load_adapter "$1"; [ "${ADAPTER_LANGUAGE:-}" = "typescript" ] )
+}
+
 # role_path <role> — where an adapter of this role is installed.
 role_path() {
   case "$1" in

@@ -24,6 +24,17 @@ init_project() {
   mise trust -y --quiet -C "$dir"
 }
 
+# enable_typescript_workspace <project>
+# only called when every application in the project is typescript; sharing
+# types across a language boundary is a different problem, solved by openapi.
+enable_typescript_workspace() {
+  local project="$1"
+
+  mkdir -p "${project}/packages"
+  mv "${project}/packages-types" "${project}/packages/types"
+  register_config_root "$project" "packages/types"
+}
+
 # register_config_root <project> <relative-path>
 register_config_root() {
   local project="$1" root="$2"
