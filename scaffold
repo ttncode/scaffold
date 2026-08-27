@@ -139,6 +139,9 @@ cmd_new() {
 # created in a project the user already owns, not leave debris behind it —
 # including the temporary confirmModulesPurge relaxation cmd_add makes below,
 # which must not survive a failure any more than it survives success.
+# this cleanup's reach is only $target and that one line — see the trap
+# comment in cmd_add for the fuller inventory of what a failure leaves
+# behind that this function does not touch.
 cmd_add_cleanup() {
   local target="$1" status="$2" workspace_file="$3"
 
@@ -223,12 +226,18 @@ cmd_add() {
   #
   # this trap's reach is partial, not a rollback of the whole function: it
   # restores exactly $dest and the confirmModulesPurge line, nothing more.
-  # a failure after sync_ci_roots below (or, without $reconcile, after
-  # apply_adapter) leaves the project with a config_roots entry, a ci.yml
-  # roots line, or a merged lefthook fragment pointing at an app that got
-  # removed — there is no general undo for edits already made to files
-  # this run did not create. inherent to adding into a repository the
-  # caller already owns, not something this trap can be made to cover.
+  # a failure after apply_adapter can leave the project with any of the
+  # following, pointing at an app that got removed — there is no general
+  # undo for edits already made to files this run did not create:
+  #   - the config_roots entry apply_adapter added to mise.toml
+  #   - the lefthook.yml fragment apply_adapter merged in
+  #   - (when $reconcile) pnpm-lock.yaml, rewritten by sync_workspace_lockfile
+  #   - (when $reconcile) the minimumReleaseAgeExclude block
+  #     resolve_minimum_release_age appends to pnpm-workspace.yaml —
+  #     cmd_add_cleanup strips only the confirmModulesPurge line, not this
+  #   - the roots: line sync_ci_roots writes to ci.yml
+  # inherent to adding into a repository the caller already owns, not
+  # something this trap can be made to cover.
   # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
   trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
 
