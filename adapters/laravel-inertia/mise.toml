@@ -1,0 +1,57 @@
+# composer is pinned the same way as laravel-api's (see docs/decisions/0016
+# for why php itself is not); a fullstack laravel app still needs node,
+# because vite builds the assets — the honest consequence of picking laravel
+# to get one app instead of two, and someone choosing it to avoid node
+# should learn that here, not in ci.
+[tools]
+"ubi:composer/composer" = "2.10.2"
+node = "24.15.0"
+
+[tasks.install]
+# composer resolves to a phar named composer.phar, not composer, once mise
+# installs it — invoke it by that name everywhere in this file.
+run = [
+  "php -r 'exit(version_compare(PHP_VERSION, \"8.3.0\", \">=\") ? 0 : 1);' || { echo \"laravel-inertia requires system php >= 8.3.0 (found $(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'no php on PATH')); install php 8.3 or newer via your OS package manager (e.g. apt install php8.3-cli) or https://php.net, then re-run mise install\" >&2; exit 1; }",
+  "composer.phar install --no-interaction --prefer-dist",
+  "npm ci",
+]
+
+[tasks.format]
+run = ["./vendor/bin/pint --test", "npm run format:check"]
+
+[tasks."format-fix"]
+run = ["./vendor/bin/pint", "npm run format"]
+
+# pint doubles as php's formatter and linter, same as laravel-api; lint here
+# only adds what format does not already cover — eslint's frontend rules.
+[tasks.lint]
+run = "npm run lint:check"
+
+[tasks.check]
+run = ["./vendor/bin/phpstan analyse --no-progress --memory-limit=512M", "npm run types:check"]
+
+[tasks.test]
+# the starter kit ships phpunit, not pest — pest is opt-in and adds nothing
+# here; run what the generator already ships.
+run = "./vendor/bin/phpunit"
+
+[tasks.build]
+run = [
+  "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative",
+  "npm run build",
+]
+
+[tasks.migrate]
+run = "php artisan migrate --force"
+
+[tasks.ci-unit]
+run = [
+  { task = ":install" },
+  { task = ":format" },
+  { task = ":lint" },
+  { task = ":check" },
+  { task = ":test" },
+]
+
+[tasks.checklist]
+run = [{ task = ":ci-unit" }, { task = ":build" }]
