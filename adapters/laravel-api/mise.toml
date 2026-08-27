@@ -1,0 +1,53 @@
+# composer is the only tool pinned here — mise's php backends compile from
+# source and this machine's build fails on missing system libraries, so php
+# comes from the system instead (see docs/decisions/0012). php still lives
+# only in this file and nowhere else in the project: the root mise.toml never
+# learns that this app is written in php.
+[tools]
+"ubi:composer/composer" = "2.10.2"
+
+[tasks.install]
+# composer resolves to a phar named composer.phar, not composer, once mise
+# installs it — invoke it by that name everywhere in this file.
+run = [
+  "php -r 'exit(version_compare(PHP_VERSION, \"8.3.0\", \">=\") ? 0 : 1);' || { echo \"laravel-api requires system php >= 8.3.0 (found $(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'no php on PATH')); install php 8.3 or newer via your OS package manager (e.g. apt install php8.3-cli) or https://php.net, then re-run mise install\" >&2; exit 1; }",
+  "composer.phar install --no-interaction --prefer-dist",
+]
+
+[tasks.format]
+run = "./vendor/bin/pint --test"
+
+[tasks."format-fix"]
+run = "./vendor/bin/pint"
+
+# pint is both formatter and style linter, so lint runs the same binary as
+# format. an honest duplicate beats inventing a second linter to fill the
+# slot.
+[tasks.lint]
+run = "./vendor/bin/pint --test"
+
+[tasks.check]
+run = "./vendor/bin/phpstan analyse --no-progress --memory-limit=512M"
+
+[tasks.test]
+# the skeleton ships phpunit, not pest — pest is opt-in and adds nothing here
+# (see docs/decisions/0012 and the task-6 report); run what the generator
+# already ships.
+run = "./vendor/bin/phpunit"
+
+[tasks.build]
+run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative"
+
+[tasks.migrate]
+run = "php artisan migrate --force"
+
+[tasks.ci-unit]
+run = [
+  { task = ":install" },
+  { task = ":format" },
+  { task = ":check" },
+  { task = ":test" },
+]
+
+[tasks.checklist]
+run = [{ task = ":ci-unit" }, { task = ":build" }]

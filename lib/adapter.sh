@@ -72,6 +72,10 @@ apply_adapter() {
   done
   [ "$had_dotglob" -eq 1 ] || shopt -u dotglob
 
+  # a docker/ subdirectory (e.g. php-fpm's opcache.ini) is not covered by the
+  # flat-file loop above; copy it wholesale when an adapter ships one.
+  [ -d "${ADAPTER_DIR}/docker" ] && cp -R "${ADAPTER_DIR}/docker" "${dest}/docker"
+
   if [ -n "${ADAPTER_POST_GENERATE:-}" ]; then
     ( cd "$dest" && eval "$ADAPTER_POST_GENERATE" )
   fi
