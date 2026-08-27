@@ -131,6 +131,24 @@ whether it clears the immediate failure:
   root is removed), not specific to `nextjs` — a future adapter with the
   same non-workspace-aware generator behavior is covered by the same code,
   without needing its own fix.
+- `scaffold add` (task 8) hits a second instance of the same
+  `confirmModulesPurge` problem this decision already named, in a place the
+  task-scoped `env =` fix above cannot reach: adding a *second* typescript
+  app to a project whose workspace is already installed makes the added
+  adapter's own bundled `pnpm install` (`nest new`, `create-next-app` —
+  not a mise task, so the `env =` task setting is not in scope) try to
+  relink the existing shared `node_modules`, which pnpm treats as a purge
+  and refuses non-interactively
+  (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`). `cmd_add` relaxes
+  `confirmModulesPurge` the same way `resolve_minimum_release_age` relaxes
+  minimum-release-age: appended to `pnpm-workspace.yaml` immediately before
+  the adapter's generator runs, removed again immediately after (on both
+  success and failure, via the same EXIT-trap cleanup that removes a failed
+  add's directory), never left in the file handed to the caller. `cmd_add`
+  then runs `sync_workspace_lockfile` and `resolve_minimum_release_age`
+  again itself, so a second (or third, ...) app joining the workspace gets
+  the same lockfile reconciliation and minimum-release-age recording the
+  first round of apps got from `scaffold new`.
 
 ## Alternatives considered
 

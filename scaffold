@@ -133,6 +133,128 @@ cmd_new() {
   log "created ${target}"
 }
 
+# cmd_add_cleanup <target> <status> <workspace-file> — same EXIT-trap
+# technique as init_project's cmd_new_cleanup (see there): a run that fails
+# partway through installing an adapter must remove exactly the path it
+# created in a project the user already owns, not leave debris behind it —
+# including the temporary confirmModulesPurge relaxation cmd_add makes below,
+# which must not survive a failure any more than it survives success.
+cmd_add_cleanup() {
+  local target="$1" status="$2" workspace_file="$3"
+
+  [ -n "$workspace_file" ] && sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+
+  [ "$status" -eq 0 ] && return 0
+  [ -n "$target" ] || return 0
+
+  rm -rf "$target"
+  warn "removed incomplete app: ${target}"
+}
+
+# cmd_add <dir> --adapter <adapter> — install one more adapter into a
+# project `scaffold new` already created, wherever that project's git root
+# is relative to the caller's cwd.
+cmd_add() {
+  [ $# -ge 3 ] || die "usage: scaffold add <dir> --adapter <adapter>"
+
+  local rel="$1"; shift
+  local adapter=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --adapter)
+        [ $# -ge 2 ] || die "--adapter requires an adapter name"
+        adapter="$2"
+        shift 2
+        ;;
+      *) die "unknown option: ${1}" ;;
+    esac
+  done
+
+  [ -n "$adapter" ] || die "--adapter is required"
+
+  # rel is always resolved against the project's git root, not the caller's
+  # cwd, so this works the same from the root or three levels down inside
+  # an existing app.
+  local project
+  project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+    || die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
+
+  # mise.toml alone is not proof of a scaffold project — a repo can carry
+  # its own, unrelated mise.toml. monorepo_root is the marker init_project
+  # writes and nothing else has a reason to.
+  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+    || die "not a scaffold project (no monorepo_root mise.toml at ${project})"
+
+  local dest="${project}/${rel}"
+  [ -e "$dest" ] && die "path already exists: ${rel}"
+
+  # a typescript adapter's own generator (nest new, create-next-app) ends
+  # with its own bundled `pnpm install`. against an empty, brand-new
+  # directory that is harmless, but once a workspace already has an
+  # installed member — exactly what `scaffold add` is adding a second one
+  # to — pnpm treats linking the new member in as a purge-and-relink of the
+  # shared node_modules and refuses that non-interactively
+  # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), a case
+  # docs/decisions/0017 already named and deliberately left off by default.
+  # relaxed here for exactly this one call, the same way
+  # resolve_minimum_release_age below relaxes minimum-release-age only for
+  # its own resolution pass — never shipped in the project itself.
+  local workspace_file="${project}/pnpm-workspace.yaml"
+  local reconcile=""
+  [ -f "$workspace_file" ] && adapter_is_typescript "$adapter" && reconcile="$workspace_file"
+
+  # the guard above ran first, so $dest is known absent here; arming the
+  # trap any earlier would risk rm -rf on a path the caller already had.
+  # the adapter's own generator creates $dest (and refuses if it already
+  # exists), so nothing is mkdir'd ahead of it — the trap only ever has to
+  # remove what apply_adapter left behind on a partial failure. $dest and
+  # $reconcile are baked into the trap command via printf %q because the
+  # locals go out of scope, and with them their values, once this function
+  # returns.
+  # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
+  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
+
+  [ -n "$reconcile" ] && printf 'confirmModulesPurge: false\n' >> "$workspace_file"
+
+  apply_adapter "$adapter" "$project" "$rel"
+
+  if [ -n "$reconcile" ]; then
+    sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+    # the new app's own generator already installed straight into the
+    # shared root lockfile (see sync_workspace_lockfile's own comment on
+    # why not every adapter's generator can be trusted to do that cleanly);
+    # this catches anything it didn't and records any new
+    # minimum-release-age violations the same way scaffold new does for
+    # the workspace's first round of apps.
+    sync_workspace_lockfile "$project"
+    resolve_minimum_release_age "$project"
+  fi
+
+  sync_ci_roots "$project"
+  trap - EXIT
+
+  # packages/types and the all-typescript pnpm workspace are decided once,
+  # at `scaffold new` time, from every adapter requested then (see
+  # docs/decisions/0018-add-does-not-recompute-the-typescript-workspace.md).
+  # cmd_add leaves that decision alone: recomputing it here could delete a
+  # package an already-installed app depends on, or replay most of cmd_new's
+  # typescript-workspace pipeline for a case nobody asked for.
+
+  # only the app just created is staged, as one bundle of generated content
+  # nobody is going to review file by file. every existing file scaffold
+  # touched instead of created — mise.toml, the ci workflow, lefthook.yml,
+  # and (when reconciled above) the pnpm lockfile — is left as a plain
+  # unstaged edit, so `git diff` shows the caller exactly the handful of
+  # small, consequential lines scaffold changed in files their team already
+  # owns, before those changes become part of their history. it also means
+  # `add` never sweeps in whatever else the caller already had in progress
+  # elsewhere in the repo.
+  git -C "$project" add -A -- "$rel"
+
+  log "added ${rel} using ${adapter}; review and commit"
+}
+
 main() {
   require_tools
 
@@ -141,6 +263,7 @@ main() {
   local command="$1"; shift
   case "$command" in
     new) cmd_new "$@" ;;
+    add) cmd_add "$@" ;;
     list) cmd_list "$@" ;;
     lint) cmd_lint "$@" ;;
     -h|--help) usage ;;
