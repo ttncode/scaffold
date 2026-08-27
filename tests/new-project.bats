@@ -100,6 +100,33 @@ teardown() {
   [[ "$output" == *"${PROJECT}: trusted"* ]]
 }
 
+# init_project arms its cleanup trap immediately after mkdir succeeds, so a
+# later step failing (git init, the common-layer copy, mise trust) is covered
+# too, not just a failure in cmd_new after init_project already returned.
+# tests/fixtures/no-common symlinks the real scaffold/lib but ships no
+# common/ directory, so the cp -R in init_project fails deterministically,
+# without depending on mise or the network.
+@test "a failure inside init_project after mkdir removes what it created" {
+  run "${SCAFFOLD_ROOT}/tests/fixtures/no-common/scaffold" new "$PROJECT"
+  [ "$status" -eq 1 ]
+  [ ! -e "$PROJECT" ]
+}
+
+# this is the assertion that would catch an unsafe placement of the trap
+# (armed before the overwrite guard runs): a pre-existing target must survive
+# a rejected `new` untouched, contents included.
+@test "a pre-existing target survives a rejected new" {
+  mkdir -p "$PROJECT"
+  echo "keep me" > "${PROJECT}/marker"
+
+  run "${SCAFFOLD_ROOT}/tests/fixtures/no-common/scaffold" new "$PROJECT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"refusing to overwrite"* ]]
+  [ -d "$PROJECT" ]
+  [ -f "${PROJECT}/marker" ]
+  [ "$(cat "${PROJECT}/marker")" = "keep me" ]
+}
+
 collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"

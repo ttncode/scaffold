@@ -7,6 +7,13 @@ init_project() {
   [ -e "$dir" ] && die "refusing to overwrite existing path: ${dir}"
 
   mkdir -p "$dir"
+  # from here on this run owns $dir; a later step failing must remove it, not
+  # leave debris behind the overwrite guard above. $dir's value is fixed now
+  # and baked into the trap command so it survives after this function
+  # returns and its own local goes away; $? stays deferred to fire time.
+  # shellcheck disable=SC2064 # $dir expanding now is intentional; $? is escaped and still deferred
+  trap "cmd_new_cleanup $(printf '%q' "$dir") \"\$?\"" EXIT
+
   git -C "$dir" init --initial-branch=main --quiet
   cp -R "${SCAFFOLD_ROOT}/common/." "${dir}/"
 
