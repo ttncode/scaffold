@@ -109,6 +109,9 @@ teardown() {
 @test "a failure inside init_project after mkdir removes what it created" {
   run "${SCAFFOLD_ROOT}/tests/fixtures/no-common/scaffold" new "$PROJECT"
   [ "$status" -eq 1 ]
+  # without this, an unrelated early failure (never reaching mkdir at all)
+  # would also leave $PROJECT absent and look identical to a pass.
+  [[ "$output" == *"removed incomplete project: ${PROJECT}"* ]]
   [ ! -e "$PROJECT" ]
 }
 
