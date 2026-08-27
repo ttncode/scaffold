@@ -8,6 +8,9 @@ load_adapter() {
   [ -d "$dir" ] || die "unknown adapter: ${name} (run: scaffold list)"
 
   ADAPTER_DIR="$dir"
+  # optional; a stale value from a previously loaded adapter must not leak
+  # into one that does not define it.
+  unset -v ADAPTER_POST_GENERATE
   # shellcheck source=/dev/null
   source "${dir}/adapter.env"
 }
@@ -47,9 +50,26 @@ apply_adapter() {
 
   ( cd "$parent" && APP_DIR="$(basename "$dest")" eval "$ADAPTER_GENERATOR" )
 
-  cp "${ADAPTER_DIR}/mise.toml"    "${dest}/mise.toml"
-  cp "${ADAPTER_DIR}/Dockerfile"   "${dest}/Dockerfile"
-  cp "${ADAPTER_DIR}/.env.example" "${dest}/.env.example"
+  # overlay everything the adapter ships except adapter.env (sourced, not
+  # copied) and lefthook.fragment.yml (merged, not copied verbatim) — the
+  # file list is adapter-dependent; lib/lint.sh still requires the four.
+  # dotglob so dotfiles like .env.example are not silently skipped.
+  local file base had_dotglob=0
+  shopt -q dotglob && had_dotglob=1
+  shopt -s dotglob
+  for file in "${ADAPTER_DIR}"/*; do
+    [ -f "$file" ] || continue
+    base="$(basename "$file")"
+    case "$base" in
+      adapter.env|lefthook.fragment.yml) continue ;;
+    esac
+    cp "$file" "${dest}/${base}"
+  done
+  [ "$had_dotglob" -eq 1 ] || shopt -u dotglob
+
+  if [ -n "${ADAPTER_POST_GENERATE:-}" ]; then
+    ( cd "$dest" && eval "$ADAPTER_POST_GENERATE" )
+  fi
 
   register_config_root "$project" "$rel"
   merge_lefthook_fragment "${ADAPTER_DIR}/lefthook.fragment.yml" "$project" "$rel"

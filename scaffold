@@ -27,6 +27,19 @@ usage:
 EOF
 }
 
+# require_tools — a green test suite under `mise exec` proves nothing about
+# running scaffold bare, so fail here, by name, before touching disk.
+require_tools() {
+  local tool missing=()
+
+  for tool in git mise jq yq; do
+    command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+  done
+
+  [ "${#missing[@]}" -eq 0 ] && return 0
+  die "missing required tool(s): ${missing[*]} — run scaffold through 'mise exec -- ./scaffold ...', or 'mise install' in the toolbox root"
+}
+
 cmd_list() {
   local adapter name status=0
   local -a output
@@ -43,7 +56,7 @@ cmd_list() {
       status=1
     fi
 
-    unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_GENERATOR
+    unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_GENERATOR ADAPTER_POST_GENERATE
   done
 
   printf '%s\n' "${output[@]}" | sort
@@ -52,6 +65,20 @@ cmd_list() {
 
 cmd_lint() {
   lint_adapters "${SCAFFOLD_ROOT}/adapters"
+}
+
+# cmd_new_cleanup <target> <exit-status> — an EXIT trap, not ERR: die() exits
+# directly and never trips an ERR trap, so ERR alone misses e.g. the role
+# mismatch below. Removes a half-built project so a retry does not trip
+# init_project's overwrite guard.
+cmd_new_cleanup() {
+  local target="$1" status="$2"
+
+  [ "$status" -eq 0 ] && return 0
+  [ -n "$target" ] || return 0
+
+  rm -rf "$target"
+  warn "removed incomplete project: ${target}"
 }
 
 cmd_new() {
@@ -73,6 +100,7 @@ cmd_new() {
   done
 
   init_project "$target" "$name"
+  trap 'cmd_new_cleanup "$target" "$?"' EXIT
 
   local entry flag adapter
   if [ "${#requested[@]}" -gt 0 ]; then
@@ -87,10 +115,13 @@ cmd_new() {
   fi
 
   finalize_project "$target"
+  trap - EXIT
   log "created ${target}"
 }
 
 main() {
+  require_tools
+
   [ $# -gt 0 ] || { usage >&2; exit 1; }
 
   local command="$1"; shift
