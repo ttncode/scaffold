@@ -34,7 +34,10 @@ teardown() {
   cd "$PROJECT"
   scaffold add apps/worker --adapter nestjs
   run bash -c "git -C '${PROJECT}' diff --numstat -- .github/workflows/ci.yml"
-  [[ "$output" == "1"$'\t'"1"* ]]
+  # exact match, not a prefix: a trailing wildcard here would also match
+  # 1\t10, 1\t19, 1\t100 ... and this is the one assertion that says the
+  # CI-diff contract actually holds.
+  [ "$output" = "1"$'\t'"1"$'\t'".github/workflows/ci.yml" ]
 }
 
 @test "add refuses a path that already exists" {

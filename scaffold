@@ -182,9 +182,11 @@ cmd_add() {
 
   # mise.toml alone is not proof of a scaffold project — a repo can carry
   # its own, unrelated mise.toml. monorepo_root is the marker init_project
-  # writes and nothing else has a reason to.
+  # writes and nothing else has a reason to, but that detail means nothing
+  # to a user — the message stays in their terms and says what to do next,
+  # like its sibling above.
   { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
-    || die "not a scaffold project (no monorepo_root mise.toml at ${project})"
+    || die "not a scaffold project: ${project} — run 'scaffold add' from inside a project created by 'scaffold new'"
 
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
@@ -199,7 +201,13 @@ cmd_add() {
   # docs/decisions/0017 already named and deliberately left off by default.
   # relaxed here for exactly this one call, the same way
   # resolve_minimum_release_age below relaxes minimum-release-age only for
-  # its own resolution pass — never shipped in the project itself.
+  # its own resolution pass — never shipped in the project itself. removed
+  # at two separate sites, both required (see cmd_add_cleanup above and
+  # the explicit sed below) — not one shared mechanism, so neither strip
+  # is redundant with the other. a caller who already had this exact line
+  # in their own pnpm-workspace.yaml on purpose loses it too, and briefly
+  # sees a duplicate key while this call runs; known, not fixed — see
+  # docs/decisions/0017.
   local workspace_file="${project}/pnpm-workspace.yaml"
   local reconcile=""
   [ -f "$workspace_file" ] && adapter_is_typescript "$adapter" && reconcile="$workspace_file"
@@ -232,7 +240,6 @@ cmd_add() {
   fi
 
   sync_ci_roots "$project"
-  trap - EXIT
 
   # packages/types and the all-typescript pnpm workspace are decided once,
   # at `scaffold new` time, from every adapter requested then (see
@@ -250,7 +257,14 @@ cmd_add() {
   # owns, before those changes become part of their history. it also means
   # `add` never sweeps in whatever else the caller already had in progress
   # elsewhere in the repo.
+  #
+  # this runs before trap - EXIT, not after: staging is still part of what
+  # this run is responsible for, so a failure here is covered by the same
+  # cleanup as every earlier step, the same way cmd_new's own commit runs
+  # before its trap disarms.
   git -C "$project" add -A -- "$rel"
+
+  trap - EXIT
 
   log "added ${rel} using ${adapter}; review and commit"
 }

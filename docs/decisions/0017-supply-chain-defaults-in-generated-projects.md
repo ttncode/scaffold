@@ -142,13 +142,47 @@ whether it clears the immediate failure:
   (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`). `cmd_add` relaxes
   `confirmModulesPurge` the same way `resolve_minimum_release_age` relaxes
   minimum-release-age: appended to `pnpm-workspace.yaml` immediately before
-  the adapter's generator runs, removed again immediately after (on both
-  success and failure, via the same EXIT-trap cleanup that removes a failed
-  add's directory), never left in the file handed to the caller. `cmd_add`
-  then runs `sync_workspace_lockfile` and `resolve_minimum_release_age`
-  again itself, so a second (or third, ...) app joining the workspace gets
-  the same lockfile reconciliation and minimum-release-age recording the
-  first round of apps got from `scaffold new`.
+  the adapter's generator runs, never left in the file handed to the
+  caller. Removal happens at **two separate sites**, not one shared
+  mechanism, and both are required:
+  - the success path removes it with an explicit `sed -i` right after
+    `apply_adapter` returns, before `cmd_add`'s own `trap - EXIT` disarms
+    the cleanup trap;
+  - the failure path never reaches that `sed -i` (a failing `apply_adapter`
+    exits the function immediately), so `cmd_add_cleanup` — the same
+    EXIT-trap handler that removes a failed add's directory — also strips
+    the line, unconditionally, before it even looks at the exit status.
+
+  Deleting either site as "redundant" is a real regression, not a
+  simplification: without the explicit success-path `sed -i`, the
+  relaxation ships to the client on every *successful* `scaffold add`;
+  without `cmd_add_cleanup`'s strip, it survives every *failed* one.
+
+  **Known gap, not fixed as part of this decision**: both removal sites
+  match the line blindly (`sed -i
+  '/^confirmModulesPurge: false$/d'`), with no way to tell "the line
+  `cmd_add` just appended" apart from "an identical line the caller had
+  already written into their own `pnpm-workspace.yaml` before ever running
+  `scaffold add`" — deliberately, to silence the purge prompt for every
+  future install, not just this one. Two consequences if that line was
+  already there: for the span of the call, `pnpm-workspace.yaml` holds a
+  duplicate `confirmModulesPurge` key (append does not check for an
+  existing one first); and both removal sites strip *every* matching line,
+  so the caller's own line is deleted along with the temporary one,
+  silently reversing a choice they made in a file they own. Narrow blast
+  radius — the setting only ever makes a future install *more* cautious by
+  default, never less safe, and the caller would simply see the prompt
+  again and could re-add the line — but real. The fix, if this gap is
+  closed later: check membership before mutating
+  (`grep -qx 'confirmModulesPurge: false' "$workspace_file"`), and skip
+  both the append and the strip when the line already exists, rather than
+  append-then-strip unconditionally.
+
+  `cmd_add` then runs `sync_workspace_lockfile` and
+  `resolve_minimum_release_age` again itself, so a second (or third, ...)
+  app joining the workspace gets the same lockfile reconciliation and
+  minimum-release-age recording the first round of apps got from
+  `scaffold new`.
 
 ## Alternatives considered
 
