@@ -186,7 +186,7 @@ cmd_add() {
   # to a user — the message stays in their terms and says what to do next,
   # like its sibling above.
   { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
-    || die "not a scaffold project: ${project} — run 'scaffold add' from inside a project created by 'scaffold new'"
+    || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
 
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
@@ -220,6 +220,15 @@ cmd_add() {
   # $reconcile are baked into the trap command via printf %q because the
   # locals go out of scope, and with them their values, once this function
   # returns.
+  #
+  # this trap's reach is partial, not a rollback of the whole function: it
+  # restores exactly $dest and the confirmModulesPurge line, nothing more.
+  # a failure after sync_ci_roots below (or, without $reconcile, after
+  # apply_adapter) leaves the project with a config_roots entry, a ci.yml
+  # roots line, or a merged lefthook fragment pointing at an app that got
+  # removed — there is no general undo for edits already made to files
+  # this run did not create. inherent to adding into a repository the
+  # caller already owns, not something this trap can be made to cover.
   # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
   trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
 
@@ -240,6 +249,7 @@ cmd_add() {
   fi
 
   sync_ci_roots "$project"
+  trap - EXIT
 
   # packages/types and the all-typescript pnpm workspace are decided once,
   # at `scaffold new` time, from every adapter requested then (see
@@ -258,15 +268,20 @@ cmd_add() {
   # `add` never sweeps in whatever else the caller already had in progress
   # elsewhere in the repo.
   #
-  # this runs before trap - EXIT, not after: staging is still part of what
-  # this run is responsible for, so a failure here is covered by the same
-  # cleanup as every earlier step, the same way cmd_new's own commit runs
-  # before its trap disarms.
-  git -C "$project" add -A -- "$rel"
-
-  trap - EXIT
-
-  log "added ${rel} using ${adapter}; review and commit"
+  # staging deliberately sits outside the cleanup net, after trap - EXIT
+  # has already disarmed it: this is the one step whose failure should not
+  # cost the caller a regeneration. everything above it is real, expensive
+  # work (a network-fetched app, a reconciled lockfile, an updated ci
+  # workflow) that is already correct; cleanup here could only remove $dest
+  # and the confirmModulesPurge line anyway (see the trap comment above),
+  # so treating a staging failure as fatal would destroy good output to
+  # "fix" a problem the cleanup mechanism cannot actually fix. a failure is
+  # trivially retriable by hand (`git add`), so it is reported, not fatal.
+  if git -C "$project" add -A -- "$rel"; then
+    log "added ${rel} using ${adapter}; review and commit"
+  else
+    warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
+  fi
 }
 
 main() {
