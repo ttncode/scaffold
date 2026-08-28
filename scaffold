@@ -118,11 +118,13 @@ cmd_new() {
       [ "$ADAPTER_ROLE" = "$flag" ] \
         || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
       apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
-      # build.yml/release.yml default to apps/api; the app it actually
-      # builds an image for is whichever api or app adapter was requested.
-      case "$flag" in
-        api|app) set_image_context "$target" "$(role_path "$ADAPTER_ROLE")" ;;
-      esac
+      # build.yml/release.yml default to apps/api; every requested role
+      # (web, api, or app) is a candidate for the one image this project
+      # builds, so the context tracks whichever was applied most recently.
+      # a project requesting more than one role still gets only one image
+      # (see Task 9's report note on compose.yaml's single generic app
+      # service) — same pre-existing scope boundary, not new here.
+      set_image_context "$target" "$(role_path "$ADAPTER_ROLE")"
     done
   fi
 
