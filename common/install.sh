@@ -27,6 +27,10 @@ create_directory() {
 
 # download_release_assets — compose.yaml is always overwritten with the
 # release's own copy, so it and the image it references never drift apart.
+# note: that overwrite happens before the .env check below, so a refusal
+# there (or any failure after it) leaves a new compose.yaml on disk while
+# the running containers are still on the old release — a mid-upgrade
+# directory, not a lie: the exit code is still 1 and nothing claims success.
 # .env is never overwritten once it exists: it holds this installation's
 # real database password and any edits an operator made, and running this
 # script again (to pick up a new release) must not be able to lose either.
@@ -36,20 +40,22 @@ create_directory() {
 # on the literal default forever with no warning; nothing else in it is
 # validated, since the rest is the operator's own configuration to own.
 # example.env is fetched to a temporary file first and only moved into place
-# once the download and password substitution both succeed. the trap covers
-# every way out of this function — the two explicit failures below, and a
-# SIGINT/SIGTERM landing mid-download — with one mechanism, so a curl that
-# dies partway through, or an operator who interrupts it, cannot leave a
-# partial file for the next run's `[ -f .env ]` check to mistake for real
-# configuration, and cannot leave an orphaned temp file holding a plaintext
-# password lying around either.
+# once the download and password substitution both succeed. two mechanisms,
+# not one, cover every way out of this function: the explicit `rm -f`
+# before each `return 1` covers the two ordinary failures (by then $tmp_env
+# is a live local, and the trap alone would not fire until the whole script
+# exits, long after $tmp_env has gone out of scope); the EXIT trap covers a
+# SIGINT/SIGTERM landing mid-download, which no explicit `rm -f` in this
+# function's own body can reach. neither leaves a partial file for the next
+# run's `[ -f .env ]` check to mistake for real configuration, and neither
+# leaves an orphaned temp file holding a plaintext password behind.
 download_release_assets() {
   echo "downloading compose.yaml..."
   curl -fsSL "${RepoUrl}/compose.yaml" -o ./compose.yaml || return 1
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
-    if grep -q 'DB_PASSWORD=changeme' .env; then
+    if grep -qx 'DB_PASSWORD=changeme' .env; then
       echo ".env has DB_PASSWORD=changeme; set a real password in .env before running this again"
       return 1
     fi
@@ -60,8 +66,16 @@ download_release_assets() {
   local tmp_env
   tmp_env="$(mktemp ./.env.XXXXXX)" || return 1
   trap 'rm -f "$tmp_env"' EXIT
-  curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env" || return 1
-  generate_database_password "$tmp_env" || return 1
+  if ! curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env"; then
+    trap - EXIT
+    rm -f "$tmp_env"
+    return 1
+  fi
+  if ! generate_database_password "$tmp_env"; then
+    trap - EXIT
+    rm -f "$tmp_env"
+    return 1
+  fi
   mv "$tmp_env" ./.env
   trap - EXIT
 }
