@@ -1,6 +1,7 @@
 # production-like stack. clients run this file; it is attached to every
 # release so the compose file and the image always match (see
-# docs/decisions/0014). every variable below has a default so this file
+# docs/decisions/0014-deployment-deferred-with-seams.md in the scaffold
+# toolbox repository). every variable below has a default so this file
 # validates in a freshly generated project, before a .env exists at all —
 # the real values live in .env, written by install.sh from example.env.
 name: app
@@ -10,7 +11,9 @@ services:
     # ghcr.io/CHANGEME/CHANGEME is a placeholder: scaffold generates this
     # project before it has a github repository, so it cannot know its own
     # registry path. replace it once, by hand, after the repository exists
-    # and its first image has been published (see docs/decisions/0014).
+    # and its first image has been published (see
+    # docs/decisions/0014-deployment-deferred-with-seams.md in the scaffold
+    # toolbox repository).
     image: ghcr.io/CHANGEME/CHANGEME:${IMAGE_TAG:-latest}
     env_file:
       # required: false so this validates before a .env exists; install.sh

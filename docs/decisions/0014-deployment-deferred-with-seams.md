@@ -90,18 +90,20 @@ constrains them:
   is no automated path from a merged pull request to a running client
   instance.
 - Every generated project ships a `compose.yaml` whose `app.image` is a
-  placeholder until someone edits it. Run straight from `git`, `docker
-  compose up` against an unedited placeholder fails to pull an image that
-  does not exist — expected, not a bug: the file is only meant to be run
-  after a real image has been published. Run through `install.sh`, the
-  failure is caught earlier and explained: `check_image_configured` greps
-  the downloaded `compose.yaml` for the placeholder before starting the
-  stack and, if it is still there, says to edit the image line rather than
-  letting `docker compose up` fail with a bare "pull access denied" that
-  explains nothing. That guard only exists in `install.sh` — a client who
-  runs `docker compose up` directly against a project's working tree still
-  hits the raw Docker error, with nothing in `example.env` or a comment
-  reachable from that path pointing them at the fix.
+  placeholder until someone edits it. Run straight from a checked-out
+  working tree, `docker compose up` against an unedited placeholder fails
+  before it ever tries to pull anything — confirmed against a live Docker
+  daemon: `invalid reference format: repository name (CHANGEME/CHANGEME)
+  must be lowercase`. That error names the placeholder outright, milder
+  than a bare "pull access denied" would be, so this path is already
+  reasonably self-explanatory without extra code. Run through `install.sh`,
+  the failure is caught even earlier: `check_image_configured` greps the
+  downloaded `compose.yaml`'s image line for a bare `CHANGEME` before
+  starting the stack and, if it is still there, says to edit the image
+  line rather than let Docker's own error be the only signal. That guard
+  only exists in `install.sh` — a client who runs `docker compose up`
+  directly against a project's working tree still gets Docker's own
+  message, not this project's, though that message is already actionable.
 - `install.sh`'s `RepoUrl` is a project-wide, not a per-release, edit: it
   changes once, when the repository is created, and never again — release
   tags are resolved through GitHub's `.../releases/latest/download/...`
