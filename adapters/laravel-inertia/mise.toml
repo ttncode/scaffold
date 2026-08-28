@@ -1,8 +1,8 @@
-# composer is pinned the same way as laravel-api's (see docs/decisions/0016
-# for why php itself is not); a fullstack laravel app still needs node,
-# because vite builds the assets — the honest consequence of picking laravel
-# to get one app instead of two, and someone choosing it to avoid node
-# should learn that here, not in ci.
+# composer is pinned the same way as laravel-api's (see the scaffold
+# toolbox's ADR-0016 for why php itself is not — not shipped here); a
+# fullstack laravel app still needs node, because vite builds the assets —
+# the honest consequence of picking laravel to get one app instead of two,
+# and someone choosing it to avoid node should learn that here, not in ci.
 [tools]
 "ubi:composer/composer" = "2.10.2"
 node = "24.15.0"

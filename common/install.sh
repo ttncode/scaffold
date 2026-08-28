@@ -10,9 +10,8 @@ set -o pipefail
 
 # CHANGEME/CHANGEME: filled in by hand once this project has a real github
 # repository and a release has published compose.yaml and example.env —
-# scaffold generates this file before either exists (see
-# docs/decisions/0014-deployment-deferred-with-seams.md in the scaffold
-# toolbox repository).
+# scaffold generates this file before either exists (see the scaffold
+# toolbox's ADR-0014, not shipped here).
 RepoUrl='https://github.com/CHANGEME/CHANGEME/releases/latest/download'
 TargetDir='./app'
 

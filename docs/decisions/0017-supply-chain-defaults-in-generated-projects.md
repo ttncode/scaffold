@@ -59,6 +59,20 @@ whether it clears the immediate failure:
   map), the package has a pure-JS fallback, and denying one specific,
   named, native build is a narrow, auditable decision — not a blanket
   policy change.
+- **`allowBuilds: { esbuild: true }` joins the same map**, added once `docs`
+  started shipping vitepress, which pulls in esbuild as a transitive
+  dependency. Same instrument as `unrs-resolver`, opposite answer: pnpm's
+  default build-script gate (`ERR_PNPM_IGNORED_BUILDS`) blocks esbuild's
+  postinstall exactly the way it blocked `unrs-resolver`'s, but esbuild has
+  no pure-JS fallback — its postinstall fetches the platform binary vite's
+  build actually runs, so denying it does not make the build safer, it just
+  makes docs fail to build. A project with no typescript adapter never
+  joins `common/pnpm-workspace.yaml` at all (that file is deleted outright —
+  see `scaffold`'s `cmd_new`), so `docs` ships a second,
+  standalone `common/docs/pnpm-workspace.yaml` carrying the identical
+  `allowBuilds: { esbuild: true }` entry for the identical reason, kept in
+  sync by hand since the two files serve different projects and are never
+  both present at once.
 - **`confirmModulesPurge` does not ship in `common/pnpm-workspace.yaml`.**
   It is set instead as `env = { npm_config_confirm_modules_purge = "false" }`
   on the `install` and `ci-unit` mise tasks, in every adapter's
@@ -205,3 +219,15 @@ whether it clears the immediate failure:
   `--ci`-relative prompting logic that still throws (not auto-writes) in a
   non-interactive, non-CI-flagged context — not usable from a
   non-interactive generation pipeline as-is.
+- **`allowBuilds: { esbuild: false }`, denying it the same way as
+  `unrs-resolver`.** Rejected: verified directly (a denied, then an allowed,
+  frozen install of `docs`) that esbuild's postinstall is not optional the
+  way `unrs-resolver`'s is — its own package has no pure-JS implementation
+  to fall back to, so denying the build does not trade safety for
+  compatibility, it just leaves `vitepress build` unable to run at all.
+- **Not shipping vitepress in `docs` at all, to avoid the native
+  dependency entirely.** Rejected: it is the only real, maintained static
+  site generator this decision considered that also satisfies Task 11's own
+  requirement of a dead-link check failing the build (`ignoreDeadLinks:
+  false`); trading that away to dodge one `allowBuilds` line is not a good
+  trade.

@@ -1,8 +1,8 @@
 # composer is the only tool pinned here — mise's php backends compile from
 # source and this machine's build fails on missing system libraries, so php
-# comes from the system instead (see docs/decisions/0016). php still lives
-# only in this file and nowhere else in the project: the root mise.toml never
-# learns that this app is written in php.
+# comes from the system instead (see the scaffold toolbox's ADR-0016, not
+# shipped here). php still lives only in this file and nowhere else in the
+# project: the root mise.toml never learns that this app is written in php.
 [tools]
 "ubi:composer/composer" = "2.10.2"
 

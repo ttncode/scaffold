@@ -1,7 +1,7 @@
 [tasks.install]
-# docs joins the same workspace apps/packages-types do; see docs/decisions/0017
-# in the scaffold toolbox repository for why this env is needed on a frozen
-# install.
+# docs joins the same workspace apps/packages-types do; see the scaffold
+# toolbox's ADR-0017 (not shipped here) for why this env is needed on a
+# frozen install.
 env = { npm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 
