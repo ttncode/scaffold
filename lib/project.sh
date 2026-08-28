@@ -16,6 +16,11 @@ init_project() {
 
   git -C "$dir" init --initial-branch=main --quiet
   cp -R "${SCAFFOLD_ROOT}/common/." "${dir}/"
+  # cp -R preserves common/install.sh's committed executable bit, but that
+  # depends on the source checkout's own mode surviving clone/checkout
+  # (e.g. core.fileMode); set it explicitly so a generated project's
+  # install.sh runs regardless of how this toolbox itself was checked out.
+  chmod +x "${dir}/install.sh"
 
   sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"

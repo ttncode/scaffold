@@ -11,7 +11,9 @@ lockfile = true
 [tasks.lint]
 # discovers tracked shell files rather than listing them, so a new one is
 # caught automatically; xargs -r skips the run when nothing matches yet.
-run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' | xargs -r shellcheck"
+# common/*.sh (install.sh) is included: it ships into every generated
+# project, so it is linted here same as the toolbox's own scripts.
+run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs -r shellcheck"
 
 [tasks.test]
 run = "bats tests/"
