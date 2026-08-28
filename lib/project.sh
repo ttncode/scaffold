@@ -25,8 +25,26 @@ init_project() {
   sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"
 
+  local file
+  for file in "${dir}/.github/workflows/build.yml" "${dir}/.github/workflows/release.yml"; do
+    sed -i.bak "s|@PROJECT_NAME@|${name}|g" "$file"
+    rm -f "${file}.bak"
+  done
+
   # a config not yet trusted makes mise prompt or refuse instead of working.
   mise trust -y --quiet -C "$dir"
+}
+
+# set_image_context <project> <relative-path> — build.yml and release.yml
+# default to apps/api; rewrite both to the role's actual path when the
+# requested adapter builds a deployable image somewhere else.
+set_image_context() {
+  local project="$1" rel="$2" file
+  for file in "${project}/.github/workflows/build.yml" \
+              "${project}/.github/workflows/release.yml"; do
+    sed -i.bak "s|^      context: .*|      context: ${rel}|" "$file"
+    rm -f "${file}.bak"
+  done
 }
 
 # enable_typescript_workspace <project>

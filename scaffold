@@ -112,6 +112,11 @@ cmd_new() {
       [ "$ADAPTER_ROLE" = "$flag" ] \
         || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
       apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
+      # build.yml/release.yml default to apps/api; the app it actually
+      # builds an image for is whichever api or app adapter was requested.
+      case "$flag" in
+        api|app) set_image_context "$target" "$(role_path "$ADAPTER_ROLE")" ;;
+      esac
     done
   fi
 

@@ -1,0 +1,14 @@
+name: Build
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions: {}
+jobs:
+  build:
+    uses: you/.github/.github/workflows/app-build.yml@v1
+    with:
+      image: ghcr.io/you/@PROJECT_NAME@
+      context: apps/api
