@@ -5,6 +5,10 @@ packages:
 # unrs-resolver (pulled in by typescript-eslint) ships a native postinstall
 # build; pnpm blocks an unreviewed build script on first install in a
 # workspace instead of just warning, which would abort ci-unit non-interactively.
-# it has a pure-js fallback, so denying the build is safe.
+# it has a pure-js fallback, so denying the build is safe. esbuild (pulled in
+# by vitepress) needs the same approval, but has no pure-js fallback: its
+# postinstall fetches the platform binary vite's build actually runs, so it
+# is allowed rather than denied.
 allowBuilds:
   unrs-resolver: false
+  esbuild: true

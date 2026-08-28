@@ -26,7 +26,8 @@ init_project() {
   rm -f "${dir}/mise.root.toml"
 
   local file
-  for file in "${dir}/.github/workflows/build.yml" "${dir}/.github/workflows/release.yml"; do
+  for file in "${dir}/.github/workflows/build.yml" "${dir}/.github/workflows/release.yml" \
+              "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md"; do
     sed -i.bak "s|@PROJECT_NAME@|${name}|g" "$file"
     rm -f "${file}.bak"
   done

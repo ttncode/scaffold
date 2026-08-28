@@ -135,6 +135,11 @@ cmd_new() {
 
   if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
     enable_typescript_workspace "$target"
+    # docs ships its own standalone pnpm-workspace.yaml/pnpm-lock.yaml for a
+    # project with no typescript adapter; here it joins the real workspace
+    # instead, so its own copies would only sit there unused at best, and
+    # shadow the root pnpm-workspace.yaml for docs' own tasks at worst.
+    rm -f "${target}/docs/pnpm-workspace.yaml" "${target}/docs/pnpm-lock.yaml"
     sync_workspace_lockfile "$target"
     resolve_minimum_release_age "$target"
   else

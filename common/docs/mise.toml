@@ -1,26 +1,38 @@
 [tasks.install]
-run = "true"
+# docs joins the same workspace apps/packages-types do; see docs/decisions/0017
+# in the scaffold toolbox repository for why this env is needed on a frozen
+# install.
+env = { npm_config_confirm_modules_purge = "false" }
+run = "pnpm install --frozen-lockfile"
 
 [tasks.format]
-run = "true"
+run = "pnpm exec prettier --check ."
 
 [tasks."format-fix"]
-run = "true"
+run = "pnpm exec prettier --write ."
 
 [tasks.lint]
-run = "true"
+run = "node scripts/check-paths.mjs"
 
+# documentation that ci does not verify is wrong within six months, so the
+# structural checks run as this root's type check.
 [tasks.check]
-run = "true"
+run = ["node scripts/check-paths.mjs", "node scripts/check-adrs.mjs"]
 
 [tasks.test]
 run = "true"
 
 [tasks.build]
-run = "true"
+run = "pnpm exec vitepress build ."
 
 [tasks.ci-unit]
-run = "true"
+env = { npm_config_confirm_modules_purge = "false" }
+run = [
+  { task = ":install" },
+  { task = ":format" },
+  { task = ":check" },
+  { task = ":build" },
+]
 
 [tasks.checklist]
-run = "true"
+run = [{ task = ":ci-unit" }]
