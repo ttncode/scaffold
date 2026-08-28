@@ -30,31 +30,40 @@ create_directory() {
 # .env is never overwritten once it exists: it holds this installation's
 # real database password and any edits an operator made, and running this
 # script again (to pick up a new release) must not be able to lose either.
+# a *kept* .env is still checked for the one thing this script itself would
+# have put there — an unset DB_PASSWORD=changeme — so an upgrade from a
+# pre-patch install, or a hand-written .env, cannot run production postgres
+# on the literal default forever with no warning; nothing else in it is
+# validated, since the rest is the operator's own configuration to own.
 # example.env is fetched to a temporary file first and only moved into place
-# once the download and password substitution both succeed, so a curl that
-# dies partway through cannot leave a partial or unedited .env behind for
-# the next run's `[ -f .env ]` check to mistake for a real configuration.
+# once the download and password substitution both succeed. the trap covers
+# every way out of this function — the two explicit failures below, and a
+# SIGINT/SIGTERM landing mid-download — with one mechanism, so a curl that
+# dies partway through, or an operator who interrupts it, cannot leave a
+# partial file for the next run's `[ -f .env ]` check to mistake for real
+# configuration, and cannot leave an orphaned temp file holding a plaintext
+# password lying around either.
 download_release_assets() {
   echo "downloading compose.yaml..."
   curl -fsSL "${RepoUrl}/compose.yaml" -o ./compose.yaml || return 1
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
+    if grep -q 'DB_PASSWORD=changeme' .env; then
+      echo ".env has DB_PASSWORD=changeme; set a real password in .env before running this again"
+      return 1
+    fi
     return 0
   fi
 
   echo "downloading example.env..."
   local tmp_env
   tmp_env="$(mktemp ./.env.XXXXXX)" || return 1
-  if ! curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env"; then
-    rm -f "$tmp_env"
-    return 1
-  fi
-  if ! generate_database_password "$tmp_env"; then
-    rm -f "$tmp_env"
-    return 1
-  fi
+  trap 'rm -f "$tmp_env"' EXIT
+  curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env" || return 1
+  generate_database_password "$tmp_env" || return 1
   mv "$tmp_env" ./.env
+  trap - EXIT
 }
 
 # generate_database_password <file> — fails hard, instead of reporting
@@ -62,6 +71,13 @@ download_release_assets() {
 # password quietly staying "changeme" because example.env's literal text
 # drifted is a credential silently defaulting to a known value, which must
 # be loud, not swallowed.
+#
+# known, not fixed: the password is briefly visible in this process's own
+# argv (sed's own command-line argument) to other local users on the same
+# machine for the instant sed runs. pre-existing in the immich script this
+# was adapted from, local-only, and fixing it properly means restructuring
+# how the substitution happens (e.g. piping it in rather than passing it as
+# an argument) — not done here.
 generate_database_password() {
   local file="$1" password
   password="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
@@ -78,12 +94,14 @@ generate_database_password() {
 # CHANGEME with "invalid reference format"), but catching it here first,
 # with a message that says what to actually do, means an operator doesn't
 # have to translate a generic docker error into "go edit compose.yaml".
-# matches a bare CHANGEME anywhere on the image line, not the exact
-# placeholder string, so a half-edit (e.g. ghcr.io/myorg/CHANGEME) still
-# trips it instead of sailing through into the same failure this guard
+# matches CHANGEME case-insensitively, anywhere on the image line, not the
+# exact placeholder string: a half-edit (e.g. ghcr.io/myorg/CHANGEME, or
+# ghcr.io/myorg/changeme — the likelier of the two, since docker requires a
+# lowercase repository name and a half-edit naturally lowercases it) still
+# trips the guard instead of sailing through into the same failure it
 # exists to prevent.
 check_image_configured() {
-  if grep 'image:' compose.yaml | grep -q 'CHANGEME'; then
+  if grep 'image:' compose.yaml | grep -qi 'CHANGEME'; then
     echo "compose.yaml's image line still has a CHANGEME placeholder; edit it to this project's real registry path, then re-run this script"
     return 1
   fi

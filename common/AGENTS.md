@@ -6,5 +6,8 @@ This project follows a fixed task contract: `install`, `format`, `format-fix`,
 same way CI does, or `mise run checklist` from the project root to check
 every root.
 
-Architecture decisions live in `docs/decisions`. Read the relevant ones before
-changing behavior they cover.
+This project ships no `docs/decisions` directory of its own — that convention
+belongs to the scaffold toolbox that generated it, not to what it generated.
+If this project starts recording its own architecture decisions, put them in
+`docs/decisions` and read the relevant ones before changing behavior they
+cover.
