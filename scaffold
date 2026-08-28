@@ -71,6 +71,12 @@ cmd_lint() {
 # directly and never trips an ERR trap, so ERR alone misses e.g. the role
 # mismatch below. removes a half-built project so a retry does not trip
 # init_project's overwrite guard.
+# known gap, not fixed here: this only removes the directory, it does not
+# touch any child process an adapter's own generator left running inside it
+# (e.g. laravel-inertia's starter kit shells out to npm install/build during
+# composer create-project). a Ctrl-C here can orphan that child under init
+# rather than kill it, so it keeps writing into $target after this trap has
+# already rm -rf'd it — cleanup can race a write it never asked to happen.
 cmd_new_cleanup() {
   local target="$1" status="$2"
 
