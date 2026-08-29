@@ -16,10 +16,13 @@ ESLint and Prettier for now.
 Slower linting, full plugin coverage including `eslint-config-next`. Revisit
 when oxlint covers the Next.js and accessibility rule sets.
 
-`@nestjs/cli`'s v12 application template dropped ESLint for oxlint upstream
-(no choice made here), so the `nestjs` adapter's `lint` task runs oxlint, not
-ESLint — the trigger condition above fired for that one adapter before this
-project revisited it. `nextjs` is unaffected and still runs ESLint.
+`@nestjs/cli`'s v12 application template dropped ESLint for oxlint upstream,
+which looked like this ADR's own trigger condition firing for `nestjs` —
+it is not, yet. v12 also drops jest for a vitest config with no
+decorator-metadata transform, so Nest's own DI breaks in the generated
+project's own default unit test (`adapters/nestjs/adapter.env` has the
+full reproduction). `nestjs` stays pinned to `@nestjs/cli@11` and stays on
+ESLint until that is fixed upstream, not because this ADR was revisited.
 
 ## Alternatives considered
 

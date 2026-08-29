@@ -8,8 +8,13 @@ packages:
 # it has a pure-js fallback, so denying the build is safe. esbuild (pulled in
 # by vitepress) needs the same approval, but has no pure-js fallback: its
 # postinstall fetches the platform binary vite's build actually runs, so it
-# is allowed rather than denied. see the scaffold toolbox's ADR-0017 (not
-# shipped here) for both.
+# is allowed rather than denied. @parcel/watcher (pulled in by jest-haste-map,
+# every jest run not just --watch) also has a native postinstall; jest-haste-map
+# falls back to plain fs crawling when it is not built, and a one-shot
+# `jest --passWithNoTests` run never needs the fast watcher, so it is denied
+# the same way unrs-resolver is. see the scaffold toolbox's ADR-0017 (not
+# shipped here) for all three.
 allowBuilds:
   unrs-resolver: false
   esbuild: true
+  "@parcel/watcher": false

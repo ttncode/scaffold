@@ -13,13 +13,13 @@ run = "pnpm exec prettier --check ."
 run = "pnpm exec prettier --write ."
 
 [tasks.lint]
-run = "pnpm exec oxlint src/ test/ --max-warnings 0"
+run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
 
 [tasks.check]
 run = "pnpm exec tsc --noEmit"
 
 [tasks.test]
-run = "pnpm exec vitest --run --passWithNoTests"
+run = "pnpm exec jest --passWithNoTests"
 
 [tasks.build]
 run = "pnpm exec nest build"
