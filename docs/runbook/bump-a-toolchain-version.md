@@ -22,9 +22,13 @@ mise install
 ```
 
 This rewrites `mise.lock` (for this toolbox's own tools) with the newly
-resolved version and checksum. A generated project has no shipped
-`mise.lock` of its own — the client's first `mise install` produces it —
-so a `common/`-level bump has nothing local to re-lock here.
+resolved version and checksum. `mise.lock` itself is tracked, here and in
+every generated project (docs/tour/01-toolchain.md) — what a `common/`-
+level bump has *no* local file for is a pre-built one: `common/` ships no
+`mise.lock` template, because a generated project doesn't have one until
+its own first `mise install` creates it. From that point on it's a normal
+tracked file, same as this toolbox's — there's just nothing sitting in
+`common/` for this step to re-lock right now.
 
 ## 4. Verify
 

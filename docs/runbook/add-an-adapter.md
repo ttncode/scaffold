@@ -17,13 +17,14 @@ ADAPTER_ROLE="api"          # web, api, or app
 ADAPTER_TIER="B"
 ADAPTER_LANGUAGE="go"       # "typescript" opts into packages/types
 ADAPTER_GENERATOR='<the framework's own generator, writing into "$APP_DIR">'
+# ADAPTER_POST_GENERATE='<one-time fixup for a real generator bug>'
 ```
 
-`ADAPTER_POST_GENERATE` is optional: a one-time shell command run right
-after the generator, for fixups the generator itself gets wrong.
-`adapters/nestjs/adapter.env` uses it to un-await `bootstrap()` and run
-prettier once. Only reach for it once you've hit a real generator bug —
-it's a patch, not a default step.
+`ADAPTER_POST_GENERATE` is optional — most adapters omit it. It's a
+one-time shell command run right after the generator, for fixups the
+generator itself gets wrong: `adapters/nestjs/adapter.env` sets it to
+un-await `bootstrap()` and run prettier once. Only reach for it once
+you've hit a real generator bug — it's a patch, not a default step.
 
 ## 3. Write `mise.toml`
 
@@ -43,22 +44,46 @@ no extra git hook ships `{}` as its fragment.
 ```bash
 scaffold lint
 ./scaffold new /tmp/probe --api <name>
-cd /tmp/probe && mise run checklist
+cd /tmp/probe && mise run "//apps/api:checklist"
 ```
 
-If `ADAPTER_LANGUAGE="typescript"`, also verify it as the *second*
-typescript adapter in a project, not just alone — this exact combination
-has broken twice before (ADR-0017: an orphaned per-app lockfile, a
-generator that doesn't notice the workspace root's config already there):
+(the project root's own `mise run checklist` only builds `docs` — see
+docs/tour/06-docs-site.md — so it proves nothing about the new app; the
+`//apps/api:` prefix is what actually runs its checklist.)
+
+If `ADAPTER_LANGUAGE="typescript"`, that alone doesn't prove the thing
+that has actually broken before: a *second* typescript app sharing the
+same workspace. That happens on two different code paths, and only one
+still carries a known, open gap.
+
+**Via `scaffold new`** (both requested together — no known gap):
 
 ```bash
 ./scaffold new /tmp/probe2 --api <name> --web nextjs
-cd /tmp/probe2 && mise run checklist
 ```
 
-Confirm the shared types package still resolves (packages/types, in the
-generated project) and there's exactly one `pnpm-lock.yaml`, at the
-project root — not a second one under either app.
+**Via `scaffold add`** (joining a workspace that's already installed —
+`cmd_add` relaxes `confirmModulesPurge` in `pnpm-workspace.yaml` then
+strips the line back out by blind text match; if the caller had already
+added that exact line themselves, on purpose, this silently deletes it
+too — known, not fixed, see the comment above `reconcile=` in `scaffold`
+and ADR-0017's Consequences):
+
+```bash
+./scaffold new /tmp/probe3 --api nestjs
+cd /tmp/probe3 && scaffold add apps/<name> --adapter <name>
+```
+
+Either way, confirm the workspace itself, not just a green checklist —
+this is the part that broke:
+
+```bash
+find /tmp/probe3 -name pnpm-lock.yaml -not -path '*/node_modules/*'
+test -f /tmp/probe3/packages/types/package.json && echo "types package: ok"
+grep confirmModulesPurge /tmp/probe3/pnpm-workspace.yaml   # expect no match
+```
+
+The first command must list exactly one lockfile, at the project root.
 
 ## 6. Add the smoke test
 
