@@ -39,9 +39,13 @@ Excluded, and why:
 - **`docs/decisions/`, `docs/superpowers/`** (this repository's own, at the
   root — not `common/docs/decisions/`, which ships and is covered below).
   These are this project's planning record, not files copied from upstream.
-- **`lib/*.sh`, `scaffold`, `tests/*.bats`, `mise.toml`, `mise.lock`** — the
+- **`lib/*.sh`, `scaffold`, `scripts/*.sh`, `tests/*.bats`, `mise.toml`,
+  `mise.lock`, `.github/workflows/*.yml`** (this repository's own CI, not
+  `common/.github/workflows/`, which ships and is covered below) — the
   toolbox's own implementation, covered collectively by the `scaffold` row
-  below.
+  below. immich ships files with the same names (`ci.yml`, `security.yml`);
+  these are original, built for this toolbox's own test suite, not adapted
+  from them.
 
 ## Table
 

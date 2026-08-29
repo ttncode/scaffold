@@ -1,0 +1,38 @@
+name: Provenance
+on:
+  schedule:
+    # monthly, matching the cadence docs/PROVENANCE.md asks for
+    - cron: "41 4 1 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # check-provenance.sh has no network fallback of its own (a denied
+      # fetch must fail loudly, not read as "everything drifted"); a
+      # partial clone gets the full commit graph without every blob.
+      - run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
+      - id: check
+        env:
+          SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
+        run: ./scripts/check-provenance.sh | tee "${RUNNER_TEMP}/report.txt"
+      - if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" --title "upstream drift detected" \
+            --body-file "${RUNNER_TEMP}/report.txt"
