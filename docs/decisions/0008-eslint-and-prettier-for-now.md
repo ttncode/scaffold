@@ -16,6 +16,11 @@ ESLint and Prettier for now.
 Slower linting, full plugin coverage including `eslint-config-next`. Revisit
 when oxlint covers the Next.js and accessibility rule sets.
 
+`@nestjs/cli`'s v12 application template dropped ESLint for oxlint upstream
+(no choice made here), so the `nestjs` adapter's `lint` task runs oxlint, not
+ESLint — the trigger condition above fired for that one adapter before this
+project revisited it. `nextjs` is unaffected and still runs ESLint.
+
 ## Alternatives considered
 
 - oxlint immediately. Rejected: loses rules that matter more than speed at

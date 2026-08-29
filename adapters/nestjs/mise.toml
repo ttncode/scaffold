@@ -13,7 +13,7 @@ run = "pnpm exec prettier --check ."
 run = "pnpm exec prettier --write ."
 
 [tasks.lint]
-run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
+run = "pnpm exec oxlint src/ test/ --max-warnings 0"
 
 [tasks.check]
 run = "pnpm exec tsc --noEmit"
