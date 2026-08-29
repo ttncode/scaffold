@@ -12,7 +12,17 @@ load_adapter() {
   # into one that does not define it.
   unset -v ADAPTER_POST_GENERATE
   # shellcheck source=/dev/null
-  source "${dir}/adapter.env"
+  # explicit `|| return 1`: a missing/unreadable adapter.env must still
+  # make load_adapter fail (so cmd_list's malformed-adapter branch fires)
+  # rather than let the ADAPTER_TIER default below silently become this
+  # function's last, always-successful command.
+  source "${dir}/adapter.env" || return 1
+  # ADAPTER_TIER is not (yet) contract-required the way NAME/ROLE are, so an
+  # adapter.env that omits it must not crash every `scaffold list` under
+  # set -u — an empty string still reaches validate_tiers() (see
+  # scripts/adapter-matrix.sh), which names the adapter and the bad value,
+  # instead of a bare "unbound variable" naming neither.
+  : "${ADAPTER_TIER:=}"
 }
 
 # adapter_is_typescript <name>

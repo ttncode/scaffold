@@ -1,5 +1,6 @@
 name: Provenance
 on:
+  pull_request:
   schedule:
     # monthly, matching the cadence docs/PROVENANCE.md asks for
     - cron: "41 4 1 * *"
@@ -12,7 +13,32 @@ concurrency:
 permissions: {}
 
 jobs:
+  self-test:
+    # "does the checker work" belongs on every change; "has upstream
+    # moved" (the check job below) belongs on a schedule — different
+    # questions. before this, tests/provenance.bats only ran monthly
+    # alongside check, so a regression in the script itself could go
+    # unnoticed for weeks.
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      # tests/provenance.bats needs a local upstream clone the same as
+      # check does below — its own copy here, the way adapters.yml's
+      # tier-b matrix legs each do their own generation independently.
+      - run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
+      - env:
+          SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
+        run: bats tests/provenance.bats
+
   check:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,26 +48,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       # check-provenance.sh has no network fallback of its own (a denied
       # fetch must fail loudly, not read as "everything drifted"); a
       # partial clone gets the full commit graph without every blob.
       - run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
-      # tests/provenance.bats needs this same local clone, which is why it
-      # doesn't run in ci.yml's offline lane — recreating the clone there
-      # just to run it would defeat the point of that lane being offline.
-      - env:
-          SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
-        run: bats tests/provenance.bats
       - id: check
         env:
           SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
         run: ./scripts/check-provenance.sh | tee "${RUNNER_TEMP}/report.txt"
-      # scoped to the check step specifically, not a blanket failure(): a
-      # regression in tests/provenance.bats above is a bug in this
-      # toolbox's own script, not upstream drift, and should not be filed
-      # as one.
-      - if: steps.check.outcome == 'failure'
+      # a bare custom if: is implicitly ANDed with success() — on a real
+      # check failure the job is already failing, success() is false, and
+      # this step would silently never run. failure() first makes the
+      # step eligible; steps.check.outcome narrows it to the real check
+      # specifically, not some other step failing.
+      - if: failure() && steps.check.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -100,6 +100,17 @@ teardown() {
   [[ "$output" == *"Z"* ]]
 }
 
+@test "an adapter missing ADAPTER_TIER entirely fails loudly instead of crashing blind" {
+  local env_file="${SCAFFOLD_ROOT}/adapters/nextjs/adapter.env"
+  cp "$env_file" "${BATS_TEST_TMPDIR}/adapter.env.bak"
+  sed -i '/^ADAPTER_TIER=/d' "$env_file"
+  run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
+  cp "${BATS_TEST_TMPDIR}/adapter.env.bak" "$env_file"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"nextjs"* ]]
+  [[ "$output" != *"unbound variable"* ]]
+}
+
 @test "exactly one of adapters.yml's schedule crons runs tier b" {
   # reads the crons out of the workflow itself rather than hand-typing them
   # here: adapters.yml and adapter-matrix.sh's WEEKLY_CRON could otherwise

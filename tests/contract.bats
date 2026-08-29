@@ -39,3 +39,18 @@ setup() {
     "${SCAFFOLD_ROOT}/tests/fixtures/lint/complete/sample/mise.toml"
   [ "$status" -eq 0 ]
 }
+
+@test "test-unit's suites never generate a real adapter from setup()" {
+  # mise.toml's test-unit membership is an explicit file list backed by a
+  # comment claiming "no adapter generator anywhere in setup" — the same
+  # "synced by a comment, drifts silently" shape task 13's review round 1
+  # existed to fix elsewhere. this greps the claim instead of trusting it.
+  local run_line files f
+  run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  files="$(grep -oE 'tests/[A-Za-z0-9_-]+\.bats' <<< "$run_line")"
+  [ -n "$files" ]
+  for f in $files; do
+    run bash -c "sed -n '/^setup() {/,/^}/p' '${SCAFFOLD_ROOT}/${f}' | grep -E 'scaffold (new|add) .*--(api|web|app|adapter)'"
+    [ "$status" -ne 0 ]
+  done
+}
