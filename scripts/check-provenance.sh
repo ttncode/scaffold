@@ -9,7 +9,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TABLE="${ROOT}/docs/PROVENANCE.md"
-LOCAL_CLONE="/home/ttndev/workspace/playground/immich"
+# unlike SCAFFOLD_ROOT, this path is not self-locating — it names a clone on
+# whichever machine runs this script, so it must be overridable (CI, another
+# contributor's checkout). a wrong value still fails loudly below rather than
+# passing silently.
+LOCAL_CLONE="${SCAFFOLD_UPSTREAM_CLONE:-/home/ttndev/workspace/playground/immich}"
 
 [ -f "${ROOT}/UPSTREAM" ] || { echo "error: ${ROOT}/UPSTREAM not found" >&2; exit 1; }
 [ -f "$TABLE" ] || { echo "error: ${TABLE} not found" >&2; exit 1; }
@@ -80,5 +84,10 @@ done < <(grep '^| `' "$TABLE")
 
 echo
 echo "${ok} ok, ${drifted} drifted, ${missing} missing, ${errors} errors"
+
+if [ $((ok + drifted + missing + errors)) -eq 0 ]; then
+  echo "error: no verbatim rows found in ${TABLE}; nothing was checked" >&2
+  exit 1
+fi
 
 [ "$drifted" -eq 0 ] && [ "$missing" -eq 0 ] && [ "$errors" -eq 0 ]
