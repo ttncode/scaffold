@@ -51,7 +51,19 @@ runner it uses, because nothing in this repository does. Every other
 adapter's toolchain comes from `mise install` alone; this is the first,
 permanent exception to "CI never learns what language a project is written
 in" — CI at least has to know to provision a PHP interpreter, even though
-it still never has to know the app is Laravel specifically.
+it still never has to know the app is Laravel specifically. Gated on
+`composer.json`'s presence in `dot-github/.github/workflows/app-ci.yml`,
+not on an adapter name.
+
+Second, permanent exception: `dot-github/.github/workflows/app-security.yml`'s
+CodeQL job names `javascript-typescript` in its language matrix. Unlike
+provisioning an interpreter, CodeQL's own API requires naming a language to
+scan — there is no file-presence check that avoids the literal string the
+way `has-composer` avoids naming Laravel above. What file presence (gated
+on `apps/*/package.json`, the same shape as `has-composer`) does fix is the
+job running unconditionally: without it, a PHP-only project got a CodeQL
+job that scanned its docs site and reported that as security coverage,
+which is worse than the language name itself.
 
 ## Alternatives considered
 
