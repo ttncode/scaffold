@@ -14,12 +14,15 @@ permissions: {}
 
 jobs:
   self-test:
-    # "does the checker work" belongs on every change; "has upstream
-    # moved" (the check job below) belongs on a schedule — different
-    # questions. before this, tests/provenance.bats only ran monthly
-    # alongside check, so a regression in the script itself could go
-    # unnoticed for weeks.
-    if: ${{ github.event_name == 'pull_request' }}
+    # "does the checker work" belongs on every change (and on a manual
+    # run of this workflow); "has upstream moved" (the check job below)
+    # belongs on a schedule — different questions. before this,
+    # tests/provenance.bats only ran monthly alongside check, so a
+    # regression in the script itself could go unnoticed for weeks.
+    # workflow_dispatch is included here (rather than duplicating this
+    # job's bats step inside check) so a manual run exercises both jobs,
+    # not just the drift check.
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
