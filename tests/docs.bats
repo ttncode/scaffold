@@ -63,6 +63,20 @@ EOF
   [[ "$output" == *"0001-broken.md"* ]]
 }
 
+@test "the path check ignores a generated app's own generator-owned markdown" {
+  mkdir -p "${PROJECT}/apps/web"
+  cat > "${PROJECT}/apps/web/AGENTS.md" <<'EOF'
+See `node_modules/next/dist/server/lib/generate-agent-files.js`.
+This block is written and re-added by `next dev`.
+EOF
+  cat > "${PROJECT}/apps/web/README.md" <<'EOF'
+Edit `app/page.tsx`. Fonts are loaded with `next/font`.
+EOF
+  cd "${PROJECT}/docs"
+  run node scripts/check-paths.mjs
+  [ "$status" -eq 0 ]
+}
+
 @test "the docs site builds" {
   cd "$PROJECT"
   run mise run //docs:build

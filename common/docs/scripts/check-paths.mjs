@@ -17,14 +17,24 @@ const ADR_SCAN_EXTENSIONS = new Set([".sh", ".toml", ".mjs", ".yaml", ".yml"]);
 // full of paths relative to whatever package it belongs to, or plumbing
 // with no bearing on this project's own docs or adr citations.
 const SKIP_DIRS = new Set(["node_modules", ".git", ".vitepress"]);
+// apps/ ships generator-owned markdown (AGENTS.md, README.md) whose backticked
+// paths are written relative to the app's own directory, not the project
+// root, so the root-relative path scan reports them as dead when they are not
+// (e.g. create-next-app's AGENTS.md and README.md). This applies to the
+// markdown path scan only — the ADR-citation scan must still walk apps/, or
+// a dead ADR reference in an adapter's own mise.toml goes unseen again
+// (the hole task 11 closed).
+const MARKDOWN_SKIP_DIRS = new Set([...SKIP_DIRS, "apps"]);
 
-async function filesMatching(dir, matches) {
+async function filesMatching(dir, matches, skipDirs = SKIP_DIRS) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
     entries.map((entry) => {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
-        return SKIP_DIRS.has(entry.name) ? [] : filesMatching(path, matches);
+        return skipDirs.has(entry.name)
+          ? []
+          : filesMatching(path, matches, skipDirs);
       }
       return matches(entry.name) ? [path] : [];
     }),
@@ -56,8 +66,10 @@ const failures = [];
 
 // the whole project, not just docs/ — a backticked dead path in
 // deploy-adapters/README.md is the same defect as one in docs/index.md.
-for (const file of await filesMatching(PROJECT_ROOT, (name) =>
-  name.endsWith(".md"),
+for (const file of await filesMatching(
+  PROJECT_ROOT,
+  (name) => name.endsWith(".md"),
+  MARKDOWN_SKIP_DIRS,
 )) {
   for (const path of missingPaths(await readFile(file, "utf8"))) {
     failures.push(`${file}: no such path: ${path}`);
