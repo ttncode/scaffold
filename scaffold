@@ -144,6 +144,22 @@ cmd_new() {
     resolve_minimum_release_age "$target"
   else
     rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"
+    # no typescript app to build a workspace over, but the project root's
+    # own package.json (commitlint, for lefthook's commit-msg hook) still
+    # needs installing on its own — see docs/decisions/0007: hooks must
+    # work in a php-only project too. no root pnpm-workspace.yaml exists at
+    # this point, so this install only ever sees the root package.json
+    # itself; it cannot reach into apps/*, packages/*, or docs (each of
+    # which either has no package.json here, or already manages its own
+    # separate install).
+    # MISE_CEILING_PATHS stops mise's own upward config search at $target's
+    # parent: without it, `mise exec` silently trusts whatever mise.toml it
+    # finds above $target too (verified — mise trust -y -C "$dir" above
+    # only ever trusted $dir itself, but exec's own directory walk is a
+    # separate mechanism that does not honor that scope on its own).
+    ( cd "$target" && MISE_CEILING_PATHS="$(dirname "$target")" \
+        mise exec -- pnpm install --config.confirm-modules-purge=false --config.minimum-release-age=0 >/dev/null ) \
+      || die "pnpm install failed while installing the project root's own tooling dependencies"
   fi
 
   finalize_project "$target"
