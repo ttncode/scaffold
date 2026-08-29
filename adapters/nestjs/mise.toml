@@ -19,7 +19,7 @@ run = "pnpm exec oxlint src/ test/ --max-warnings 0"
 run = "pnpm exec tsc --noEmit"
 
 [tasks.test]
-run = "pnpm exec jest --passWithNoTests"
+run = "pnpm exec vitest --run --passWithNoTests"
 
 [tasks.build]
 run = "pnpm exec nest build"
