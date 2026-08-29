@@ -47,9 +47,10 @@ scaffold lint
 cd /tmp/probe && mise run "//apps/api:checklist"
 ```
 
-(the project root's own `mise run checklist` only builds `docs` — see
-docs/tour/06-docs-site.md — so it proves nothing about the new app; the
-`//apps/api:` prefix is what actually runs its checklist.)
+(the project root's own `mise run checklist` also runs this once
+`register_config_root` picks it up — see `lib/project.sh` — but the
+`//apps/api:` prefix runs only the new app, without waiting on every other
+config root along with it.)
 
 If `ADAPTER_LANGUAGE="typescript"`, that alone doesn't prove the thing
 that has actually broken before: a *second* typescript app sharing the

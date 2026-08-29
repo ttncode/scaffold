@@ -183,13 +183,30 @@ register_config_root() {
   local project="$1" root="$2"
   local file="${project}/mise.toml"
 
-  grep -q "^  \"${root}\",\$" "$file" && return 0
+  if ! grep -q "^  \"${root}\",\$" "$file"; then
+    awk -v root="$root" '
+      { print }
+      /^config_roots = \[$/ { printf "  \"%s\",\n", root }
+    ' "$file" > "${file}.tmp"
+    mv "${file}.tmp" "$file"
+  fi
 
-  awk -v root="$root" '
-    { print }
-    /^config_roots = \[$/ { printf "  \"%s\",\n", root }
-  ' "$file" > "${file}.tmp"
-  mv "${file}.tmp" "$file"
+  # the root [tasks.checklist] (pre-push's own gate) must run every config
+  # root's own checklist, not just docs' — register_config_root is the one
+  # place every config root passes through, so this stays in lockstep with
+  # config_roots itself instead of being a second list a later task forgets
+  # to update.
+  if ! grep -q "\"//${root}:checklist\"" "$file"; then
+    awk -v root="$root" '
+      /^\[tasks\.checklist\]$/ { in_checklist = 1 }
+      in_checklist && /^run = \[/ {
+        sub(/\]$/, ", { task = \"//" root ":checklist\" }]")
+        in_checklist = 0
+      }
+      { print }
+    ' "$file" > "${file}.tmp"
+    mv "${file}.tmp" "$file"
+  fi
 }
 
 # collect_config_roots <project>
