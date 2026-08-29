@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+coverage/
+
+.env
+.env.local
+*.local
+
+.DS_Store
+*.swp

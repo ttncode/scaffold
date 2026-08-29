@@ -1,0 +1,10 @@
+{
+  "name": "@project/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "vitepress": "^1.6.4"
+  }
+}

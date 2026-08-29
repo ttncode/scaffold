@@ -1,0 +1,14 @@
+name: Release
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions: {}
+jobs:
+  release:
+    uses: you/.github/.github/workflows/app-release.yml@v1
+    with:
+      image: ghcr.io/you/@PROJECT_NAME@
+      context: apps/api

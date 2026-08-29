@@ -1,0 +1,11 @@
+{
+  "name": "@project/root",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "prettier": "^3.9.6"
+  }
+}

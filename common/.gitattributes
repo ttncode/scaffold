@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.sh text eol=lf
+pnpm-lock.yaml -diff linguist-generated
+composer.lock -diff linguist-generated

@@ -1,0 +1,45 @@
+# production-like stack. clients run this file; it is attached to every
+# release so the compose file and the image always match (see the scaffold
+# toolbox's ADR-0014, not shipped here). every variable below has a default
+# so this file validates in a freshly generated project, before a .env
+# exists at all — the real values live in .env, written by install.sh from
+# example.env.
+name: app
+
+services:
+  app:
+    # ghcr.io/CHANGEME/CHANGEME is a placeholder: scaffold generates this
+    # project before it has a github repository, so it cannot know its own
+    # registry path. replace it once, by hand, after the repository exists
+    # and its first image has been published (see the scaffold toolbox's
+    # ADR-0014, not shipped here).
+    image: ghcr.io/CHANGEME/CHANGEME:${IMAGE_TAG:-latest}
+    env_file:
+      # required: false so this validates before a .env exists; install.sh
+      # always writes one before starting the stack.
+      - path: .env
+        required: false
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: always
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+  database:
+    image: docker.io/library/postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-app}
+      POSTGRES_USER: ${DB_USERNAME:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+volumes:
+  database:

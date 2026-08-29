@@ -1,0 +1,26 @@
+monorepo_root = true
+
+[monorepo]
+config_roots = [
+  "docs",
+]
+
+[tools]
+node = "24.15.0"
+pnpm = "11.21.0"
+lefthook = "2.1.11"
+gitleaks = "8.30.0"
+
+[settings]
+pin = true
+lockfile = true
+
+[tasks.dev]
+interactive = true
+run = "docker compose -f compose.dev.yaml up --remove-orphans"
+
+[tasks."dev-down"]
+run = "docker compose -f compose.dev.yaml down --remove-orphans"
+
+[tasks.checklist]
+run = [{ task = "//docs:checklist" }]

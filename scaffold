@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+# scaffold — create and extend projects that follow the task contract.
+
+set -euo pipefail
+
+SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SCAFFOLD_ROOT
+
+# shellcheck source=lib/log.sh
+source "${SCAFFOLD_ROOT}/lib/log.sh"
+# shellcheck source=lib/contract.sh
+source "${SCAFFOLD_ROOT}/lib/contract.sh"
+# shellcheck source=lib/lint.sh
+source "${SCAFFOLD_ROOT}/lib/lint.sh"
+# shellcheck source=lib/adapter.sh
+source "${SCAFFOLD_ROOT}/lib/adapter.sh"
+# shellcheck source=lib/project.sh
+source "${SCAFFOLD_ROOT}/lib/project.sh"
+
+usage() {
+  cat <<'EOF'
+usage:
+  scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
+  scaffold add <dir> --adapter <adapter>
+  scaffold list
+  scaffold lint
+EOF
+}
+
+# require_tools — a green test suite under `mise exec` proves nothing about
+# running scaffold bare, so fail here, by name, before touching disk.
+require_tools() {
+  local tool missing=()
+
+  for tool in git mise jq yq; do
+    command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+  done
+
+  [ "${#missing[@]}" -eq 0 ] && return 0
+  die "missing required tool(s): ${missing[*]} — run scaffold through 'mise exec -- ./scaffold ...', or 'mise install' in the toolbox root"
+}
+
+cmd_list() {
+  local adapter name status=0
+  local -a output
+
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    [ -d "$adapter" ] || continue
+    name="$(basename "$adapter")"
+
+    if load_adapter "$name" 2>/dev/null; then
+      # shellcheck disable=SC2153 # ADAPTER_NAME, ADAPTER_ROLE, ADAPTER_TIER are sourced from adapter.env
+      output+=("$ADAPTER_NAME"$'\t'"$ADAPTER_ROLE"$'\t'"$ADAPTER_TIER")
+    else
+      output+=("[error]"$'\t'"$name"$'\t'"(malformed adapter)")
+      status=1
+    fi
+
+    unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_GENERATOR ADAPTER_POST_GENERATE
+  done
+
+  printf '%s\n' "${output[@]}" | sort
+  return "$status"
+}
+
+cmd_lint() {
+  lint_adapters "${SCAFFOLD_ROOT}/adapters"
+}
+
+# cmd_new_cleanup <target> <exit-status> — an EXIT trap, not ERR: die() exits
+# directly and never trips an ERR trap, so ERR alone misses e.g. the role
+# mismatch below. removes a half-built project so a retry does not trip
+# init_project's overwrite guard.
+# known gap, not fixed here: this only removes the directory, it does not
+# touch any child process an adapter's own generator left running inside it
+# (e.g. laravel-inertia's starter kit shells out to npm install/build during
+# composer create-project). a Ctrl-C here can orphan that child under init
+# rather than kill it, so it keeps writing into $target after this trap has
+# already rm -rf'd it — cleanup can race a write it never asked to happen.
+cmd_new_cleanup() {
+  local target="$1" status="$2"
+
+  [ "$status" -eq 0 ] && return 0
+  [ -n "$target" ] || return 0
+
+  rm -rf "$target"
+  warn "removed incomplete project: ${target}"
+}
+
+cmd_new() {
+  [ $# -gt 0 ] || die "new requires a project name"
+
+  local target="$1"; shift
+  local name; name="$(basename "$target")"
+  local -a requested=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --web|--api|--app)
+        [ $# -ge 2 ] || die "${1} requires an adapter name"
+        requested+=("${1#--}:${2}")
+        shift 2
+        ;;
+      *) die "unknown option: ${1}" ;;
+    esac
+  done
+
+  # init_project itself arms the EXIT trap right after it creates $target,
+  # so a failure inside it is covered too; nothing to install here.
+  init_project "$target" "$name"
+
+  local entry flag adapter
+  if [ "${#requested[@]}" -gt 0 ]; then
+    for entry in "${requested[@]}"; do
+      flag="${entry%%:*}"
+      adapter="${entry#*:}"
+      load_adapter "$adapter"
+      [ "$ADAPTER_ROLE" = "$flag" ] \
+        || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
+      apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
+      # build.yml/release.yml default to apps/api; every requested role
+      # (web, api, or app) is a candidate for the one image this project
+      # builds, so the context tracks whichever was applied most recently.
+      # a project requesting more than one role still gets only one image
+      # (see Task 9's report note on compose.yaml's single generic app
+      # service) — same pre-existing scope boundary, not new here.
+      set_image_context "$target" "$(role_path "$ADAPTER_ROLE")"
+    done
+  fi
+
+  local all_typescript=1
+  for entry in "${requested[@]}"; do
+    adapter_is_typescript "${entry#*:}" || all_typescript=0
+  done
+
+  if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
+    enable_typescript_workspace "$target"
+    # docs ships its own standalone pnpm-workspace.yaml/pnpm-lock.yaml for a
+    # project with no typescript adapter; here it joins the real workspace
+    # instead, so its own copies would only sit there unused at best, and
+    # shadow the root pnpm-workspace.yaml for docs' own tasks at worst.
+    rm -f "${target}/docs/pnpm-workspace.yaml" "${target}/docs/pnpm-lock.yaml"
+    sync_workspace_lockfile "$target"
+    resolve_minimum_release_age "$target"
+  else
+    rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"
+    # no typescript app to build a workspace over, but the project root's
+    # own package.json (commitlint, for lefthook's commit-msg hook) still
+    # needs installing on its own — see docs/decisions/0007: hooks must
+    # work in a php-only project too. no root pnpm-workspace.yaml exists at
+    # this point, so this install only ever sees the root package.json
+    # itself; it cannot reach into apps/*, packages/*, or docs (each of
+    # which either has no package.json here, or already manages its own
+    # separate install).
+    # MISE_CEILING_PATHS stops mise's own upward config search at $target's
+    # parent: without it, `mise exec` silently trusts whatever mise.toml it
+    # finds above $target too (verified — mise trust -y -C "$dir" above
+    # only ever trusted $dir itself, but exec's own directory walk is a
+    # separate mechanism that does not honor that scope on its own).
+    ( cd "$target" && MISE_CEILING_PATHS="$(dirname "$target")" \
+        mise exec -- pnpm install --config.confirm-modules-purge=false --config.minimum-release-age=0 >/dev/null ) \
+      || die "pnpm install failed while installing the project root's own tooling dependencies"
+  fi
+
+  finalize_project "$target"
+  trap - EXIT
+  log "created ${target}"
+}
+
+# cmd_add_cleanup <target> <status> <workspace-file> — same EXIT-trap
+# technique as init_project's cmd_new_cleanup (see there): a run that fails
+# partway through installing an adapter must remove exactly the path it
+# created in a project the user already owns, not leave debris behind it —
+# including the temporary confirmModulesPurge relaxation cmd_add makes below,
+# which must not survive a failure any more than it survives success.
+# this cleanup's reach is only $target and that one line — see the trap
+# comment in cmd_add for the fuller inventory of what a failure leaves
+# behind that this function does not touch.
+cmd_add_cleanup() {
+  local target="$1" status="$2" workspace_file="$3"
+
+  [ -n "$workspace_file" ] && sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+
+  [ "$status" -eq 0 ] && return 0
+  [ -n "$target" ] || return 0
+
+  rm -rf "$target"
+  warn "removed incomplete app: ${target}"
+}
+
+# cmd_add <dir> --adapter <adapter> — install one more adapter into a
+# project `scaffold new` already created, wherever that project's git root
+# is relative to the caller's cwd.
+cmd_add() {
+  [ $# -ge 3 ] || die "usage: scaffold add <dir> --adapter <adapter>"
+
+  local rel="$1"; shift
+  local adapter=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --adapter)
+        [ $# -ge 2 ] || die "--adapter requires an adapter name"
+        adapter="$2"
+        shift 2
+        ;;
+      *) die "unknown option: ${1}" ;;
+    esac
+  done
+
+  [ -n "$adapter" ] || die "--adapter is required"
+
+  # rel is always resolved against the project's git root, not the caller's
+  # cwd, so this works the same from the root or three levels down inside
+  # an existing app.
+  local project
+  project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+    || die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
+
+  # mise.toml alone is not proof of a scaffold project — a repo can carry
+  # its own, unrelated mise.toml. monorepo_root is the marker init_project
+  # writes and nothing else has a reason to, but that detail means nothing
+  # to a user — the message stays in their terms and says what to do next,
+  # like its sibling above.
+  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+    || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
+
+  local dest="${project}/${rel}"
+  [ -e "$dest" ] && die "path already exists: ${rel}"
+
+  # a typescript adapter's own generator (nest new, create-next-app) ends
+  # with its own bundled `pnpm install`. against an empty, brand-new
+  # directory that is harmless, but once a workspace already has an
+  # installed member — exactly what `scaffold add` is adding a second one
+  # to — pnpm treats linking the new member in as a purge-and-relink of the
+  # shared node_modules and refuses that non-interactively
+  # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), a case
+  # docs/decisions/0017 already named and deliberately left off by default.
+  # relaxed here for exactly this one call, the same way
+  # resolve_minimum_release_age below relaxes minimum-release-age only for
+  # its own resolution pass — never shipped in the project itself. removed
+  # at two separate sites, both required (see cmd_add_cleanup above and
+  # the explicit sed below) — not one shared mechanism, so neither strip
+  # is redundant with the other. a caller who already had this exact line
+  # in their own pnpm-workspace.yaml on purpose loses it too, and briefly
+  # sees a duplicate key while this call runs; known, not fixed — see
+  # docs/decisions/0017.
+  local workspace_file="${project}/pnpm-workspace.yaml"
+  local reconcile=""
+  [ -f "$workspace_file" ] && adapter_is_typescript "$adapter" && reconcile="$workspace_file"
+
+  # the guard above ran first, so $dest is known absent here; arming the
+  # trap any earlier would risk rm -rf on a path the caller already had.
+  # the adapter's own generator creates $dest (and refuses if it already
+  # exists), so nothing is mkdir'd ahead of it — the trap only ever has to
+  # remove what apply_adapter left behind on a partial failure. $dest and
+  # $reconcile are baked into the trap command via printf %q because the
+  # locals go out of scope, and with them their values, once this function
+  # returns.
+  #
+  # this trap's reach is partial, not a rollback of the whole function: it
+  # restores exactly $dest and the confirmModulesPurge line, nothing more.
+  # a failure after apply_adapter can leave the project with any of the
+  # following, pointing at an app that got removed — there is no general
+  # undo for edits already made to files this run did not create:
+  #   - the config_roots entry apply_adapter added to mise.toml
+  #   - the lefthook.yml fragment apply_adapter merged in
+  #   - (when $reconcile) pnpm-lock.yaml, rewritten by sync_workspace_lockfile
+  #   - (when $reconcile) the minimumReleaseAgeExclude block
+  #     resolve_minimum_release_age appends to pnpm-workspace.yaml —
+  #     cmd_add_cleanup strips only the confirmModulesPurge line, not this
+  #   - the roots: line sync_ci_roots writes to ci.yml
+  # inherent to adding into a repository the caller already owns, not
+  # something this trap can be made to cover.
+  # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
+  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
+
+  [ -n "$reconcile" ] && printf 'confirmModulesPurge: false\n' >> "$workspace_file"
+
+  apply_adapter "$adapter" "$project" "$rel"
+
+  if [ -n "$reconcile" ]; then
+    sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+    # the new app's own generator already installed straight into the
+    # shared root lockfile (see sync_workspace_lockfile's own comment on
+    # why not every adapter's generator can be trusted to do that cleanly);
+    # this catches anything it didn't and records any new
+    # minimum-release-age violations the same way scaffold new does for
+    # the workspace's first round of apps.
+    sync_workspace_lockfile "$project"
+    resolve_minimum_release_age "$project"
+  fi
+
+  sync_ci_roots "$project"
+  trap - EXIT
+
+  # packages/types and the all-typescript pnpm workspace are decided once,
+  # at `scaffold new` time, from every adapter requested then (see
+  # docs/decisions/0018-add-does-not-recompute-the-typescript-workspace.md).
+  # cmd_add leaves that decision alone: recomputing it here could delete a
+  # package an already-installed app depends on, or replay most of cmd_new's
+  # typescript-workspace pipeline for a case nobody asked for.
+
+  # only the app just created is staged, as one bundle of generated content
+  # nobody is going to review file by file. every existing file scaffold
+  # touched instead of created — mise.toml, the ci workflow, lefthook.yml,
+  # and (when reconciled above) the pnpm lockfile — is left as a plain
+  # unstaged edit, so `git diff` shows the caller exactly the handful of
+  # small, consequential lines scaffold changed in files their team already
+  # owns, before those changes become part of their history. it also means
+  # `add` never sweeps in whatever else the caller already had in progress
+  # elsewhere in the repo.
+  #
+  # staging deliberately sits outside the cleanup net, after trap - EXIT
+  # has already disarmed it: this is the one step whose failure should not
+  # cost the caller a regeneration. everything above it is real, expensive
+  # work (a network-fetched app, a reconciled lockfile, an updated ci
+  # workflow) that is already correct; cleanup here could only remove $dest
+  # and the confirmModulesPurge line anyway (see the trap comment above),
+  # so treating a staging failure as fatal would destroy good output to
+  # "fix" a problem the cleanup mechanism cannot actually fix. a failure is
+  # trivially retriable by hand (`git add`), so it is reported, not fatal.
+  if git -C "$project" add -A -- "$rel"; then
+    log "added ${rel} using ${adapter}; review and commit"
+  else
+    warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
+  fi
+}
+
+main() {
+  require_tools
+
+  [ $# -gt 0 ] || { usage >&2; exit 1; }
+
+  local command="$1"; shift
+  case "$command" in
+    new) cmd_new "$@" ;;
+    add) cmd_add "$@" ;;
+    list) cmd_list "$@" ;;
+    lint) cmd_lint "$@" ;;
+    -h|--help) usage ;;
+    *) die "unknown command: ${command}" ;;
+  esac
+}
+
+main "$@"

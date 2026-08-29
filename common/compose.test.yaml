@@ -1,0 +1,19 @@
+# ci and local test runs: same shape as compose.dev.yaml, but tmpfs storage
+# so every run starts from an empty database and nothing persists between
+# runs.
+name: app-test
+
+services:
+  database:
+    image: docker.io/library/postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

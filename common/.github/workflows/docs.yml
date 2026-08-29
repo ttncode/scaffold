@@ -1,0 +1,9 @@
+name: Docs
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions: {}
+jobs:
+  docs:
+    uses: you/.github/.github/workflows/app-docs.yml@v1

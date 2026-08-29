@@ -1,0 +1,39 @@
+[tasks.install]
+# packages/types joins the workspace only after this app's own generator
+# has already installed once, so this is always the first frozen install
+# to see both together; pnpm needs to relink node_modules for that and
+# must not stop to ask — every contract task runs non-interactively.
+env = { npm_config_confirm_modules_purge = "false" }
+run = "pnpm install --frozen-lockfile"
+
+[tasks.format]
+run = "pnpm exec prettier --check ."
+
+[tasks."format-fix"]
+run = "pnpm exec prettier --write ."
+
+[tasks.lint]
+run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
+
+[tasks.check]
+run = "pnpm exec tsc --noEmit"
+
+[tasks.test]
+run = "pnpm exec jest --passWithNoTests"
+
+[tasks.build]
+run = "pnpm exec nest build"
+
+[tasks.ci-unit]
+# same reason as :install's env above — ci-unit calls :install too.
+env = { npm_config_confirm_modules_purge = "false" }
+run = [
+  { task = ":install" },
+  { task = ":format" },
+  { task = ":lint" },
+  { task = ":check" },
+  { task = ":test" },
+]
+
+[tasks.checklist]
+run = [{ task = ":ci-unit" }, { task = ":build" }]

@@ -1,0 +1,44 @@
+[tools]
+bats = "1.13.0"
+shellcheck = "0.11.0"
+yq = "4.48.1"
+jq = "1.8.1"
+
+[settings]
+pin = true
+lockfile = true
+
+[tasks.lint]
+# discovers tracked shell files rather than listing them, so a new one is
+# caught automatically; xargs -r skips the run when nothing matches yet.
+# common/*.sh (install.sh) is included: it ships into every generated
+# project, so it is linted here same as the toolbox's own scripts.
+run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs -r shellcheck"
+
+[tasks.test]
+run = "bats tests/"
+
+[tasks."test-unit"]
+description = "the suites with no adapter generator anywhere in setup — genuinely offline"
+# a filename-prefix guess (everything but tests/new-*.bats) was tried here
+# before and was wrong in both directions: tests/new-project.bats matched
+# the excluded glob despite generating no adapter (offline, but skipped),
+# while tests/add-app.bats, docs.bats, compose.bats and (most of)
+# workflows.bats didn't match it despite calling `scaffold new` with a real
+# adapter in setup() (network, but included). listed explicitly instead;
+# tests/provenance.bats also calls no adapter generator but needs a local
+# upstream clone this lane doesn't have, so it runs alongside that clone in
+# .github/workflows/provenance.yml instead. tests/documentation.bats was
+# built, offline, and passing, and shipped wired into no workflow at all —
+# the exact failure mode task 1's ruling named; it belongs here.
+run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/new-project.bats"
+
+[tasks."test-integration"]
+description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
+run = "bats tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
+
+[tasks.ci-unit]
+run = [{ task = "lint" }, { task = "test-unit" }]
+
+[tasks.checklist]
+run = [{ task = "lint" }, { task = "test" }]

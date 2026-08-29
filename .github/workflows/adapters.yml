@@ -1,0 +1,145 @@
+name: Adapters
+on:
+  pull_request:
+  schedule:
+    # nightly: tier a only (docs/decisions/0012)
+    - cron: "17 3 * * *"
+    # weekly: tier a, every tier b adapter, plus the compose/install check —
+    # this exact string is also scripts/adapter-matrix.sh's WEEKLY_CRON
+    - cron: "23 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    outputs:
+      tier-a: ${{ steps.tiers.outputs.tier-a }}
+      tier-b: ${{ steps.tiers.outputs.tier-b }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - id: tiers
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: >-
+          ./scripts/adapter-matrix.sh "$EVENT_NAME" "$SCHEDULE_CRON"
+          "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: discover
+    if: ${{ needs.discover.outputs.tier-a != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # one full generation per test; new-nextjs/new-nestjs/new-laravel-api.bats
+    # run 5-6 tests each — bounded well under the ~25 minutes tier b costs.
+    timeout-minutes: 15
+    strategy:
+      # a broken adapter must not hide the state of the others
+      fail-fast: false
+      matrix:
+        adapter: ${{ fromJson(needs.discover.outputs.tier-a) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - id: language
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
+          echo "value=${lang}" >> "$GITHUB_OUTPUT"
+      - if: steps.language.outputs.value == 'php'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: bats "tests/new-${ADAPTER}.bats"
+
+  smoke-tier-b:
+    needs: discover
+    if: ${{ needs.discover.outputs.tier-b != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # measured at ~5 minutes per test (docs/decisions/0012); five tests
+    # per adapter plus margin, well under an unbounded hang.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: ${{ fromJson(needs.discover.outputs.tier-b) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - id: language
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
+          echo "value=${lang}" >> "$GITHUB_OUTPUT"
+      - if: steps.language.outputs.value == 'php'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: bats "tests/new-${ADAPTER}.bats"
+
+  compose:
+    # expensive relative to the other checks here, so gated on the weekly
+    # schedule (not the nightly tier-a-only one) or a manual run
+    if: ${{ github.event.schedule == '23 2 * * 1' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - run: bats tests/compose.bats
+
+  notify-on-schedule-failure:
+    # a weekly-only lane nobody watches is theatre; surface a red run as an
+    # issue instead of leaving it in a schedule tab no one opens.
+    if: >-
+      ${{ always() && github.event_name == 'schedule' &&
+      (needs.smoke.result == 'failure' || needs.smoke-tier-b.result == 'failure' || needs.compose.result == 'failure') }}
+    needs: [smoke, smoke-tier-b, compose]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh issue create --repo "${{ github.repository }}"
+          --title "weekly adapter smoke failed ($(date -u +%F))"
+          --body "see ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

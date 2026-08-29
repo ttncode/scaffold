@@ -1,0 +1,7 @@
+pre-commit:
+  commands:
+    pint:
+      glob: "*.php"
+      root: "@APP_ROOT@"
+      run: ./vendor/bin/pint {staged_files}
+      stage_fixed: true
