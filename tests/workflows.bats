@@ -2,7 +2,9 @@ setup() {
   load 'helpers/setup'
   WORKDIR="$(mktemp -d)"
   PROJECT="${WORKDIR}/demo"
-  scaffold new "$PROJECT" --api nestjs
+  # generation happens per-test below, not here: bats runs setup() before
+  # every test in this file, and most of them don't touch $PROJECT at all
+  # (see tests/add-app.bats etc. for suites where every test needs it).
   # the reusable-workflow repository is a separate checkout with no fixed
   # relationship to this one; DOT_GITHUB_ROOT lets a caller (e.g. CI) say
   # where it put it, and the sibling-directory default matches how this
@@ -15,11 +17,13 @@ teardown() {
 }
 
 @test "the project ships five workflows" {
+  scaffold new "$PROJECT" --api nestjs
   run bash -c "ls '${PROJECT}/.github/workflows' | wc -l"
   [ "$output" = "5" ]
 }
 
 @test "every workflow starts from a closed permission set" {
+  scaffold new "$PROJECT" --api nestjs
   for f in "${PROJECT}"/.github/workflows/*.yml; do
     run yq '.permissions' "$f"
     [ "$output" = "{}" ]
@@ -27,6 +31,7 @@ teardown() {
 }
 
 @test "every workflow only calls into the shared repository" {
+  scaffold new "$PROJECT" --api nestjs
   run bash -c "yq -r '.jobs[].uses' '${PROJECT}'/.github/workflows/*.yml | sort -u"
   [[ "$output" != *"null"* ]]
   [[ "$output" == *"you/.github/.github/workflows/"* ]]
@@ -84,8 +89,43 @@ teardown() {
   [ -n "$output" ]
 }
 
-@test "the weekly schedule matrix matches each adapter's own ADAPTER_TIER" {
+@test "an adapter with an unrecognised ADAPTER_TIER fails loudly instead of vanishing" {
+  local env_file="${SCAFFOLD_ROOT}/adapters/nextjs/adapter.env"
+  cp "$env_file" "${BATS_TEST_TMPDIR}/adapter.env.bak"
+  sed -i 's/ADAPTER_TIER="A"/ADAPTER_TIER="Z"/' "$env_file"
   run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
+  cp "${BATS_TEST_TMPDIR}/adapter.env.bak" "$env_file"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"nextjs"* ]]
+  [[ "$output" == *"Z"* ]]
+}
+
+@test "exactly one of adapters.yml's schedule crons runs tier b" {
+  # reads the crons out of the workflow itself rather than hand-typing them
+  # here: adapters.yml and adapter-matrix.sh's WEEKLY_CRON could otherwise
+  # drift apart silently (one edited, not the other) with nothing to catch
+  # it. this fails the moment they disagree.
+  local crons cron nonempty=0
+  mapfile -t crons < <(yq '.on.schedule[].cron' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml")
+  [ "${#crons[@]}" -eq 2 ]
+  for cron in "${crons[@]}"; do
+    run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "$cron"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'tier-b=[]'* ]] || nonempty=$((nonempty + 1))
+  done
+  [ "$nonempty" -eq 1 ]
+}
+
+@test "the schedule matrix matches each adapter's own ADAPTER_TIER on the cron that runs tier b" {
+  local crons cron weekly=""
+  mapfile -t crons < <(yq '.on.schedule[].cron' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml")
+  for cron in "${crons[@]}"; do
+    run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "$cron"
+    [[ "$output" == *'tier-b=[]'* ]] || weekly="$cron"
+  done
+  [ -n "$weekly" ]
+
+  run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "$weekly"
   [ "$status" -eq 0 ]
   for name in "${SCAFFOLD_ROOT}"/adapters/*/; do
     adapter="$(basename "$name")"
@@ -95,13 +135,6 @@ teardown() {
       B) [[ "$output" == *"tier-b="*"\"${adapter}\""* ]] ;;
     esac
   done
-}
-
-@test "the nightly schedule matrix runs tier a but not tier b" {
-  run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "17 3 * * *"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'tier-a=["laravel-api","nestjs","nextjs"]'* ]]
-  [[ "$output" == *'tier-b=[]'* ]]
 }
 
 @test "a pull request runs tier b only when its own directory changed" {

@@ -15,13 +15,27 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # ci-unit runs lint plus every *.bats file that isn't tests/new-*.bats,
-    # but add-app.bats, docs.bats, compose.bats and workflows.bats all call
-    # `scaffold new --api nestjs|laravel-api` in their own setup(), so this
-    # job needs pnpm and php too, not just bats/shellcheck/yq/jq from
-    # mise.toml — sized above the observed ~15 minute cost, well under the
-    # unbounded hang this project has already seen from an orphaned install.
-    timeout-minutes: 20
+    # ci-unit is lint plus test-unit, and test-unit is now genuinely
+    # offline (measured ~3s locally for 30 tests) — no adapter generator
+    # anywhere in its setup(), so no pnpm/php provisioning needed here.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: mise run ci-unit
+
+  integration:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # add-app.bats, compose.bats, docs.bats and workflows.bats each
+    # generate a real nestjs/laravel-api project as a fixture — same cost
+    # class as tier a in adapters.yml (bounded, not tier b's ~25 minutes),
+    # moved here because ADR-0012's tiers are about per-adapter smoke
+    # tests, not these cross-cutting mechanics suites.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,7 +45,7 @@ jobs:
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - run: mise run ci-unit
+      - run: mise run test-integration
 
   zizmor:
     runs-on: ubuntu-latest

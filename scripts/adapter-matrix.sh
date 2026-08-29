@@ -31,6 +31,25 @@ adapters_at_tier() {
   "${ROOT}/scaffold" list | awk -F'\t' -v tier="$1" '$3 == tier { print $1 }'
 }
 
+# a well-formed but unrecognised ADAPTER_TIER (a typo, a trailing space)
+# would otherwise just fail every `$3 == tier` match above and vanish from
+# both matrices with exit 0 — the exact "stopped being checked and nobody
+# noticed" failure mode this project keeps finding elsewhere.
+validate_tiers() {
+  local name tier
+  while IFS=$'\t' read -r name _ tier; do
+    case "$tier" in
+      A | B | C) ;;
+      *)
+        echo "error: adapter '${name}' has an unrecognised ADAPTER_TIER: '${tier}'" >&2
+        exit 1
+        ;;
+    esac
+  done < <("${ROOT}/scaffold" list)
+}
+
+validate_tiers
+
 tier_a_json="$(adapters_at_tier A | to_json_array)"
 
 case "$EVENT_NAME" in

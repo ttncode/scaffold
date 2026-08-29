@@ -19,10 +19,21 @@ run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs 
 run = "bats tests/"
 
 [tasks."test-unit"]
-description = "the suites that need no network"
-# tests/new-*.bats hit a real network or generator by convention; everything
-# else is offline and belongs in ci.
-run = "find tests -maxdepth 1 -name '*.bats' ! -name 'new-*' | xargs -r bats"
+description = "the suites with no adapter generator anywhere in setup — genuinely offline"
+# a filename-prefix guess (everything but tests/new-*.bats) was tried here
+# before and was wrong in both directions: tests/new-project.bats matched
+# the excluded glob despite generating no adapter (offline, but skipped),
+# while tests/add-app.bats, docs.bats, compose.bats and (most of)
+# workflows.bats didn't match it despite calling `scaffold new` with a real
+# adapter in setup() (network, but included). listed explicitly instead;
+# tests/provenance.bats also calls no adapter generator but needs a local
+# upstream clone this lane doesn't have, so it runs alongside that clone in
+# .github/workflows/provenance.yml instead.
+run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/new-project.bats"
+
+[tasks."test-integration"]
+description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
+run = "bats tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
 
 [tasks.ci-unit]
 run = [{ task = "lint" }, { task = "test-unit" }]

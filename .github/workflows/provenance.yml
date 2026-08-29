@@ -22,15 +22,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       # check-provenance.sh has no network fallback of its own (a denied
       # fetch must fail loudly, not read as "everything drifted"); a
       # partial clone gets the full commit graph without every blob.
       - run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
+      # tests/provenance.bats needs this same local clone, which is why it
+      # doesn't run in ci.yml's offline lane — recreating the clone there
+      # just to run it would defeat the point of that lane being offline.
+      - env:
+          SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
+        run: bats tests/provenance.bats
       - id: check
         env:
           SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
         run: ./scripts/check-provenance.sh | tee "${RUNNER_TEMP}/report.txt"
-      - if: failure()
+      # scoped to the check step specifically, not a blanket failure(): a
+      # regression in tests/provenance.bats above is a bug in this
+      # toolbox's own script, not upstream drift, and should not be filed
+      # as one.
+      - if: steps.check.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
