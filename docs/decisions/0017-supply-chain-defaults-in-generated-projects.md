@@ -66,7 +66,10 @@ whether it clears the immediate failure:
   postinstall exactly the way it blocked `unrs-resolver`'s, but esbuild has
   no pure-JS fallback — its postinstall fetches the platform binary vite's
   build actually runs, so denying it does not make the build safer, it just
-  makes docs fail to build. A project with no typescript adapter never
+  makes docs fail to build. Allowing it is a trust decision, not just a
+  functional one: it means esbuild's own postinstall script — code this
+  toolbox did not write — runs unreviewed on every install, in every
+  client's project, not only here. A project with no typescript adapter never
   joins `common/pnpm-workspace.yaml` at all (that file is deleted outright —
   see `scaffold`'s `cmd_new`), so `docs` ships a second,
   standalone `common/docs/pnpm-workspace.yaml` carrying the identical

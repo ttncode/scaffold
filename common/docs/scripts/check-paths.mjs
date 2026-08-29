@@ -2,8 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 
-const DOCS_DIR = resolve(import.meta.dirname, "..");
-const PROJECT_ROOT = resolve(DOCS_DIR, "..");
+const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 // backticked strings that look like repository paths
 const PATH_PATTERN = /`((?:[\w.-]+\/)+[\w.-]+)`/g;
 // a comment citing an adr by path, not just by prose in a backtick — the
@@ -55,7 +54,9 @@ function missingAdrReferences(content, shippedNumbers) {
 
 const failures = [];
 
-for (const file of await filesMatching(DOCS_DIR, (name) =>
+// the whole project, not just docs/ — a backticked dead path in
+// deploy-adapters/README.md is the same defect as one in docs/index.md.
+for (const file of await filesMatching(PROJECT_ROOT, (name) =>
   name.endsWith(".md"),
 )) {
   for (const path of missingPaths(await readFile(file, "utf8"))) {
