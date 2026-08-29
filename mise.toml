@@ -28,8 +28,10 @@ description = "the suites with no adapter generator anywhere in setup — genuin
 # adapter in setup() (network, but included). listed explicitly instead;
 # tests/provenance.bats also calls no adapter generator but needs a local
 # upstream clone this lane doesn't have, so it runs alongside that clone in
-# .github/workflows/provenance.yml instead.
-run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/new-project.bats"
+# .github/workflows/provenance.yml instead. tests/documentation.bats was
+# built, offline, and passing, and shipped wired into no workflow at all —
+# the exact failure mode task 1's ruling named; it belongs here.
+run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/new-project.bats"
 
 [tasks."test-integration"]
 description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
