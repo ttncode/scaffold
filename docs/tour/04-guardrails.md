@@ -22,9 +22,11 @@ turning red.
   `config:recommended` preset.
 - ADR-0007 for lefthook over husky, ADR-0006 for why every commit has to be
   conventional in the first place (Release Please parses them).
-- Upstream for comparison: immich runs no git hooks at all — see ADR-0007's
-  own Context section for why a PHP-capable project couldn't reuse
-  immich's Node-only husky setup.
+- Upstream for comparison: immich runs no git hooks at all. ADR-0007's
+  Context ("Git hooks must work in a PHP-only project") is why this
+  project couldn't just reuse immich's tooling wholesale; its Alternatives
+  considered section is where husky specifically gets rejected, for being
+  Node-only.
 
 ## Delete test
 

@@ -44,7 +44,6 @@ does:
 ## Done when
 
 `mise run checklist` passes here, the probe project's own checklist
-passes, and `mise ls` shows the new version resolved and installed. This
-toolbox's own `mise.lock` is gitignored (unlike a generated project's, see
-docs/tour/01-toolchain.md), so there's nothing to `git diff` here — `mise
-ls` is the check.
+passes, and `mise.lock` (if this toolbox's own tools changed) reflects the
+new version — check with `git diff mise.lock`. It's tracked, same as a
+generated project's own (see docs/tour/01-toolchain.md).

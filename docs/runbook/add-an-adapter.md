@@ -19,6 +19,12 @@ ADAPTER_LANGUAGE="go"       # "typescript" opts into packages/types
 ADAPTER_GENERATOR='<the framework's own generator, writing into "$APP_DIR">'
 ```
 
+`ADAPTER_POST_GENERATE` is optional: a one-time shell command run right
+after the generator, for fixups the generator itself gets wrong.
+`adapters/nestjs/adapter.env` uses it to un-await `bootstrap()` and run
+prettier once. Only reach for it once you've hit a real generator bug —
+it's a patch, not a default step.
+
 ## 3. Write `mise.toml`
 
 All nine contract tasks. Declare the language in a local `[tools]` block so
@@ -39,6 +45,20 @@ scaffold lint
 ./scaffold new /tmp/probe --api <name>
 cd /tmp/probe && mise run checklist
 ```
+
+If `ADAPTER_LANGUAGE="typescript"`, also verify it as the *second*
+typescript adapter in a project, not just alone — this exact combination
+has broken twice before (ADR-0017: an orphaned per-app lockfile, a
+generator that doesn't notice the workspace root's config already there):
+
+```bash
+./scaffold new /tmp/probe2 --api <name> --web nextjs
+cd /tmp/probe2 && mise run checklist
+```
+
+Confirm the shared types package still resolves (packages/types, in the
+generated project) and there's exactly one `pnpm-lock.yaml`, at the
+project root — not a second one under either app.
 
 ## 6. Add the smoke test
 

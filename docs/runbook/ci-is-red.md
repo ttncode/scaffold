@@ -23,6 +23,23 @@ means `scripts/check-provenance.sh` itself regressed, not that upstream
 drifted; its `check` job means upstream actually moved — see
 `docs/runbook/sync-with-upstream-immich.md`.
 
+## Before you call a fix done
+
+This project's own history has four separate fixes that each stopped the
+exact failure that motivated them and each still missed an adjacent path
+the same input space allowed: a cleanup trap in `common/install.sh` that
+covered a signal landing mid-function but missed two plain `return` paths
+out of the same function; a workflow `if:` in `provenance.yml` that
+covered the outcome it checked but missed GitHub's implicit `success()`
+gate; a tier default in `lib/adapter.sh`'s `load_adapter` that covered a
+stripped `ADAPTER_TIER` field but missed a missing `adapter.env` file
+entirely; and a job condition in `provenance.yml` that covered a pull
+request but missed a manual `workflow_dispatch` run. Four unrelated
+mechanisms, the same shape every time: verified against the one repro that
+motivated the fix, not against the full input space the fix now lives
+inside. Before marking a red-CI fix done, ask what else can reach the code
+you just changed — not just whether today's repro now passes.
+
 ## Done when
 
 The failing step's log names a real cause you can point at, not just a

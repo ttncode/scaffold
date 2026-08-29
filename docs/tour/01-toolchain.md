@@ -23,17 +23,17 @@ and, in a generated project, `common/mise.root.toml`'s (`node`, `pnpm`,
 
 ## Delete test
 
-Delete a *generated project's* `mise.lock` — it ships tracked, since
-`common/.gitignore` does not exclude it (this toolbox's own `mise.lock`
-does, deliberately: the toolbox resolves its own dev tools fresh, a
-client's project should not) — and nothing breaks today: `mise install`
-still resolves something. Three months later a client's machine resolves a
-newer Node than the one this project was built and tested against, `pnpm
-install` behaves slightly differently, and the build fails with nothing in
-the error pointing at a version mismatch. `[settings] lockfile = true` in
-`common/mise.root.toml` is what turns the pin into something real rather
-than decorative: without it, "pinned" only means "pinned until the next
-machine resolves it differently."
+`mise.lock` is tracked here (added in `08468e7`, task 1 — confirm
+yourself with `git ls-files --error-unmatch mise.lock`) and in every
+generated project (`common/mise.root.toml` sets `lockfile = true` too, and
+`common/.gitignore` does not exclude it). Delete it and nothing breaks
+today: `mise install` still resolves something. Three months later a
+client's machine resolves a newer Node than the one this project was built
+and tested against, `pnpm install` behaves slightly differently, and the
+build fails with nothing in the error pointing at a version mismatch.
+`[settings] lockfile = true` is what turns the pin into something real
+rather than decorative: without it, "pinned" only means "pinned until the
+next machine resolves it differently."
 
 ## Try it
 

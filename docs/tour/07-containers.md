@@ -13,7 +13,14 @@ different lifetimes.
 
 - `adapters/laravel-api/Dockerfile` — vendor stage (`composer install`)
   separate from the runtime stage, and the comment explaining why it ships
-  with no `HEALTHCHECK` at all.
+  with no `HEALTHCHECK` at all: it used to run `php -r 'exit(0);'`, which
+  only proved the PHP binary starts, not that php-fpm is serving requests,
+  and never failed a review or CI because it could not fail *at all*. It
+  was removed outright rather than kept — a check that can never fail is
+  worse than no check: an orchestrator with none at least knows it doesn't
+  know a container's state; one with an always-green check believes it
+  does, and routes real traffic to a dead container on that false
+  confidence.
 - `adapters/nestjs/Dockerfile` — a real HTTP `HEALTHCHECK`, for contrast.
 - `common/compose.yaml`, `common/compose.dev.yaml`, `common/compose.test.yaml`
   — same `database` service, three different lifetimes.
@@ -23,17 +30,19 @@ different lifetimes.
 
 ## Delete test
 
-The `laravel-api` and `laravel-inertia` Dockerfiles used to ship a
-`HEALTHCHECK` that ran `php -r 'exit(0);'`. It never failed a review and
-never failed CI, because it could not fail *at all* — it only proved the
-PHP binary starts, not that php-fpm is serving requests. It was removed
-outright rather than kept, on the reasoning that a health check that can
-never fail is worse than no health check: an orchestrator with no
-`HEALTHCHECK` at least knows it doesn't know a container's state; one with
-an always-green check believes it does, and routes real traffic to a dead
-container on that false confidence. If you're adding a `HEALTHCHECK` to a
-new adapter, delete-test it yourself first: stop the process the check is
-supposed to detect, and confirm the check actually goes unhealthy.
+Delete the `HEALTHCHECK` line from `adapters/nestjs/Dockerfile` (or
+`nextjs`'s) and nothing here notices: no test in `tests/` asserts a
+Dockerfile has one, `mise run checklist` stays green, and
+`docker compose up` in `common/compose.yaml` doesn't gate on it either —
+only the `database` service's health is wired to `depends_on`. The
+consequence only shows up once a client's own deploy target (one of
+ADR-0014's seams) actually polls container health before routing traffic:
+a slow-starting container gets real requests before it's ready, and
+nothing in this repository would have pointed at a missing
+`HEALTHCHECK` as the reason. If you're adding one to a new adapter,
+delete-test it the other direction first: stop the process the check is
+supposed to detect, and confirm the check actually goes unhealthy — the
+laravel lesson above is what happens when nobody does.
 
 ## Try it
 

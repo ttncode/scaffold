@@ -5,9 +5,12 @@
 An adapter is an overlay, not a vendored application: `scaffold` invokes a
 framework's own generator (`create-next-app`, `nest new`, `composer
 create-project`) and then copies four files on top of the result —
-`adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`. That's roughly
-40–80 lines owned per stack instead of an entire generated application
-kept in sync by hand.
+`adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`. Measured
+directly across the four shipping adapters, those four files total 72
+lines (`nestjs`) up to 132 (`laravel-inertia`, which — like `laravel-api`
+at 103 — also carries a PHP version guard the TypeScript adapters don't
+need) — nowhere near a full generated application kept in sync by hand,
+but wider than a single fixed figure would suggest.
 
 ## Read this
 
