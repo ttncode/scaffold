@@ -34,7 +34,23 @@ teardown() {
   scaffold new "$PROJECT" --api nestjs
   run bash -c "yq -r '.jobs[].uses' '${PROJECT}'/.github/workflows/*.yml | sort -u"
   [[ "$output" != *"null"* ]]
-  [[ "$output" == *"you/.github/.github/workflows/"* ]]
+  [[ "$output" == *"${SCAFFOLD_GITHUB_OWNER}/.github/.github/workflows/"* ]]
+}
+
+@test "the you/ placeholder is substituted with the resolved account" {
+  scaffold new "$PROJECT" --api nestjs
+  run grep -rl 'you/' "${PROJECT}/.github/workflows/"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "scaffold new refuses to generate without a resolvable github account" {
+  local no_owner_project="${WORKDIR}/no-owner"
+  run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
+    scaffold new "$no_owner_project" --api nestjs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"GitHub account"* ]]
+  [ ! -e "$no_owner_project" ]
 }
 
 @test "a web-only project builds and releases from apps/web" {

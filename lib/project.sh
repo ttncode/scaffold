@@ -1,10 +1,26 @@
 # shellcheck shell=bash
 
+# resolve_github_owner — the account or org that owns the shipped workflows'
+# `uses: you/.github/...@v1` reusable-workflow references and the
+# `ghcr.io/you/...` image ref. SCAFFOLD_GITHUB_OWNER overrides; otherwise
+# falls back to git's own github.user config (set by `gh auth setup-git` and
+# many manual setups). Dies rather than shipping a project whose workflows
+# reference an account that does not exist — CI cannot resolve `you/` on any
+# real one, and that failure mode is invisible until the first push.
+resolve_github_owner() {
+  local owner="${SCAFFOLD_GITHUB_OWNER:-$(git config --get github.user || true)}"
+  [ -n "$owner" ] || die "no GitHub account to substitute for 'you/' in the generated workflows — set SCAFFOLD_GITHUB_OWNER or 'git config --global github.user <account>'"
+  printf '%s' "$owner"
+}
+
 # init_project <dir> <name>
 init_project() {
   local dir="$1" name="$2"
 
   [ -e "$dir" ] && die "refusing to overwrite existing path: ${dir}"
+
+  local owner
+  owner="$(resolve_github_owner)"
 
   mkdir -p "$dir"
   # from here on this run owns $dir; a later step failing must remove it, not
@@ -21,6 +37,15 @@ init_project() {
   # (e.g. core.fileMode); set it explicitly so a generated project's
   # install.sh runs regardless of how this toolbox itself was checked out.
   chmod +x "${dir}/install.sh"
+
+  # the shipped workflows and image ref point at the placeholder account
+  # "you"; substitute it the same way @PROJECT_NAME@ is substituted below,
+  # so every generated project's CI resolves against a real account.
+  local wf
+  for wf in "${dir}/.github/workflows/"*.yml; do
+    sed -i.bak "s|you/|${owner}/|g" "$wf"
+    rm -f "${wf}.bak"
+  done
 
   sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"

@@ -11,6 +11,11 @@ can run the same command against any adapter regardless of language.
 scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
 ```
 
+The generated workflows call this account's reusable CI (`dot-github`) and
+publish to this account's `ghcr.io` namespace. `scaffold new` resolves that
+account from `SCAFFOLD_GITHUB_OWNER`, falling back to `git config
+github.user`; it refuses to generate a project if neither is set.
+
 ## Adapter support tiers
 
 "Supported" and "guaranteed" are different words. Tier membership is read
