@@ -27,3 +27,16 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 
 See `docs/` for the design spec, the architecture decisions
 (`docs/decisions/`), and the implementation plan.
+
+### Reading path
+
+New to this toolbox: read `docs/tour/01-toolchain.md` through
+`docs/tour/03-ci.md` first — that's day one, enough to generate a project
+and understand what CI does with it.
+
+Owning it for real, over the first week: the rest of the tour
+(`docs/tour/04-guardrails.md` through `docs/tour/08-adapters.md`), plus
+ADR-0001, ADR-0003, and ADR-0011.
+
+`docs/runbook/` is not reading material — consult it when the situation
+that names it actually arises.
