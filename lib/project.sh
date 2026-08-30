@@ -267,8 +267,11 @@ sync_ci_roots() {
 # exactly that file. `mise lock` fills in the URLs and checksums. It covers one
 # config root, and the root is the only one CI installs from.
 lock_toolchains() {
+  # a mise.toml above the new project is neither trusted nor necessarily
+  # parseable, and mise reads it before ours. That breaks locking but not the
+  # project, so say so and leave the environment to whoever owns it.
   mise lock -C "$1" >/dev/null \
-    || die "could not lock the toolchain — CI installs with --locked and will reject an unlocked project"
+    || warn "could not lock the toolchain — run 'mise lock' before committing mise.lock, or CI's 'mise install --locked' will reject it"
 }
 
 finalize_project() {
