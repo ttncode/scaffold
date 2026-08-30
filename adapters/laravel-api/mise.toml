@@ -41,6 +41,12 @@ run = "./vendor/bin/phpstan analyse --no-progress --memory-limit=512M"
 run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
+# --no-dev strips pint, phpstan and phpunit out of vendor/, and lefthook's
+# pre-commit hook calls ./vendor/bin/pint directly — so building in place makes
+# the next commit fail on a missing binary, and pre-push runs checklist, which
+# runs this. Build into a throwaway tree instead. The real artifact is built by
+# the Dockerfile, which does its own --no-dev install on a clean checkout.
+env = { COMPOSER_VENDOR_DIR = "vendor-dist" }
 run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative"
 
 [tasks.migrate]
