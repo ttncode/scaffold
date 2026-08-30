@@ -1,4 +1,5 @@
 setup() {
+  REAL_HOME="$HOME"
   load 'helpers/setup'
   WORKDIR="$(mktemp -d)"
   PROJECT="${WORKDIR}/demo"
@@ -46,11 +47,42 @@ teardown() {
 
 @test "scaffold new refuses to generate without a resolvable github account" {
   local no_owner_project="${WORKDIR}/no-owner"
-  run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
+  # an empty GH_CONFIG_DIR leaves gh unauthenticated, so the gh fallback finds
+  # nothing either; HOME does the same for git config github.user.
+  run env -u SCAFFOLD_GITHUB_OWNER -u GH_TOKEN -u GITHUB_TOKEN \
+    HOME="$BATS_TEST_TMPDIR" GH_CONFIG_DIR="$BATS_TEST_TMPDIR/gh" \
     scaffold new "$no_owner_project" --api nestjs
   [ "$status" -ne 0 ]
   [[ "$output" == *"GitHub account"* ]]
   [ ! -e "$no_owner_project" ]
+}
+
+@test "the owner is detected from gh when the variable is unset" {
+  local detected="${WORKDIR}/detected"
+  local account; account="$(gh api user --jq .login)"
+  # HOME is redirected to hide git config's github.user, so gh's own config
+  # has to be pointed back at the real one or this would test an
+  # unauthenticated gh instead of a detected account.
+  # redirecting HOME also hides git's own identity, which finalize_project
+  # needs for its commit, so supply one explicitly.
+  run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
+    GH_CONFIG_DIR="${REAL_HOME}/.config/gh" \
+    GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com \
+    GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com \
+    scaffold new "$detected" --api nestjs
+  [ "$status" -eq 0 ]
+  # detection must be announced, not silent: a wrong account is only visible
+  # here, never at generation time otherwise.
+  [[ "$output" == *"detected from gh"* ]]
+  run grep -rh 'uses:' "${detected}/.github/workflows/ci.yml"
+  [[ "$output" == *"${account}/.github/"* ]]
+}
+
+@test "an explicit SCAFFOLD_GITHUB_OWNER beats what gh reports" {
+  local explicit="${WORKDIR}/explicit"
+  SCAFFOLD_GITHUB_OWNER=someone-else scaffold new "$explicit" --api nestjs
+  run grep -rh 'uses:' "${explicit}/.github/workflows/ci.yml"
+  [[ "$output" == *"someone-else/.github/"* ]]
 }
 
 @test "a web-only project builds and releases from apps/web" {
