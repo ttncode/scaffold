@@ -8,4 +8,10 @@ on:
 permissions: {}
 jobs:
   security:
+    # a called workflow cannot request more than its caller was granted, and
+    # the workflow-level `permissions: {}` above grants nothing — so this is
+    # the union of what app-security's own jobs ask for, and no more.
+    permissions:
+      contents: read
+      security-events: write
     uses: you/.github/.github/workflows/app-security.yml@v1

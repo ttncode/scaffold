@@ -2,15 +2,51 @@
 
 # resolve_github_owner — the account or org that owns the shipped workflows'
 # `uses: you/.github/...@v1` reusable-workflow references and the
-# `ghcr.io/you/...` image ref. SCAFFOLD_GITHUB_OWNER overrides; otherwise
-# falls back to git's own github.user config (set by `gh auth setup-git` and
-# many manual setups). Dies rather than shipping a project whose workflows
-# reference an account that does not exist — CI cannot resolve `you/` on any
-# real one, and that failure mode is invisible until the first push.
+# `ghcr.io/you/...` image ref. Dies rather than shipping a project whose
+# workflows reference an account that does not exist — CI cannot resolve
+# `you/` on any real one, and that failure mode is invisible until the first
+# push.
+#
+# order: the explicit variable, then gh, then git config. detection is
+# announced on stderr rather than applied silently — a wrong account produces
+# workflows that look fine and fail only on GitHub, so the one moment a human
+# can catch it is while watching the generation.
+#
+# `gh api user` and not `gh auth status`: the former reports the account the
+# stored token actually belongs to, the latter reports what hosts.yml recorded
+# at login and goes stale after an account rename. They were observed
+# disagreeing on the machine this was written on — auth status said
+# `ttndevfullstack`, the token resolved to `ttncode`. Trust the token.
 resolve_github_owner() {
-  local owner="${SCAFFOLD_GITHUB_OWNER:-$(git config --get github.user || true)}"
-  [ -n "$owner" ] || die "no GitHub account to substitute for 'you/' in the generated workflows — set SCAFFOLD_GITHUB_OWNER or 'git config --global github.user <account>'"
+  local owner="${SCAFFOLD_GITHUB_OWNER:-}" source=""
+
+  if [ -z "$owner" ] && command -v gh >/dev/null 2>&1; then
+    owner="$(timeout 10 gh api user --jq .login 2>/dev/null || true)"
+    [ -n "$owner" ] && source="gh"
+  fi
+
+  if [ -z "$owner" ]; then
+    owner="$(git config --get github.user || true)"
+    [ -n "$owner" ] && source="git config github.user"
+  fi
+
+  [ -n "$owner" ] || die "no GitHub account to substitute for 'you/' in the generated workflows — set SCAFFOLD_GITHUB_OWNER, sign in with 'gh auth login', or 'git config --global github.user <account>'"
+  [ -z "$source" ] || warn "using GitHub owner '${owner}' (detected from ${source}) — set SCAFFOLD_GITHUB_OWNER to override"
   printf '%s' "$owner"
+}
+
+# require_git_identity — finalize_project ends in a commit, and git refuses to
+# make one without user.name and user.email. Checked before anything is
+# generated: without it the failure lands after the generator has run, in git's
+# words rather than scaffold's. Kept out of require_tools because that checks
+# for commands on PATH, and out of the shared path because only `new` commits —
+# `list`, `lint` and `add` do not.
+require_git_identity() {
+  local field
+  for field in user.name user.email; do
+    [ -n "$(git config --get "$field" || true)" ] \
+      || die "git has no ${field} to commit the new project with — set it with 'git config --global ${field} \"<value>\"'"
+  done
 }
 
 # init_project <dir> <name>
@@ -226,9 +262,22 @@ sync_ci_roots() {
 }
 
 # finalize_project <project>
+# `mise install` writes a lockfile naming versions but no download URLs when the
+# tools were already in the local cache, and CI's `mise install --locked` rejects
+# exactly that file. `mise lock` fills in the URLs and checksums. It covers one
+# config root, and the root is the only one CI installs from.
+lock_toolchains() {
+  # a mise.toml above the new project is neither trusted nor necessarily
+  # parseable, and mise reads it before ours. That breaks locking but not the
+  # project, so say so and leave the environment to whoever owns it.
+  mise lock --quiet -C "$1" >/dev/null \
+    || warn "could not lock the toolchain — run 'mise lock' before committing mise.lock, or CI's 'mise install --locked' will reject it"
+}
+
 finalize_project() {
   local project="$1"
   sync_ci_roots "$project"
+  lock_toolchains "$project"
   git -C "$project" add -A
   git -C "$project" commit --quiet -m "chore: scaffold project"
 }

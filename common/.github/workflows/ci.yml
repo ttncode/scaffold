@@ -9,6 +9,12 @@ concurrency:
 permissions: {}
 jobs:
   ci:
+    # a called workflow cannot request more than its caller was granted, and
+    # the workflow-level `permissions: {}` above grants nothing — so this is
+    # the union of what app-ci's own jobs ask for, and no more.
+    permissions:
+      contents: read
+      pull-requests: read
     uses: you/.github/.github/workflows/app-ci.yml@v1
     with:
       roots: '["docs"]'

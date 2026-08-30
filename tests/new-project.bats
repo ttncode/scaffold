@@ -135,3 +135,12 @@ collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/project.sh"
   collect_config_roots "$1"
 }
+
+@test "the lockfile carries download URLs, not just versions" {
+  scaffold new "$PROJECT"
+  # `mise install` writes versions but no URLs for tools already in the local
+  # cache, and CI's `mise install --locked` rejects exactly that lockfile.
+  run grep -c '^url = ' "${PROJECT}/mise.lock"
+  [ "$status" -eq 0 ]
+  [ "$output" -gt 0 ]
+}

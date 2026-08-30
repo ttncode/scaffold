@@ -16,7 +16,13 @@ run = "pnpm exec prettier --write ."
 run = "pnpm exec eslint . --max-warnings 0"
 
 [tasks.check]
-run = "pnpm exec tsc --noEmit"
+# next generates the route and layout types the app's own pages are typed
+# against, into .next/types, which is not committed. Without this, tsc passes
+# on a machine that happens to have built once and fails everywhere else.
+run = [
+  "pnpm exec next typegen",
+  "pnpm exec tsc --noEmit",
+]
 
 [tasks.test]
 run = "pnpm exec vitest --run --passWithNoTests"

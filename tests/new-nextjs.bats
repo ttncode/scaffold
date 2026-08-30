@@ -41,3 +41,9 @@ teardown() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"adapter nextjs has role web"* ]]
 }
+
+@test "the web app builds the standalone tree its Dockerfile copies" {
+  scaffold new "$PROJECT" --web nextjs
+  run grep "output: 'standalone'" "${PROJECT}/apps/web/next.config.ts"
+  [ "$status" -eq 0 ]
+}

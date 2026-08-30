@@ -105,6 +105,8 @@ cmd_new() {
     esac
   done
 
+  require_git_identity
+
   # init_project itself arms the EXIT trap right after it creates $target,
   # so a failure inside it is covered too; nothing to install here.
   init_project "$target" "$name"

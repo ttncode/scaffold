@@ -1,4 +1,10 @@
 setup() {
+  REAL_HOME="$HOME"
+
+  # a test that redirects HOME loses git's identity with it, and
+  # GIT_AUTHOR_* does not satisfy `git config --get`. Write a real one.
+  printf '[user]\n\tname = test\n\temail = test@example.com\n' \
+    > "${BATS_TEST_TMPDIR}/.gitconfig"
   load 'helpers/setup'
   WORKDIR="$(mktemp -d)"
   PROJECT="${WORKDIR}/demo"
@@ -30,6 +36,16 @@ teardown() {
   done
 }
 
+@test "every job calling a reusable workflow grants the permissions it needs" {
+  scaffold new "$PROJECT" --api nestjs
+  # a called workflow cannot request more than its caller was granted, and the
+  # caller's workflow-level `permissions: {}` grants nothing — so a job with no
+  # permissions block of its own fails at startup, before any step runs.
+  run bash -c "yq -r '.jobs[] | select(has(\"uses\")) | .permissions // \"MISSING\"' '${PROJECT}'/.github/workflows/*.yml"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *MISSING* ]]
+}
+
 @test "every workflow only calls into the shared repository" {
   scaffold new "$PROJECT" --api nestjs
   run bash -c "yq -r '.jobs[].uses' '${PROJECT}'/.github/workflows/*.yml | sort -u"
@@ -46,11 +62,52 @@ teardown() {
 
 @test "scaffold new refuses to generate without a resolvable github account" {
   local no_owner_project="${WORKDIR}/no-owner"
-  run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
+  # an empty GH_CONFIG_DIR leaves gh unauthenticated, so the gh fallback finds
+  # nothing either; HOME does the same for git config github.user.
+  run env -u SCAFFOLD_GITHUB_OWNER -u GH_TOKEN -u GITHUB_TOKEN \
+    HOME="$BATS_TEST_TMPDIR" GH_CONFIG_DIR="$BATS_TEST_TMPDIR/gh" \
     scaffold new "$no_owner_project" --api nestjs
   [ "$status" -ne 0 ]
   [[ "$output" == *"GitHub account"* ]]
   [ ! -e "$no_owner_project" ]
+}
+
+@test "the owner is detected from gh when the variable is unset" {
+  local detected="${WORKDIR}/detected"
+  local account; account="$(gh api user --jq .login)"
+  # HOME is redirected to hide git config's github.user, so gh's own config
+  # has to be pointed back at the real one or this would test an
+  # unauthenticated gh instead of a detected account.
+  run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
+    GH_CONFIG_DIR="${REAL_HOME}/.config/gh" \
+    scaffold new "$detected" --api nestjs
+  [ "$status" -eq 0 ]
+  # detection must be announced, not silent: a wrong account is only visible
+  # here, never at generation time otherwise.
+  [[ "$output" == *"detected from gh"* ]]
+  run grep -rh 'uses:' "${detected}/.github/workflows/ci.yml"
+  [[ "$output" == *"${account}/.github/"* ]]
+}
+
+@test "new refuses early when git has no identity to commit with" {
+  local no_ident="${WORKDIR}/no-ident"
+  # HOME redirected hides user.name/user.email; the owner is supplied so this
+  # test fails on the identity and nothing else.
+  rm -f "${BATS_TEST_TMPDIR}/.gitconfig"
+  run env HOME="$BATS_TEST_TMPDIR" SCAFFOLD_GITHUB_OWNER=someone \
+    scaffold new "$no_ident" --api nestjs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"user.name"* ]]
+  # early means before the generator runs, not after a cleanup
+  [[ "$output" != *"removed incomplete project"* ]]
+  [ ! -e "$no_ident" ]
+}
+
+@test "an explicit SCAFFOLD_GITHUB_OWNER beats what gh reports" {
+  local explicit="${WORKDIR}/explicit"
+  SCAFFOLD_GITHUB_OWNER=someone-else scaffold new "$explicit" --api nestjs
+  run grep -rh 'uses:' "${explicit}/.github/workflows/ci.yml"
+  [[ "$output" == *"someone-else/.github/"* ]]
 }
 
 @test "a web-only project builds and releases from apps/web" {
