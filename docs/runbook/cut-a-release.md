@@ -3,6 +3,23 @@
 This applies to a generated project (Release Please, `common/release-please-config.json`),
 not to this toolbox itself, which has no release process of its own.
 
+## 0. Once per repository: let Actions open pull requests
+
+Release Please works by opening a pull request, and a new repository
+forbids that by default — the run fails with `GitHub Actions is not
+permitted to create or approve pull requests` after it has already
+pushed its branch, so the symptom appears late and looks like a
+permissions bug in the workflow. It is a repository setting:
+
+```bash
+gh api -X PUT "repos/<owner>/<repo>/actions/permissions/workflow" \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=true
+```
+
+Or Settings → Actions → General → Workflow permissions → *Allow GitHub
+Actions to create and approve pull requests*.
+
 ## 1. Merge conventional commits to `main`
 
 Every commit must already be a Conventional Commit — enforced at

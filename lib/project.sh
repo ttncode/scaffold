@@ -262,9 +262,19 @@ sync_ci_roots() {
 }
 
 # finalize_project <project>
+# `mise install` writes a lockfile naming versions but no download URLs when the
+# tools were already in the local cache, and CI's `mise install --locked` rejects
+# exactly that file. `mise lock` fills in the URLs and checksums. It covers one
+# config root, and the root is the only one CI installs from.
+lock_toolchains() {
+  mise lock -C "$1" >/dev/null \
+    || die "could not lock the toolchain — CI installs with --locked and will reject an unlocked project"
+}
+
 finalize_project() {
   local project="$1"
   sync_ci_roots "$project"
+  lock_toolchains "$project"
   git -C "$project" add -A
   git -C "$project" commit --quiet -m "chore: scaffold project"
 }
