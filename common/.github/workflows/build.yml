@@ -8,6 +8,12 @@ concurrency:
 permissions: {}
 jobs:
   build:
+    # a called workflow cannot request more than its caller was granted, and
+    # the workflow-level `permissions: {}` above grants nothing — so this is
+    # the union of what app-build's own jobs ask for, and no more.
+    permissions:
+      contents: read
+      packages: write
     uses: you/.github/.github/workflows/app-build.yml@v1
     with:
       image: ghcr.io/you/@PROJECT_NAME@

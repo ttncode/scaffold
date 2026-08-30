@@ -36,6 +36,16 @@ teardown() {
   done
 }
 
+@test "every job calling a reusable workflow grants the permissions it needs" {
+  scaffold new "$PROJECT" --api nestjs
+  # a called workflow cannot request more than its caller was granted, and the
+  # caller's workflow-level `permissions: {}` grants nothing — so a job with no
+  # permissions block of its own fails at startup, before any step runs.
+  run bash -c "yq -r '.jobs[] | select(has(\"uses\")) | .permissions // \"MISSING\"' '${PROJECT}'/.github/workflows/*.yml"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *MISSING* ]]
+}
+
 @test "every workflow only calls into the shared repository" {
   scaffold new "$PROJECT" --api nestjs
   run bash -c "yq -r '.jobs[].uses' '${PROJECT}'/.github/workflows/*.yml | sort -u"
