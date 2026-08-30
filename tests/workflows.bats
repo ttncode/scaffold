@@ -1,5 +1,10 @@
 setup() {
   REAL_HOME="$HOME"
+
+  # a test that redirects HOME loses git's identity with it, and
+  # GIT_AUTHOR_* does not satisfy `git config --get`. Write a real one.
+  printf '[user]\n\tname = test\n\temail = test@example.com\n' \
+    > "${BATS_TEST_TMPDIR}/.gitconfig"
   load 'helpers/setup'
   WORKDIR="$(mktemp -d)"
   PROJECT="${WORKDIR}/demo"
@@ -63,12 +68,8 @@ teardown() {
   # HOME is redirected to hide git config's github.user, so gh's own config
   # has to be pointed back at the real one or this would test an
   # unauthenticated gh instead of a detected account.
-  # redirecting HOME also hides git's own identity, which finalize_project
-  # needs for its commit, so supply one explicitly.
   run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
     GH_CONFIG_DIR="${REAL_HOME}/.config/gh" \
-    GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com \
-    GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com \
     scaffold new "$detected" --api nestjs
   [ "$status" -eq 0 ]
   # detection must be announced, not silent: a wrong account is only visible
@@ -76,6 +77,20 @@ teardown() {
   [[ "$output" == *"detected from gh"* ]]
   run grep -rh 'uses:' "${detected}/.github/workflows/ci.yml"
   [[ "$output" == *"${account}/.github/"* ]]
+}
+
+@test "new refuses early when git has no identity to commit with" {
+  local no_ident="${WORKDIR}/no-ident"
+  # HOME redirected hides user.name/user.email; the owner is supplied so this
+  # test fails on the identity and nothing else.
+  rm -f "${BATS_TEST_TMPDIR}/.gitconfig"
+  run env HOME="$BATS_TEST_TMPDIR" SCAFFOLD_GITHUB_OWNER=someone \
+    scaffold new "$no_ident" --api nestjs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"user.name"* ]]
+  # early means before the generator runs, not after a cleanup
+  [[ "$output" != *"removed incomplete project"* ]]
+  [ ! -e "$no_ident" ]
 }
 
 @test "an explicit SCAFFOLD_GITHUB_OWNER beats what gh reports" {

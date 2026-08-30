@@ -35,6 +35,20 @@ resolve_github_owner() {
   printf '%s' "$owner"
 }
 
+# require_git_identity — finalize_project ends in a commit, and git refuses to
+# make one without user.name and user.email. Checked before anything is
+# generated: without it the failure lands after the generator has run, in git's
+# words rather than scaffold's. Kept out of require_tools because that checks
+# for commands on PATH, and out of the shared path because only `new` commits —
+# `list`, `lint` and `add` do not.
+require_git_identity() {
+  local field
+  for field in user.name user.email; do
+    [ -n "$(git config --get "$field" || true)" ] \
+      || die "git has no ${field} to commit the new project with — set it with 'git config --global ${field} \"<value>\"'"
+  done
+}
+
 # init_project <dir> <name>
 init_project() {
   local dir="$1" name="$2"
