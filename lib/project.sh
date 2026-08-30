@@ -270,7 +270,7 @@ lock_toolchains() {
   # a mise.toml above the new project is neither trusted nor necessarily
   # parseable, and mise reads it before ours. That breaks locking but not the
   # project, so say so and leave the environment to whoever owns it.
-  mise lock -C "$1" >/dev/null \
+  mise lock --quiet -C "$1" >/dev/null \
     || warn "could not lock the toolchain — run 'mise lock' before committing mise.lock, or CI's 'mise install --locked' will reject it"
 }
 

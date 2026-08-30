@@ -16,16 +16,21 @@ run = [
   "npm ci",
 ]
 
+# the starter kit's frontend toolchain is vite-plus, whose `vp check` covers
+# formatting and linting in one command — there is no separate format:check or
+# lint:check script to call. Scoped to resources/ because an unscoped run also
+# formats this file, and its idea of toml style is not this toolbox's.
 [tasks.format]
-run = ["./vendor/bin/pint --test", "npm run format:check"]
+run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 
 [tasks."format-fix"]
-run = ["./vendor/bin/pint", "npm run format"]
+run = ["./vendor/bin/pint", "npm run check:fix -- resources"]
 
-# pint doubles as php's formatter and linter, same as laravel-api; lint here
-# only adds what format does not already cover — eslint's frontend rules.
+# both halves of lint are already formatters that lint: pint on the php side,
+# vp on the frontend. Same honest duplicate as laravel-api rather than a second
+# linter invented to fill the slot.
 [tasks.lint]
-run = "npm run lint:check"
+run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 
 [tasks.check]
 run = ["./vendor/bin/phpstan analyse --no-progress --memory-limit=512M", "npm run types:check"]
@@ -33,7 +38,12 @@ run = ["./vendor/bin/phpstan analyse --no-progress --memory-limit=512M", "npm ru
 [tasks.test]
 # the starter kit ships phpunit, not pest — pest is opt-in and adds nothing
 # here; run what the generator already ships.
-run = "./vendor/bin/phpunit"
+#
+# same uncommitted-.env problem as laravel-api: APP_KEY lives there, so a fresh
+# checkout has none and every test that boots the app dies on
+# MissingAppKeyException. A throwaway key per run is enough for tests that hit
+# an in-memory database and encrypt nothing that outlives them.
+run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
 run = [
