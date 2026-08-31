@@ -97,7 +97,17 @@ apply_adapter() {
   if [ -n "${ADAPTER_POST_GENERATE:-}" ]; then
     # same reason as the generator above: post-generate steps install the tools
     # the contract needs and then immediately run them.
-    ( cd "$dest" && npm_config_frozen_lockfile=false eval "$ADAPTER_POST_GENERATE" )
+    #
+    # verify-deps-before-run off as well: this runs between the generator and
+    # sync_workspace_lockfile, the one window where node_modules is meant to
+    # disagree with the lockfile. Left on, `pnpm exec` sees the mismatch and
+    # silently runs its own install first — one that reports nothing but
+    # `Command failed with exit code 1` when it fails, which is what a CI
+    # failure here looked like.
+    ( cd "$dest" \
+        && npm_config_frozen_lockfile=false \
+           npm_config_verify_deps_before_run=false \
+           eval "$ADAPTER_POST_GENERATE" )
   fi
 
   register_config_root "$project" "$rel"
