@@ -44,3 +44,22 @@ setup() {
   [[ "$output" == *"[error]"* ]]
   [[ "$output" == *"bad"* ]]
 }
+
+@test "scaffold lint accepts every adapter that ships" {
+  # lint_adapters is covered against fixtures, but the runbook's acceptance
+  # gate is `scaffold lint` over adapters/ — which no test ran, so a shipped
+  # adapter could break the contract without any suite noticing.
+  run scaffold lint
+  assert_ok
+}
+
+@test "scaffold names the tool it cannot find" {
+  # require_tools guards against running outside mise, and its own comment says
+  # a green suite under `mise exec` proves nothing about that path. This runs it
+  # with an empty PATH so the guard is the thing under test.
+  # a plain system PATH, without mise's shims — the state a developer is in
+  # when they clone and run ./scaffold directly.
+  run env PATH=/usr/bin:/bin "${SCAFFOLD_ROOT}/scaffold" list
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"missing required tool"* ]]
+}

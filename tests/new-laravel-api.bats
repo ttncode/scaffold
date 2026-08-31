@@ -53,3 +53,13 @@ teardown() {
   run mise run //apps/api:ci-unit
   assert_ok
 }
+
+@test "the adapter's docker directory reaches the generated app" {
+  scaffold new "$PROJECT" --api laravel-api
+  # apply_adapter copies a docker/ subtree separately from the flat files, and
+  # nothing asserted it: deleting that line left every test green while the
+  # Dockerfile went on COPYing a file that was no longer there.
+  [ -f "${PROJECT}/apps/api/docker/opcache.ini" ]
+  run grep -c 'docker/opcache.ini' "${PROJECT}/apps/api/Dockerfile"
+  [ "$output" != "0" ]
+}
