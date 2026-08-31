@@ -1,3 +1,9 @@
 .superpowers/
 .DS_Store
 *.swp
+
+# The toolbox is bash; a node_modules here is a stray pnpm run, not a
+# dependency. Ignored so a wide `git add -A` cannot commit one again.
+node_modules/
+package.json
+pnpm-lock.yaml
