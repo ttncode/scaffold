@@ -48,8 +48,17 @@ merge_lefthook_fragment() {
 
   rendered="$(mktemp)"
   sed "s|@APP_ROOT@|${rel}/|g" "$fragment" > "$rendered"
-  yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
-    "${project}/lefthook.yml" "$rendered"
+
+  # cleaned up on both paths rather than only after a successful merge: under
+  # `set -e` a yq failure leaves the function immediately and the file would
+  # survive the whole run. Not a RETURN trap — that one fires again in callers
+  # further up, where $rendered is out of scope and the shell aborts on an
+  # unbound variable.
+  if ! yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
+    "${project}/lefthook.yml" "$rendered"; then
+    rm -f "$rendered"
+    die "failed to merge the lefthook fragment for ${rel}"
+  fi
   rm -f "$rendered"
 }
 

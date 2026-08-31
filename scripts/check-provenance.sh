@@ -11,9 +11,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TABLE="${ROOT}/docs/PROVENANCE.md"
 # unlike SCAFFOLD_ROOT, this path is not self-locating — it names a clone on
 # whichever machine runs this script, so it must be overridable (CI, another
-# contributor's checkout). a wrong value still fails loudly below rather than
-# passing silently.
-LOCAL_CLONE="${SCAFFOLD_UPSTREAM_CLONE:-/home/ttndev/workspace/playground/immich}"
+# contributor's checkout). The default is a guess about layout, not about who
+# is running it: a specific user's home directory does not belong in a shared
+# repository. A wrong value still fails loudly below rather than passing
+# silently.
+LOCAL_CLONE="${SCAFFOLD_UPSTREAM_CLONE:-${HOME}/workspace/playground/immich}"
 
 [ -f "${ROOT}/UPSTREAM" ] || { echo "error: ${ROOT}/UPSTREAM not found" >&2; exit 1; }
 [ -f "$TABLE" ] || { echo "error: ${TABLE} not found" >&2; exit 1; }

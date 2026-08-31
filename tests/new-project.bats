@@ -151,3 +151,19 @@ collect_roots() {
   assert_ok
   [ "$output" -gt 0 ]
 }
+
+@test "new refuses a project name it cannot safely substitute" {
+  # The name is interpolated into `sed s|@PROJECT_NAME@|...|` and into an image
+  # reference. A `|` closes the expression early and the rest is read as sed
+  # flags; `&` expands to the whole match. Neither is a legal image name
+  # either, so rejecting is the same answer for both reasons.
+  run scaffold new "${WORKDIR}/we|rd"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"project name"* ]]
+  [ ! -e "${WORKDIR}/we|rd" ]
+}
+
+@test "new accepts the name shapes a container registry accepts" {
+  scaffold new "${WORKDIR}/my-app.2"
+  [ -f "${WORKDIR}/my-app.2/mise.toml" ]
+}

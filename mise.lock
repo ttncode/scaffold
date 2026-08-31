@@ -119,6 +119,14 @@ checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e7
 url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip"
 url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056944"
 
+[[tools."ubi:shenwei356/rush"]]
+version = "0.9.0"
+backend = "ubi:shenwei356/rush"
+specifiers = ["0.9.0"]
+
+[tools."ubi:shenwei356/rush"."platforms.linux-x64-rush"]
+checksum = "blake3:1cc031be86fa44d1b0eab94a0352a193655424db2531131d3b6ab29bfbe388b9"
+
 [[tools.yq]]
 version = "4.48.1"
 backend = "aqua:mikefarah/yq"

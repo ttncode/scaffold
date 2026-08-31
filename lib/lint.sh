@@ -4,7 +4,7 @@
 # prints one line per problem and returns 1 when any adapter is incomplete.
 lint_adapters() {
   local dir="$1"
-  local adapter name file task task_body flag status=0
+  local adapter name file task task_body flag var status=0
 
   for adapter in "$dir"/*/; do
     [ -d "$adapter" ] || continue
@@ -16,6 +16,15 @@ lint_adapters() {
         status=1
       fi
     done
+
+    if [ -f "${adapter}adapter.env" ]; then
+      for var in "${REQUIRED_ADAPTER_VARS[@]}"; do
+        grep -Eq "^${var}=" "${adapter}adapter.env" || {
+          printf '%s: adapter.env does not set %s\n' "$name" "$var"
+          status=1
+        }
+      done
+    fi
 
     [ -f "${adapter}mise.toml" ] || continue
 

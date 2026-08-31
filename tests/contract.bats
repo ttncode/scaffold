@@ -63,3 +63,11 @@ setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"sample: lint writes"* ]]
 }
+
+@test "lint_adapters reports an adapter.env with no generator" {
+  # apply_adapter evals ADAPTER_GENERATOR, so an adapter missing it passed lint
+  # and then died mid-generation with `unbound variable`.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/no-generator"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"adapter.env does not set ADAPTER_GENERATOR"* ]]
+}

@@ -53,6 +53,21 @@ require_git_identity() {
 init_project() {
   local dir="$1" name="$2"
 
+  # The name is substituted into `sed s|@PROJECT_NAME@|...|` and into the
+  # image reference in the generated workflows. A `|` would close the sed
+  # expression early and a `&` would expand to the whole match, so an
+  # unchecked name can rewrite the file it is being written into. The same
+  # characters are illegal in an OCI image name, so one rule covers both:
+  # lowercase, digits, and separators, starting alphanumeric.
+  case "$name" in
+    [a-z0-9]*) ;;
+    *) die "project name must start with a lowercase letter or digit: ${name}" ;;
+  esac
+  case "$name" in
+    *[!a-z0-9._-]*)
+      die "project name may contain only lowercase letters, digits, '.', '_' and '-': ${name}" ;;
+  esac
+
   [ -e "$dir" ] && die "refusing to overwrite existing path: ${dir}"
 
   local owner

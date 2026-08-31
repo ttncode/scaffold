@@ -4,6 +4,7 @@ shellcheck = "0.11.0"
 yq = "4.48.1"
 jq = "1.8.1"
 zizmor = "1.29.0"
+"ubi:shenwei356/rush" = "0.9.0"
 
 [settings]
 pin = true
@@ -17,7 +18,12 @@ lockfile = true
 run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs -r shellcheck"
 
 [tasks.test]
-run = "bats tests/"
+# --jobs runs the files concurrently; isolation is unchanged, because bats
+# already gives every test its own process and its own BATS_TEST_TMPDIR, and
+# every suite here generates its own project rather than sharing one. It is
+# worth it for feedback time: a broken lib/adapter.sh showed up 85 seconds
+# into a parallel run and 30 minutes into the same run sequentially.
+run = "bats --jobs $(nproc) --parallel-binary-name rush tests/"
 
 [tasks."test-unit"]
 description = "the suites with no adapter generator anywhere in setup — genuinely offline"
@@ -32,11 +38,11 @@ description = "the suites with no adapter generator anywhere in setup — genuin
 # .github/workflows/provenance.yml instead. tests/documentation.bats was
 # built, offline, and passing, and shipped wired into no workflow at all —
 # the exact failure mode task 1's ruling named; it belongs here.
-run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/new-project.bats"
+run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/new-project.bats"
 
 [tasks."test-integration"]
 description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
-run = "bats tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
+run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
 
 [tasks."test-runner"]
 description = "both test lanes under the environment a github runner actually has"
