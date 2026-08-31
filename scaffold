@@ -180,7 +180,8 @@ cmd_new() {
 cmd_add_cleanup() {
   local target="$1" status="$2" workspace_file="$3"
 
-  [ -n "$workspace_file" ] && sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+  [ -n "$workspace_file" ] \
+    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
 
   [ "$status" -eq 0 ] && return 0
   [ -n "$target" ] || return 0
@@ -276,12 +277,19 @@ cmd_add() {
   # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
   trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
 
-  [ -n "$reconcile" ] && printf 'confirmModulesPurge: false\n' >> "$workspace_file"
+  # frozenLockfile alongside it, and for the same reason: the generator's own
+  # `pnpm install` sees 28 dependencies in the new app's package.json that the
+  # workspace lockfile has never heard of, and refuses under a frozen lockfile
+  # ("specifiers in the lockfile don't match specifiers in package.json"). It
+  # goes in the workspace file rather than the environment because the generator
+  # spawns pnpm through several processes and npm_config_* does not survive the
+  # trip — that was tried, and only the runner disagreed.
+  [ -n "$reconcile" ] && printf 'confirmModulesPurge: false\nfrozenLockfile: false\n' >> "$workspace_file"
 
   apply_adapter "$adapter" "$project" "$rel"
 
   if [ -n "$reconcile" ]; then
-    sed -i '/^confirmModulesPurge: false$/d' "$workspace_file"
+    sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
     # the new app's own generator already installed straight into the
     # shared root lockfile (see sync_workspace_lockfile's own comment on
     # why not every adapter's generator can be trusted to do that cleanly);

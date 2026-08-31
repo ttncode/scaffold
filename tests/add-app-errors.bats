@@ -84,13 +84,15 @@ teardown() {
 # install needed for that) without touching the network, then proves the
 # relaxation is removed on the *failure* path specifically, not only on
 # success.
-@test "a failure inside cmd_add removes the temporary confirmModulesPurge relaxation" {
+@test "a failure inside cmd_add removes both temporary workspace relaxations" {
   scaffold new "$PROJECT"
   printf 'packages:\n  - apps/*\n  - packages/*\n  - docs\n' > "${PROJECT}/pnpm-workspace.yaml"
   cd "$PROJECT"
   run "${SCAFFOLD_ROOT}/tests/fixtures/add-fixtures/scaffold" add apps/worker --adapter broken
   [ "$status" -eq 1 ]
   [ ! -e "${PROJECT}/apps/worker" ]
-  run grep -c confirmModulesPurge "${PROJECT}/pnpm-workspace.yaml"
+  # both, not just the first: each is written for the generator's benefit and
+  # neither may ship in the caller's project.
+  run grep -cE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"
   [ "$output" = "0" ]
 }
