@@ -1,14 +1,11 @@
-# composer is the only tool pinned here — mise's php backends compile from
-# source and this machine's build fails on missing system libraries, so php
-# comes from the system instead (see the scaffold toolbox's ADR-0016, not
-# shipped here). php still lives only in this file and nowhere else in the
-# project: the root mise.toml never learns that this app is written in php.
+# composer only: mise's php backends compile from source and fail here, so php
+# comes from the system (ADR-0016). It stays declared in this file alone — the
+# root mise.toml never learns this app is php.
 [tools]
 "ubi:composer/composer" = "2.10.2"
 
 [tasks.install]
-# composer resolves to a phar named composer.phar, not composer, once mise
-# installs it — invoke it by that name everywhere in this file.
+# mise installs composer as composer.phar, not composer
 run = [
   "php -r 'exit(version_compare(PHP_VERSION, \"8.3.0\", \">=\") ? 0 : 1);' || { echo \"laravel-api requires system php >= 8.3.0 (found $(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'no php on PATH')); install php 8.3 or newer via your OS package manager (e.g. apt install php8.3-cli) or https://php.net, then re-run mise install\" >&2; exit 1; }",
   "composer.phar install --no-interaction --prefer-dist",
@@ -20,9 +17,8 @@ run = "./vendor/bin/pint --test"
 [tasks."format-fix"]
 run = "./vendor/bin/pint"
 
-# pint is both formatter and style linter, so lint runs the same binary as
-# format. an honest duplicate beats inventing a second linter to fill the
-# slot.
+# pint is both formatter and linter; an honest duplicate beats inventing a
+# second linter to fill the slot
 [tasks.lint]
 run = "./vendor/bin/pint --test"
 
@@ -30,29 +26,16 @@ run = "./vendor/bin/pint --test"
 run = "./vendor/bin/phpstan analyse --no-progress --memory-limit=512M"
 
 [tasks.test]
-# the skeleton ships phpunit, not pest — pest is opt-in and adds nothing
-# here; run what the generator already ships.
-#
-# laravel reads APP_KEY from .env, which is not committed, so a fresh checkout
-# has none and every test that boots the app dies on MissingAppKeyException.
-# The tests run against an in-memory database and encrypt nothing that outlives
-# them, so a throwaway key generated per run is enough — and beats committing
-# one real key into every project this toolbox makes.
+# APP_KEY lives in the uncommitted .env, so a fresh checkout has none and every
+# test that boots the app dies on MissingAppKeyException. A throwaway key beats
+# committing a real one into every project this toolbox makes.
 run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
-# --no-dev strips pint, phpstan and phpunit out of vendor/, and lefthook's
-# pre-commit hook calls ./vendor/bin/pint directly — so building in place makes
-# the next commit fail on a missing binary, and pre-push runs checklist, which
-# runs this. So put the dev tools back afterwards. The real artifact is built
-# by the Dockerfile, which does its own --no-dev install on a clean checkout.
-#
-# Restoring afterwards rather than installing somewhere else on purpose: a
-# second vendor tree is 46MB of third-party files, and every tool that walks
-# the project — pint, the docs path checker — has to be taught to skip it, one
-# at a time, each time finding out the hard way. `; status=$?; …; exit $status`
-# so the dev tools come back even when the production install fails, without
-# swallowing its exit code.
+# --no-dev strips pint, phpstan and phpunit from vendor/, and the pre-commit
+# hook calls ./vendor/bin/pint directly — so the next commit fails on a missing
+# binary. Put them back; `status=$?` keeps the production install's exit code.
+# The real artifact is the Dockerfile's own --no-dev install.
 run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative; status=$?; composer.phar install --no-interaction --prefer-dist --quiet; exit $status"
 
 [tasks.migrate]

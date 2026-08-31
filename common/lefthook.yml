@@ -1,14 +1,7 @@
-# Every command runs through `mise exec --`, so only mise itself has to be on
-# PATH. The tools these hooks call — pnpm, gitleaks — are pinned in this
-# project's mise.toml and exist nowhere else, so calling them bare works only
-# in a shell where mise is already activated. A plain `git commit` then fails
-# with `gitleaks: not found`, which says nothing about what to do; the same
-# commit succeeds under `mise exec`. lefthook's own `rc:` key could export the
-# environment once instead, but it is baked into .git/hooks at install time,
-# so editing it without re-running `lefthook install` drifts silently.
-#
-# pint is the exception: it is invoked by path from the app that vendors it,
-# which needs no PATH lookup at all.
+# Through `mise exec --` so only mise has to be on PATH. These tools exist
+# only in this project's mise.toml, so calling them bare fails a plain
+# `git commit` with `gitleaks: not found`. lefthook's `rc:` key would do this
+# too, but it is baked into .git/hooks at install time and drifts silently.
 pre-commit:
   parallel: true
   commands:

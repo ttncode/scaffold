@@ -1,22 +1,14 @@
 # shellcheck shell=bash
 
-# resolve_github_owner — the account or org that owns the shipped workflows'
-# `uses: you/.github/...@v1` reusable-workflow references and the
-# `ghcr.io/you/...` image ref. Dies rather than shipping a project whose
-# workflows reference an account that does not exist — CI cannot resolve
-# `you/` on any real one, and that failure mode is invisible until the first
-# push.
+# The account owning the generated workflows' `uses:` and image refs. Dies
+# rather than shipping `you/`, which fails only on the first push. Detection is
+# announced on stderr for the same reason: a wrong account produces workflows
+# that look fine until GitHub rejects them.
 #
-# order: the explicit variable, then gh, then git config. detection is
-# announced on stderr rather than applied silently — a wrong account produces
-# workflows that look fine and fail only on GitHub, so the one moment a human
-# can catch it is while watching the generation.
-#
-# `gh api user` and not `gh auth status`: the former reports the account the
-# stored token actually belongs to, the latter reports what hosts.yml recorded
-# at login and goes stale after an account rename. They were observed
-# disagreeing on the machine this was written on — auth status said
-# `ttndevfullstack`, the token resolved to `ttncode`. Trust the token.
+# `gh api user`, not `gh auth status`: the former reports who the token belongs
+# to, the latter reports what login recorded and goes stale after a rename.
+# Observed disagreeing here — status said `ttndevfullstack`, the token
+# resolved to `ttncode`.
 resolve_github_owner() {
   local owner="${SCAFFOLD_GITHUB_OWNER:-}" source=""
 
@@ -135,22 +127,13 @@ enable_typescript_workspace() {
   register_config_root "$project" "packages/types"
 }
 
-# sync_workspace_lockfile <project>
-# not every adapter's own generator notices the ambient pnpm-workspace.yaml
-# that init_project already wrote before it ran. nestjs's generator installs
-# straight into the shared root lockfile; nextjs's writes its own, orphaned
-# apps/web/pnpm-lock.yaml instead (leaving that app entirely absent from the
-# root one) and its own nested apps/web/pnpm-workspace.yaml (which pnpm's
-# upward search from inside apps/web finds before the real root one,
-# shadowing it — the app never resolves as part of the outer workspace when
-# a task's cwd is the app itself, as every contract task's is). both are
-# harmless for a standalone nextjs project; both break a multi-app workspace
-# outright. drop any stray per-app copy of either file and let one ordinary
-# install rebuild a single, correct, root-level lockfile covering every
-# member. minimum-release-age is relaxed only for this one resolution pass
-# so it does not error out on a version pnpm has not verified before; it is
-# not persisted, and resolve_minimum_release_age below still enforces the
-# real default against the result.
+# Not every generator notices the pnpm-workspace.yaml init_project already
+# wrote. create-next-app writes its own apps/web/pnpm-lock.yaml and
+# pnpm-workspace.yaml, and pnpm's upward search finds the nested one first —
+# so the app never resolves as part of the outer workspace, which is fatal for
+# a multi-app project and harmless for a standalone one. Drop the strays and
+# rebuild one root lockfile. The minimum-release-age relaxation covers this
+# pass only; resolve_minimum_release_age still enforces the real default.
 sync_workspace_lockfile() {
   local project="$1"
 
@@ -192,30 +175,18 @@ pnpm_install() {
   rm -f "$log"
 }
 
-# resolve_minimum_release_age <project>
-# packages/types joins the workspace only after each app's own generator has
-# already installed once, so the contract's own frozen install is always the
-# first one to re-verify the lockfile the generator just wrote, against
-# pnpm's default minimum-release-age policy — verified by hand that this
-# check re-applies on every future frozen install of the same lockfile, not
-# just this first one, so relaxing it only for this call would not hold.
-# record the exact entries pnpm reports as too fresh, once, in the
-# generated project's own file, so the guard stays live for every
-# dependency this project adds from here on. a bigger workspace (more apps,
-# more transitive deps) can reveal a second batch of violations only once
-# the first batch is excluded, so this loops until pnpm has nothing left to
-# flag, capped so a genuinely different failure cannot loop forever.
+# pnpm re-checks minimum-release-age on every frozen install, not just the
+# first, so relaxing it for one call would not hold. Record the too-fresh
+# entries in the project's own file instead, leaving the policy live for
+# everything it adds later. Excluding one batch can reveal another, so this
+# loops — capped, so a different failure cannot spin forever.
 resolve_minimum_release_age() {
   local project="$1"
   local workspace_file="${project}/pnpm-workspace.yaml"
 
-  # Returning early when the file is absent skipped the whole policy for the
-  # two cases that have no workspace at the project root — a mixed-language
-  # project, and an app added to one — so pnpm rejected the lockfile the
-  # generator had just written and the app could not install at all. pnpm
-  # reads settings from this file whether or not it also lists packages, so
-  # creating it is enough; it is only created when there is a violation to
-  # record, which the loop below decides.
+  # Keyed on the lockfile, not the workspace file: keying on the latter skipped
+  # the policy entirely for a mixed-language project and for an app added to
+  # one, so pnpm rejected a lockfile its own generator had just written.
   [ -f "${project}/pnpm-lock.yaml" ] || return 0
 
   local max_rounds=10 round=0 log entries all_entries=""

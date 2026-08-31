@@ -2,18 +2,10 @@ packages:
   - apps/*
   - packages/*
   - docs
-# unrs-resolver (pulled in by typescript-eslint) ships a native postinstall
-# build; pnpm blocks an unreviewed build script on first install in a
-# workspace instead of just warning, which would abort ci-unit non-interactively.
-# it has a pure-js fallback, so denying the build is safe. esbuild (pulled in
-# by vitepress) needs the same approval, but has no pure-js fallback: its
-# postinstall fetches the platform binary vite's build actually runs, so it
-# is allowed rather than denied. @parcel/watcher (pulled in by jest-haste-map,
-# every jest run not just --watch) also has a native postinstall; jest-haste-map
-# falls back to plain fs crawling when it is not built, and a one-shot
-# `jest --passWithNoTests` run never needs the fast watcher, so it is denied
-# the same way unrs-resolver is. see the scaffold toolbox's ADR-0017 (not
-# shipped here) for all three.
+# pnpm blocks an unreviewed postinstall build rather than warning, which would
+# abort ci-unit non-interactively — so each has to be decided here. esbuild is
+# allowed because its postinstall fetches the binary vite actually runs; the
+# other two have pure-js fallbacks and are denied. See ADR-0017 in the toolbox.
 allowBuilds:
   unrs-resolver: false
   esbuild: true

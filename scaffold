@@ -67,16 +67,10 @@ cmd_lint() {
   lint_adapters "${SCAFFOLD_ROOT}/adapters"
 }
 
-# cmd_new_cleanup <target> <exit-status> — an EXIT trap, not ERR: die() exits
-# directly and never trips an ERR trap, so ERR alone misses e.g. the role
-# mismatch below. removes a half-built project so a retry does not trip
-# init_project's overwrite guard.
-# known gap, not fixed here: this only removes the directory, it does not
-# touch any child process an adapter's own generator left running inside it
-# (e.g. laravel-inertia's starter kit shells out to npm install/build during
-# composer create-project). a Ctrl-C here can orphan that child under init
-# rather than kill it, so it keeps writing into $target after this trap has
-# already rm -rf'd it — cleanup can race a write it never asked to happen.
+# EXIT, not ERR: die() exits directly and never trips an ERR trap.
+#
+# Known gap: this removes the directory but not a generator's orphaned child
+# process, which can keep writing into $target after the rm -rf.
 cmd_new_cleanup() {
   local target="$1" status="$2"
 
@@ -164,19 +158,12 @@ cmd_new() {
     else
       rm -f "${target}/pnpm-workspace.yaml"
     fi
-    # no typescript app to build a workspace over, but the project root's
-    # own package.json (commitlint, for lefthook's commit-msg hook) still
-    # needs installing on its own — see docs/decisions/0007: hooks must
-    # work in a php-only project too. no root pnpm-workspace.yaml exists at
-    # this point, so this install only ever sees the root package.json
-    # itself; it cannot reach into apps/*, packages/*, or docs (each of
-    # which either has no package.json here, or already manages its own
-    # separate install).
-    # MISE_CEILING_PATHS stops mise's own upward config search at $target's
-    # parent: without it, `mise exec` silently trusts whatever mise.toml it
-    # finds above $target too (verified — mise trust -y -C "$dir" above
-    # only ever trusted $dir itself, but exec's own directory walk is a
-    # separate mechanism that does not honor that scope on its own).
+    # The root package.json still needs installing on its own — commitlint
+    # backs lefthook's commit-msg hook, which must work in a php-only
+    # project (docs/decisions/0007).
+    #
+    # MISE_CEILING_PATHS because `mise exec` walks upward and would otherwise
+    # trust a mise.toml above $target; `mise trust -C` does not cover that.
     pnpm_install "$target" "installing the project root's own tooling dependencies" \
       "$(dirname "$target")"
 
@@ -256,50 +243,23 @@ cmd_add() {
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
 
-  # a typescript adapter's own generator (nest new, create-next-app) ends
-  # with its own bundled `pnpm install`. against an empty, brand-new
-  # directory that is harmless, but once a workspace already has an
-  # installed member — exactly what `scaffold add` is adding a second one
-  # to — pnpm treats linking the new member in as a purge-and-relink of the
-  # shared node_modules and refuses that non-interactively
-  # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), a case
-  # docs/decisions/0017 already named and deliberately left off by default.
-  # relaxed here for exactly this one call, the same way
-  # resolve_minimum_release_age below relaxes minimum-release-age only for
-  # its own resolution pass — never shipped in the project itself. removed
-  # at two separate sites, both required (see cmd_add_cleanup above and
-  # the explicit sed below) — not one shared mechanism, so neither strip
-  # is redundant with the other. a caller who already had this exact line
-  # in their own pnpm-workspace.yaml on purpose loses it too, and briefly
-  # sees a duplicate key while this call runs; known, not fixed — see
-  # docs/decisions/0017.
+  # Linking a second member into an installed workspace makes pnpm purge and
+  # relink the shared node_modules, which it refuses without a TTY
+  # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Relaxed for this call only —
+  # stripped at two sites, both required. See docs/decisions/0017.
   local workspace_file="${project}/pnpm-workspace.yaml"
   local reconcile=""
   [ -f "$workspace_file" ] && adapter_is_typescript "$adapter" && reconcile="$workspace_file"
 
-  # the guard above ran first, so $dest is known absent here; arming the
-  # trap any earlier would risk rm -rf on a path the caller already had.
-  # the adapter's own generator creates $dest (and refuses if it already
-  # exists), so nothing is mkdir'd ahead of it — the trap only ever has to
-  # remove what apply_adapter left behind on a partial failure. $dest and
-  # $reconcile are baked into the trap command via printf %q because the
-  # locals go out of scope, and with them their values, once this function
-  # returns.
+  # Armed only after the guard above proves $dest is absent — earlier would
+  # risk rm -rf on a path the caller already had. Values are baked in with
+  # printf %q because the locals are gone by the time the trap fires.
   #
-  # this trap's reach is partial, not a rollback of the whole function: it
-  # restores exactly $dest and the confirmModulesPurge line, nothing more.
-  # a failure after apply_adapter can leave the project with any of the
-  # following, pointing at an app that got removed — there is no general
-  # undo for edits already made to files this run did not create:
-  #   - the config_roots entry apply_adapter added to mise.toml
-  #   - the lefthook.yml fragment apply_adapter merged in
-  #   - (when $reconcile) pnpm-lock.yaml, rewritten by sync_workspace_lockfile
-  #   - (when $reconcile) the minimumReleaseAgeExclude block
-  #     resolve_minimum_release_age appends to pnpm-workspace.yaml —
-  #     cmd_add_cleanup strips only the confirmModulesPurge line, not this
-  #   - the roots: line sync_ci_roots writes to ci.yml
-  # inherent to adding into a repository the caller already owns, not
-  # something this trap can be made to cover.
+  # Reach is partial: $dest and the workspace relaxations, nothing else. A
+  # failure after apply_adapter leaves the config_roots entry, the merged
+  # lefthook fragment, the rewritten lockfile and the roots: line behind,
+  # all pointing at an app that got removed. Editing files the caller
+  # already owned has no general undo.
   # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
   trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
 
@@ -353,25 +313,13 @@ cmd_add() {
   # package an already-installed app depends on, or replay most of cmd_new's
   # typescript-workspace pipeline for a case nobody asked for.
 
-  # only the app just created is staged, as one bundle of generated content
-  # nobody is going to review file by file. every existing file scaffold
-  # touched instead of created — mise.toml, the ci workflow, lefthook.yml,
-  # and (when reconciled above) the pnpm lockfile — is left as a plain
-  # unstaged edit, so `git diff` shows the caller exactly the handful of
-  # small, consequential lines scaffold changed in files their team already
-  # owns, before those changes become part of their history. it also means
-  # `add` never sweeps in whatever else the caller already had in progress
-  # elsewhere in the repo.
+  # Only the new app is staged. Edits to files the caller already owned —
+  # mise.toml, ci.yml, lefthook.yml, the lockfile — stay unstaged so `git diff`
+  # shows them before they enter anyone's history.
   #
-  # staging deliberately sits outside the cleanup net, after trap - EXIT
-  # has already disarmed it: this is the one step whose failure should not
-  # cost the caller a regeneration. everything above it is real, expensive
-  # work (a network-fetched app, a reconciled lockfile, an updated ci
-  # workflow) that is already correct; cleanup here could only remove $dest
-  # and the confirmModulesPurge line anyway (see the trap comment above),
-  # so treating a staging failure as fatal would destroy good output to
-  # "fix" a problem the cleanup mechanism cannot actually fix. a failure is
-  # trivially retriable by hand (`git add`), so it is reported, not fatal.
+  # Outside the cleanup net on purpose: everything above is expensive work that
+  # is already correct, and cleanup could only remove $dest anyway. A failed
+  # `git add` is retriable by hand, so it is reported, not fatal.
   if git -C "$project" add -A -- "$rel"; then
     log "added ${rel} using ${adapter}; review and commit"
   else

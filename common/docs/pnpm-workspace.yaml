@@ -1,9 +1,5 @@
-# docs ships regardless of which adapters a project picks, so it needs its
-# own postinstall-build policy for a project with no typescript adapter at
-# all (where the root pnpm-workspace.yaml, and its own allowBuilds, never
-# exists). enable_typescript_workspace deletes this file so docs joins the
-# root workspace instead, once one exists. esbuild has no pure-js fallback,
-# so it is allowed rather than denied — see the scaffold toolbox's ADR-0017
-# (not shipped here).
+# docs ships whatever adapters a project picks, so it needs its own policy for
+# a project with no root workspace. Deleted by enable_typescript_workspace once
+# one exists. esbuild has no pure-js fallback, so it is allowed.
 allowBuilds:
   esbuild: true

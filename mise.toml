@@ -18,26 +18,17 @@ lockfile = true
 run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs -r shellcheck"
 
 [tasks.test]
-# --jobs runs the files concurrently; isolation is unchanged, because bats
-# already gives every test its own process and its own BATS_TEST_TMPDIR, and
-# every suite here generates its own project rather than sharing one. It is
-# worth it for feedback time: a broken lib/adapter.sh showed up 85 seconds
-# into a parallel run and 30 minutes into the same run sequentially.
+# --jobs changes no isolation: bats already gives every test its own process
+# and BATS_TEST_TMPDIR, and no suite shares a fixture. A broken lib/adapter.sh
+# surfaced 85 seconds in, against 30 minutes sequentially.
 run = "bats --jobs $(nproc) --parallel-binary-name rush tests/"
 
 [tasks."test-unit"]
 description = "the suites with no adapter generator anywhere in setup — genuinely offline"
-# a filename-prefix guess (everything but tests/new-*.bats) was tried here
-# before and was wrong in both directions: tests/new-project.bats matched
-# the excluded glob despite generating no adapter (offline, but skipped),
-# while tests/add-app.bats, docs.bats, compose.bats and (most of)
-# workflows.bats didn't match it despite calling `scaffold new` with a real
-# adapter in setup() (network, but included). listed explicitly instead;
-# tests/provenance.bats also calls no adapter generator but needs a local
-# upstream clone this lane doesn't have, so it runs alongside that clone in
-# .github/workflows/provenance.yml instead. tests/documentation.bats was
-# built, offline, and passing, and shipped wired into no workflow at all —
-# the exact failure mode task 1's ruling named; it belongs here.
+# Listed explicitly: a `tests/new-*.bats` glob was wrong in both directions —
+# new-project.bats generates no adapter, while add-app, docs and compose all
+# do. provenance.bats is offline too but needs an upstream clone, so it runs
+# in .github/workflows/provenance.yml instead.
 run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/new-project.bats"
 
 [tasks."test-integration"]
@@ -46,11 +37,10 @@ run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app.bats tests
 
 [tasks."test-runner"]
 description = "both test lanes under the environment a github runner actually has"
-# jdx/mise-action exports these on every runner, and three CI failures in a row
-# came from behaviour that appears only when they are set: pnpm turns on
-# --frozen-lockfile whenever CI is, and mise auto-trusts every config it finds
-# when MISE_YES is. A green run without them says nothing about the runner —
-# each of those three cost a push and a six-minute wait to see.
+# What jdx/mise-action exports on every runner. pnpm turns on
+# --frozen-lockfile whenever CI is set and mise auto-trusts every config, so a
+# green run without these says nothing about the runner — three CI failures in
+# a row came from exactly that gap.
 env = { CI = "true", GITHUB_ACTIONS = "true", MISE_YES = "1" }
 run = [{ task = "test-unit" }, { task = "test-integration" }]
 

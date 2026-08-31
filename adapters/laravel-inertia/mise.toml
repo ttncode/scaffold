@@ -8,8 +8,7 @@
 node = "24.15.0"
 
 [tasks.install]
-# composer resolves to a phar named composer.phar, not composer, once mise
-# installs it — invoke it by that name everywhere in this file.
+# mise installs composer as composer.phar, not composer
 run = [
   "php -r 'exit(version_compare(PHP_VERSION, \"8.3.0\", \">=\") ? 0 : 1);' || { echo \"laravel-inertia requires system php >= 8.3.0 (found $(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'no php on PATH')); install php 8.3 or newer via your OS package manager (e.g. apt install php8.3-cli) or https://php.net, then re-run mise install\" >&2; exit 1; }",
   "composer.phar install --no-interaction --prefer-dist",
@@ -36,28 +35,15 @@ run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 run = ["./vendor/bin/phpstan analyse --no-progress --memory-limit=512M", "npm run types:check"]
 
 [tasks.test]
-# the starter kit ships phpunit, not pest — pest is opt-in and adds nothing
-# here; run what the generator already ships.
-#
-# same uncommitted-.env problem as laravel-api: APP_KEY lives there, so a fresh
-# checkout has none and every test that boots the app dies on
-# MissingAppKeyException. A throwaway key per run is enough for tests that hit
-# an in-memory database and encrypt nothing that outlives them.
+# Same uncommitted-.env problem as laravel-api: no APP_KEY means every test
+# that boots the app dies on MissingAppKeyException.
 run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
-# --no-dev strips pint, phpstan and phpunit out of vendor/, and lefthook's
-# pre-commit hook calls ./vendor/bin/pint directly — so building in place makes
-# the next commit fail on a missing binary, and pre-push runs checklist, which
-# runs this. So put the dev tools back afterwards. The real artifact is built
-# by the Dockerfile, which does its own --no-dev install on a clean checkout.
-#
-# Restoring afterwards rather than installing somewhere else on purpose: a
-# second vendor tree is 46MB of third-party files, and every tool that walks
-# the project — pint, the docs path checker — has to be taught to skip it, one
-# at a time, each time finding out the hard way. `; status=$?; …; exit $status`
-# so the dev tools come back even when the production install fails, without
-# swallowing its exit code.
+# --no-dev strips pint, phpstan and phpunit from vendor/, and the pre-commit
+# hook calls ./vendor/bin/pint directly — so the next commit fails on a missing
+# binary. Put them back; `status=$?` keeps the production install's exit code.
+# The real artifact is the Dockerfile's own --no-dev install.
 run = [
   "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative; status=$?; composer.phar install --no-interaction --prefer-dist --quiet; exit $status",
   "npm run build",
