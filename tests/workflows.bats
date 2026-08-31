@@ -91,10 +91,11 @@ teardown() {
 
 @test "new refuses early when git has no identity to commit with" {
   local no_ident="${WORKDIR}/no-ident"
-  # HOME redirected hides user.name/user.email; the owner is supplied so this
-  # test fails on the identity and nothing else.
+  # Both are needed to hide the identity: helpers/setup.bash exports a
+  # GIT_CONFIG_GLOBAL holding one, and git reads that in preference to HOME.
+  # The owner is supplied so this test fails on the identity and nothing else.
   rm -f "${BATS_TEST_TMPDIR}/.gitconfig"
-  run env HOME="$BATS_TEST_TMPDIR" SCAFFOLD_GITHUB_OWNER=someone \
+  run env HOME="$BATS_TEST_TMPDIR" GIT_CONFIG_GLOBAL=/dev/null SCAFFOLD_GITHUB_OWNER=someone \
     scaffold new "$no_ident" --api nestjs
   [ "$status" -ne 0 ]
   [[ "$output" == *"user.name"* ]]
@@ -238,7 +239,8 @@ teardown() {
   # release please needs the app-token secrets to open its pull request as a
   # real identity; a reusable workflow sees none of the caller's secrets unless
   # the call site says so, and the failure is silent — it just falls back.
-  run yq -r '.jobs.release.secrets' "${PROJECT}/.github/workflows/release.yml"
+  run yq -r '.jobs.release.secrets | keys | .[]' "${PROJECT}/.github/workflows/release.yml"
   [ "$status" -eq 0 ]
-  [ "$output" = "inherit" ]
+  [[ "$output" == *RELEASE_APP_ID* ]]
+  [[ "$output" == *RELEASE_APP_PRIVATE_KEY* ]]
 }

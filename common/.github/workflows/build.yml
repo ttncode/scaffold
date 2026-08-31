@@ -14,7 +14,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: you/.github/.github/workflows/app-build.yml@v1
+    # This account's own reusable workflow, tracked by a moving major tag on
+    # purpose (ADR-0005) so one fix reaches every project at once. The
+    # third-party actions inside it are still sha-pinned; the trade-off is
+    # scoped to a repository this account controls.
+    uses: you/.github/.github/workflows/app-build.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     with:
       image: ghcr.io/you/@PROJECT_NAME@
       context: apps/api

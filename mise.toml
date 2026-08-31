@@ -3,6 +3,7 @@ bats = "1.13.0"
 shellcheck = "0.11.0"
 yq = "4.48.1"
 jq = "1.8.1"
+zizmor = "1.29.0"
 
 [settings]
 pin = true
