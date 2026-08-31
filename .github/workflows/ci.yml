@@ -51,10 +51,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      # Only this repository's own workflows. common/ holds templates whose
+      # `uses: you/.github/...` names no real repository, so ref-confusion
+      # cannot resolve it and the audit errors out rather than reporting a
+      # finding — a failure about the placeholder, not about the pipeline.
+      # What a generated project's call sites get instead is structural:
+      # tests/workflows.bats asserts sha-pinned actions, closed permission
+      # sets and shared-repository-only `uses:`. No audit runs on them.
+      - run: mise exec -- zizmor .github/workflows/

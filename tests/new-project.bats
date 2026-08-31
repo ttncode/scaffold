@@ -91,12 +91,14 @@ teardown() {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = [\n  "x",\n]\n' \
     > "${WORKDIR}/mise.toml"
   run mise trust --show -C "$WORKDIR"
-  [[ "$output" == *"${WORKDIR}: untrusted"* ]]
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]] \
+    || { echo "trust --show reported before generating:"; echo "$output"; false; }
 
   scaffold new "$PROJECT"
 
   run mise trust --show -C "$PROJECT"
-  [[ "$output" == *"${WORKDIR}: untrusted"* ]]
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]] \
+    || { echo "trust --show reported:"; echo "$output"; false; }
   [[ "$output" == *"${PROJECT}: trusted"* ]]
 }
 

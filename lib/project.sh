@@ -142,10 +142,34 @@ sync_workspace_lockfile() {
   find "$project" -mindepth 3 -maxdepth 3 \
     \( -name pnpm-lock.yaml -o -name pnpm-workspace.yaml \) -delete
 
-  ( cd "$project" && mise exec -- pnpm install \
+  pnpm_install "$project" "reconciling the workspace lockfile"
+}
+
+# pnpm_install <dir> <what-for> [ceiling]
+# pnpm reports its failures on stdout, so silencing the install leaves a `die`
+# that names the step and proves nothing — a CI failure here was unreadable
+# until this kept the output. Shown only on failure; a successful install is
+# still quiet.
+pnpm_install() {
+  local dir="$1" what="$2" ceiling="${3:-}" log status=0
+  log="$(mktemp)"
+
+  (
+    cd "$dir"
+    # exported inside the subshell, not written as a `VAR=x cmd` prefix: the
+    # prefix has to be literal, and an expanded one is read as a command name.
+    [ -z "$ceiling" ] || export MISE_CEILING_PATHS="$ceiling"
+    mise exec -- pnpm install \
       --config.confirm-modules-purge=false \
-      --config.minimum-release-age=0 >/dev/null ) \
-    || die "pnpm install failed while reconciling the workspace lockfile"
+      --config.minimum-release-age=0
+  ) >"$log" 2>&1 || status=$?
+
+  if [ "$status" -ne 0 ]; then
+    cat "$log" >&2
+    rm -f "$log"
+    die "pnpm install failed while ${what}"
+  fi
+  rm -f "$log"
 }
 
 # resolve_minimum_release_age <project>
