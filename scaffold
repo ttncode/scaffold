@@ -247,9 +247,19 @@ cmd_add() {
   # relink the shared node_modules, which it refuses without a TTY
   # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Relaxed for this call only —
   # stripped at two sites, both required. See docs/decisions/0017.
+  # Keyed on a real shared workspace, not merely on the file existing: a
+  # mixed-language project keeps a settings-only pnpm-workspace.yaml with no
+  # `packages:`. Treating that as a workspace sent this down the reconcile
+  # branch, whose sync_workspace_lockfile deletes every per-app lockfile at
+  # depth 3 and rebuilds a root one covering no app — destroying a lockfile
+  # the caller already had, with no undo.
   local workspace_file="${project}/pnpm-workspace.yaml"
   local reconcile=""
-  [ -f "$workspace_file" ] && adapter_is_typescript "$adapter" && reconcile="$workspace_file"
+  if [ -f "$workspace_file" ] \
+    && [ "$(yq -r '.packages // "absent"' "$workspace_file")" != "absent" ] \
+    && adapter_is_typescript "$adapter"; then
+    reconcile="$workspace_file"
+  fi
 
   # Armed only after the guard above proves $dest is absent — earlier would
   # risk rm -rf on a path the caller already had. Values are baked in with

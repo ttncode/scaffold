@@ -96,3 +96,18 @@ teardown() {
   run grep -cE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"
   [ "$output" = "0" ]
 }
+
+@test "add into a mixed-language project leaves other apps' lockfiles alone" {
+  scaffold new "$PROJECT" --api laravel-api --web nextjs
+  [ -f "${PROJECT}/apps/web/pnpm-lock.yaml" ]
+
+  cd "$PROJECT"
+  run scaffold add apps/app --adapter nestjs
+  assert_ok
+
+  # `reconcile` was keyed on the workspace file existing, but a mixed-language
+  # project keeps a settings-only one with no `packages:`. sync_workspace_lockfile
+  # then deleted every per-app lockfile at depth 3 and rebuilt a root lockfile
+  # that covers no app, leaving both unable to install — with no undo.
+  [ -f "${PROJECT}/apps/web/pnpm-lock.yaml" ]
+}

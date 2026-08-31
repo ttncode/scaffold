@@ -2,6 +2,14 @@
 
 load_adapter() {
   local name="$1"
+
+  # `source` below executes whatever it reads, so the name must not be able to
+  # leave adapters/ — `--api ../../../tmp/evil` would otherwise run an
+  # arbitrary file. Checked before the path is built, not after.
+  case "$name" in
+    ''|*[!a-z0-9-]*|-*) die "not a usable adapter name: ${name} (run: scaffold list)" ;;
+  esac
+
   local dir="${SCAFFOLD_ROOT}/adapters/${name}"
 
   [ -d "$dir" ] || die "unknown adapter: ${name} (run: scaffold list)"

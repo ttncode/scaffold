@@ -23,6 +23,14 @@ resolve_github_owner() {
   fi
 
   [ -n "$owner" ] || die "no GitHub account to substitute for 'you/' in the generated workflows — set SCAFFOLD_GITHUB_OWNER, sign in with 'gh auth login', or 'git config --global github.user <account>'"
+
+  # This is interpolated into `sed s|you/|...|`, and GNU sed's s///e flag runs
+  # the pattern space as a shell command — an owner containing `|` is remote
+  # code execution. GitHub's own rule is alphanumerics and single hyphens.
+  case "$owner" in
+    *[!A-Za-z0-9-]*|-*|*-)
+      die "not a usable GitHub account name: ${owner}" ;;
+  esac
   [ -z "$source" ] || warn "using GitHub owner '${owner}' (detected from ${source}) — set SCAFFOLD_GITHUB_OWNER to override"
   printf '%s' "$owner"
 }

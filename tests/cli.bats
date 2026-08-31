@@ -63,3 +63,20 @@ setup() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"missing required tool"* ]]
 }
+
+@test "an adapter name cannot escape the adapters directory" {
+  # load_adapter sources ${SCAFFOLD_ROOT}/adapters/${name}/adapter.env, so a
+  # traversing name sources — and therefore executes — an arbitrary file. The
+  # directory has to exist for the guard being tested to be the one that fires.
+  local outside="${BATS_TEST_TMPDIR}/outside"
+  mkdir -p "${outside}/evil"
+  printf 'ADAPTER_NAME=evil\nADAPTER_ROLE=api\nADAPTER_GENERATOR=true\ntouch %s/SOURCED\n' \
+    "$outside" > "${outside}/evil/adapter.env"
+
+  local traversal
+  traversal="$(realpath --relative-to="${SCAFFOLD_ROOT}/adapters" "${outside}/evil")"
+  run scaffold new "${BATS_TEST_TMPDIR}/never" --api "$traversal"
+
+  [ "$status" -ne 0 ]
+  [ ! -e "${outside}/SOURCED" ]
+}

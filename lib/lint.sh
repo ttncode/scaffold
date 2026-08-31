@@ -61,6 +61,10 @@ task_body() {
   awk -v task="$2" '
     $0 ~ "^\\[tasks\\.\"?" task "\"?\\]$" { inside = 1; next }
     inside && /^\[/ { exit }
+    # a comment is not what the task runs, and a trailing one belongs to the
+    # next table: a note above [tasks.format-fix] otherwise reads as the
+    # previous task writing
+    inside && /^[[:space:]]*#/ { next }
     inside { print }
   ' "$1"
 }

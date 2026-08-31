@@ -249,3 +249,16 @@ teardown() {
   [[ "$output" == *RELEASE_APP_ID* ]]
   [[ "$output" == *RELEASE_APP_PRIVATE_KEY* ]]
 }
+
+@test "an owner that could break out of the substitution is refused" {
+  # $owner is interpolated into `sed s|you/|...|`, and GNU sed's s///e flag
+  # executes the pattern space as a shell command — so an owner carrying `|`
+  # is remote code execution at generation time. It reaches here from
+  # SCAFFOLD_GITHUB_OWNER, which a mise.toml [env] block or a .envrc in the
+  # directory the user runs from can set.
+  run env SCAFFOLD_GITHUB_OWNER='x|e;s|.*|touch /tmp/scaffold-rce-probe|e;#' \
+    scaffold new "${WORKDIR}/injected" --api nestjs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"GitHub account"* ]]
+  [ ! -e /tmp/scaffold-rce-probe ]
+}
