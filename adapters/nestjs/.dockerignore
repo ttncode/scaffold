@@ -1,0 +1,12 @@
+# node_modules is copied from a pinned build stage; a host copy landing after
+# it would overwrite the pinned one with whatever the developer has locally.
+node_modules
+.next
+dist
+coverage
+
+# never belongs in an image
+.env
+.env.*
+!.env.example
+.git

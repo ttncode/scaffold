@@ -1,0 +1,11 @@
+# vendor is copied from a pinned build stage
+vendor
+node_modules
+
+# .env holds this installation's real APP_KEY and database password
+.env
+.env.*
+!.env.example
+.git
+storage/logs
+storage/framework/cache

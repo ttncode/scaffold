@@ -167,3 +167,29 @@ collect_roots() {
   scaffold new "${WORKDIR}/my-app.2"
   [ -f "${WORKDIR}/my-app.2/mise.toml" ]
 }
+
+@test "no placeholder account survives into the generated project" {
+  scaffold new "$PROJECT"
+  # The workflow substitution matched `you/` only, so CODEOWNERS' `@you` shipped
+  # untouched — and SECURITY.md tells people to report vulnerabilities to the
+  # maintainer listed there. GitHub treats an unresolvable owner as a syntax
+  # error, so the security contact was a name that cannot receive anything.
+  run grep -rn '@you\b\|you/' "$PROJECT" --include='*.yml' --include='*.md' --include='CODEOWNERS'
+  [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+}
+
+@test "register_config_root fails loudly when it cannot find its anchor" {
+  # Both halves are anchored on the exact formatting common/mise.root.toml
+  # ships. An inline array — valid TOML, and what any formatter produces —
+  # made the config_roots half silently no-op while the checklist half
+  # succeeded, so the project ended up with a CI matrix of [] that passed
+  # green while running nothing.
+  local p="${WORKDIR}/reformatted"
+  mkdir -p "$p"
+  printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = ["docs"]\n\n[tasks.checklist]\nrun = [{ task = "//docs:checklist" }]\n' \
+    > "${p}/mise.toml"
+
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; register_config_root '$p' apps/web"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"config_roots"* ]]
+}

@@ -37,3 +37,21 @@ teardown() {
   run shellcheck "${PROJECT}/install.sh"
   assert_ok
 }
+
+@test "every adapter Dockerfile pins its base images by digest" {
+  # The compose files have always pinned by digest; the Dockerfiles used tags,
+  # which are mutable — the same base image name can be a different image
+  # tomorrow. Nothing enforced the second half.
+  run bash -c "grep -h '^FROM' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile | grep -v '@sha256:'"
+  [ -z "$output" ] || { echo "unpinned base images:"; echo "$output"; false; }
+}
+
+@test "every adapter ships a dockerignore" {
+  # `COPY . .` with no ignore file bakes the app's real .env — APP_KEY, database
+  # password — into any image built locally. For nextjs it also lets a host
+  # node_modules overwrite the one copied from the pinned build stage.
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    [ -f "${adapter}.dockerignore" ] \
+      || { echo "no .dockerignore in ${adapter}"; false; }
+  done
+}

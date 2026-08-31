@@ -25,6 +25,12 @@ load_adapter() {
   # not contract-required yet, and validate_tiers reports a bad value better
   # than `set -u` reports an unbound one
   : "${ADAPTER_TIER:=}"
+
+  # An adapter.env that parses but omits a name used to reach the caller, where
+  # reading $ADAPTER_NAME under `set -u` killed the shell mid-loop — so one
+  # incomplete adapter suppressed the listing of every good one. Failing here
+  # keeps that a per-adapter error, which is what cmd_list already handles.
+  [ -n "${ADAPTER_NAME:-}" ] && [ -n "${ADAPTER_ROLE:-}" ] || return 1
 }
 
 adapter_is_typescript() {

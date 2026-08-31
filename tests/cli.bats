@@ -80,3 +80,15 @@ setup() {
   [ "$status" -ne 0 ]
   [ ! -e "${outside}/SOURCED" ]
 }
+
+@test "an adapter.env that parses but omits a name does not hide the others" {
+  # load_adapter succeeded (the file sources fine) and cmd_list then read
+  # $ADAPTER_NAME under `set -u`, killing the shell mid-loop — so one
+  # incomplete adapter suppressed the listing of every good one. The existing
+  # broken-adapter fixture ships no adapter.env at all, which is the other
+  # branch.
+  run "${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters/scaffold" list
+  # the intact adapter must still be listed, whatever it calls itself
+  [[ "$output" == *$'\t'"api"$'\t'* ]] \
+    || { echo "no intact adapter survived the listing:"; echo "$output"; false; }
+}

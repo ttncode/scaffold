@@ -89,14 +89,19 @@ init_project() {
   # install.sh runs regardless of how this toolbox itself was checked out.
   chmod +x "${dir}/install.sh"
 
-  # the shipped workflows and image ref point at the placeholder account
-  # "you"; substitute it the same way @PROJECT_NAME@ is substituted below,
-  # so every generated project's CI resolves against a real account.
+  # The workflows and image ref carry the placeholder account as `you/`;
+  # CODEOWNERS carries it as `@you`, which the first pattern does not match —
+  # so it used to ship untouched, and SECURITY.md points vulnerability reports
+  # at whoever CODEOWNERS names. GitHub treats an unresolvable owner as a
+  # syntax error, making the security contact unreachable.
   local wf
   for wf in "${dir}/.github/workflows/"*.yml; do
     sed -i.bak "s|you/|${owner}/|g" "$wf"
     rm -f "${wf}.bak"
   done
+
+  sed -i.bak "s|@you\b|@${owner}|g" "${dir}/CODEOWNERS"
+  rm -f "${dir}/CODEOWNERS.bak"
 
   sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"
@@ -251,12 +256,19 @@ register_config_root() {
   local project="$1" root="$2"
   local file="${project}/mise.toml"
 
+  # Both halves below are anchored on the exact formatting mise.root.toml
+  # ships, and both used to no-op silently when it did not match — an inline
+  # `config_roots = ["docs"]` left the roots half untouched while the checklist
+  # half succeeded, and the project shipped a CI matrix of [] that passed green
+  # while running nothing. Verified rather than assumed, on each half.
   if ! grep -q "^  \"${root}\",\$" "$file"; then
     awk -v root="$root" '
       { print }
       /^config_roots = \[$/ { printf "  \"%s\",\n", root }
     ' "$file" > "${file}.tmp"
     mv "${file}.tmp" "$file"
+    grep -q "^  \"${root}\",\$" "$file" \
+      || die "could not register ${root}: no 'config_roots = [' line in ${file} — has it been reformatted?"
   fi
 
   # the root [tasks.checklist] (pre-push's own gate) must run every config
@@ -274,6 +286,8 @@ register_config_root() {
       { print }
     ' "$file" > "${file}.tmp"
     mv "${file}.tmp" "$file"
+    grep -q "\"//${root}:checklist\"" "$file" \
+      || die "could not add ${root} to the root checklist in ${file} — has [tasks.checklist] been reformatted?"
   fi
 }
 
