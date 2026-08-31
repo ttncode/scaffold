@@ -51,3 +51,15 @@ teardown() {
   run mise run //apps/api:ci-unit
   assert_ok
 }
+
+@test "the generated app's README does not trip the secret scanner" {
+  scaffold new "$PROJECT" --api nestjs
+  # `nest new` writes badge URLs containing a placeholder `?token=`, which
+  # gitleaks reports as a leaked credential — blocking the first commit of
+  # every project and training people to ignore the scanner.
+  # gitleaks is pinned by the generated project, not by this toolbox, so it is
+  # invoked through the project's own mise — the same way its hook does.
+  cd "$PROJECT"
+  run mise exec -- gitleaks detect --no-git --source apps/api --redact --no-banner
+  assert_ok
+}

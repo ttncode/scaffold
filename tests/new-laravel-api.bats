@@ -47,6 +47,21 @@ teardown() {
   [ ! -e "${PROJECT}/packages-types" ]
 }
 
+@test "a mixed-language project keeps the supply-chain policy" {
+  scaffold new "$PROJECT" --api laravel-api --web nextjs
+  # allowBuilds is ADR-0017's policy and applies to any typescript app, but it
+  # lived in the root pnpm-workspace.yaml, which this branch used to delete
+  # outright — so one PHP app in the project removed the policy protecting the
+  # TypeScript one. The packages: list does go, since there is no shared
+  # workspace without a fully TypeScript project; the settings stay.
+  [ -f "${PROJECT}/pnpm-workspace.yaml" ]
+  run yq -r '.allowBuilds | keys | .[]' "${PROJECT}/pnpm-workspace.yaml"
+  assert_ok
+  [[ "$output" == *"unrs-resolver"* ]]
+  run yq -r '.packages // "absent"' "${PROJECT}/pnpm-workspace.yaml"
+  [ "$output" = "absent" ]
+}
+
 @test "the generated api passes its own ci-unit" {
   scaffold new "$PROJECT" --api laravel-api
   cd "$PROJECT"
@@ -62,4 +77,19 @@ teardown() {
   [ -f "${PROJECT}/apps/api/docker/opcache.ini" ]
   run grep -c 'docker/opcache.ini' "${PROJECT}/apps/api/Dockerfile"
   [ "$output" != "0" ]
+}
+
+@test "a typescript app added to a mixed-language project can install" {
+  scaffold new "$PROJECT" --api laravel-api
+  cd "$PROJECT"
+  run scaffold add apps/worker --adapter nestjs
+  assert_ok
+
+  # ADR-0018's central scenario, and the one nothing covered: a project with no
+  # root workspace still has to produce an app whose own contract tasks run.
+  # resolve_minimum_release_age returned early whenever the project root had no
+  # pnpm-workspace.yaml, so pnpm's default minimum-release-age policy rejected
+  # the lockfile the generator had just written.
+  run mise run //apps/worker:install
+  assert_ok
 }

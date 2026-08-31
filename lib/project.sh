@@ -208,7 +208,15 @@ pnpm_install() {
 resolve_minimum_release_age() {
   local project="$1"
   local workspace_file="${project}/pnpm-workspace.yaml"
-  [ -f "$workspace_file" ] || return 0
+
+  # Returning early when the file is absent skipped the whole policy for the
+  # two cases that have no workspace at the project root — a mixed-language
+  # project, and an app added to one — so pnpm rejected the lockfile the
+  # generator had just written and the app could not install at all. pnpm
+  # reads settings from this file whether or not it also lists packages, so
+  # creating it is enough; it is only created when there is a violation to
+  # record, which the loop below decides.
+  [ -f "${project}/pnpm-lock.yaml" ] || return 0
 
   local max_rounds=10 round=0 log entries all_entries=""
   log="$(mktemp)"
@@ -246,6 +254,7 @@ resolve_minimum_release_age() {
     # after this block by a later step or caller, with nothing printed.
     # both markers are always written together below, so the range is
     # always well-formed by the time this runs a second time.
+    [ -f "$workspace_file" ] || : > "$workspace_file"
     sed -i '/^# too fresh at generation time/,/^# end minimumReleaseAgeExclude$/d' "$workspace_file"
     {
       printf '# too fresh at generation time; pnpm re-checks this on every frozen\n'

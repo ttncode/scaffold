@@ -18,6 +18,10 @@ setup() {
       '${SCAFFOLD_ROOT}/docs/tour' '${SCAFFOLD_ROOT}/docs/runbook' \
     | tr -d '\`' | sort -u \
     | while read -r p; do
+        # apps/* names a path inside a *generated* project, which this
+        # repository has no copy of and cannot verify — the walkthrough has to
+        # name them to be followable. Everything else must exist here.
+        case \"\$p\" in apps/*) continue ;; esac
         [ -e \"${SCAFFOLD_ROOT}/\$p\" ] || echo \"missing: \$p\"
       done"
   [ -z "$output" ]

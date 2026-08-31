@@ -1,0 +1,189 @@
+# Walk through a first project
+
+A scripted run of everything a new engineer does between cloning this toolbox
+and shipping a release from a project it generated. Follow it in order on a
+machine that has never run the toolbox, and record where it goes wrong — the
+purpose is to find the rough steps, not to prove they are smooth.
+
+Each step states what to expect. A step that does something other than what is
+written here is a finding, even when it still works.
+
+## 0. Prerequisites
+
+`git` and `mise` installed. A GitHub account, and `gh auth login` completed.
+Docker only matters for step 9.
+
+## 1. Clone and install
+
+```sh
+git clone https://github.com/ttncode/scaffold.git
+cd scaffold
+mise install
+```
+
+Expect: mise installs jq, yq, bats, shellcheck, zizmor and rush, and prints no
+prompt. A prompt about trusting the config means step 1 is a finding — the
+README does not mention one.
+
+## 2. Prove the toolbox runs
+
+```sh
+mise exec -- ./scaffold list
+mise exec -- ./scaffold lint
+```
+
+Expect: `list` prints four adapters with their tiers; `lint` prints nothing and
+exits 0. Anything else stops the walkthrough here.
+
+## 3. Make it callable from anywhere
+
+Add the shell function from the README's Install section to your shell profile,
+open a new shell, then from a directory that is **not** the toolbox:
+
+```sh
+cd ~/some/other/directory
+scaffold list
+```
+
+Expect: the same output as step 2. If it reports a missing tool, the function
+is not supplying mise's environment. If a later `scaffold new relative-name`
+lands inside the toolbox, the function used `mise exec -C` instead of
+`mise env -C`.
+
+## 4. Generate a project
+
+```sh
+cd ~/playground
+scaffold new demo-app --api laravel-api --web nextjs
+```
+
+Expect: two generators run, then `created …/demo-app`. Expect a warning naming
+the GitHub account it detected. Expect it to take several minutes.
+
+Then read what it made before doing anything else:
+
+```sh
+cd demo-app
+git log --oneline          # one commit, "chore: scaffold project"
+cat mise.toml              # config_roots: apps/web, apps/api, docs
+ls .github/workflows       # five call sites
+```
+
+## 5. Run what CI will run, before pushing
+
+```sh
+mise run //docs:ci-unit
+mise run //apps/web:ci-unit
+mise run //apps/api:ci-unit
+```
+
+Expect: all three pass. This is the same command CI issues per config root.
+
+Now check the harder thing — that they pass on a machine that has none of your
+local state:
+
+```sh
+mv apps/api/.env /tmp/env-aside
+mv apps/web/.next /tmp/next-aside 2>/dev/null
+mise run //apps/api:ci-unit && mise run //apps/web:ci-unit
+mv /tmp/env-aside apps/api/.env
+```
+
+Expect: still pass. A failure here is a real finding — it means a check depends
+on a file that is not committed, and CI will fail where you succeeded.
+
+## 6. Install the hooks and make a commit
+
+```sh
+lefthook install
+git checkout -b feat/health
+```
+
+Add a small feature with a test — for `laravel-api`, a `/health` route in
+`apps/api/routes/web.php` and a `HealthTest` beside the other feature tests.
+
+```sh
+mise run //apps/api:ci-unit
+git add -A
+git commit -m "feat(api): add a health endpoint"
+```
+
+Expect: pre-commit runs pint and gitleaks; commit-msg runs commitlint. Then
+prove the gate works:
+
+```sh
+git commit --allow-empty -m "added a health thing"
+```
+
+Expect: rejected, naming the convention.
+
+## 7. Push and open a pull request
+
+```sh
+gh repo create ttncode/demo-app --private --source=. --remote=origin --push
+gh api -X PUT repos/ttncode/demo-app/actions/permissions/workflow \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=true
+git push -u origin feat/health
+gh pr create --fill
+gh pr checks --watch
+```
+
+Expect: `CI / ci / ci (apps/api)` runs, because `apps/api` changed. Expect
+`CI / ci / changes` to skip roots that did not. Expect `commitlint` to run —
+it only ever runs on a pull request.
+
+The `gh api` call is required, not optional: without it Release Please cannot
+open its pull request later, and the failure appears several steps away from
+this one.
+
+## 8. Merge, and let the release happen
+
+```sh
+gh pr merge --squash --delete-branch
+gh run list --limit 5
+```
+
+Expect: five workflows on `main`, all green. Expect Release Please to open
+`chore(main): release 0.2.0` — `feat:` moves the minor version.
+
+If that pull request's checks sit at `Action required`, the repository has no
+`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`; a pull request opened with
+`GITHUB_TOKEN` starts no workflow. Merging it directly still releases.
+
+```sh
+gh pr merge <number> --squash
+gh release list
+```
+
+Expect: `v0.2.0`, and the image tagged `0.2.0`, `0.2`, `latest`, `sha-…`.
+
+## 9. Run what was built
+
+```sh
+docker pull ghcr.io/ttncode/demo-app:0.2.0
+```
+
+Expect: pulls, if the package is public or you are logged in to ghcr.
+
+## 10. Add a second application to the existing project
+
+```sh
+cd ~/playground/demo-app
+scaffold add apps/worker --adapter nestjs
+git status
+```
+
+Expect: `apps/worker` exists, `mise.toml` gained a config root, `ci.yml`'s
+`roots:` gained an entry, and nothing else changed. Expect the changes to be
+left uncommitted for review.
+
+## What counts as a finding
+
+- A step that needs a command this page does not give
+- An error message that does not say what to do next
+- A check that passes locally and fails in CI, or the reverse
+- Anything that required reading the source to get past
+- Any wait longer than the step led you to expect
+
+Record each one with the step number, what was expected, and what happened.

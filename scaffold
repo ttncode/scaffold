@@ -130,9 +130,18 @@ cmd_new() {
     done
   fi
 
-  local all_typescript=1
+  # Two separate questions, and conflating them cost a real defect: whether a
+  # shared packages/types is possible (needs every app to be TypeScript), and
+  # whether the root pnpm-workspace.yaml is needed at all (needs only one).
+  # That file carries ADR-0017's allowBuilds, so deleting it because one app is
+  # PHP took the supply-chain policy away from the TypeScript app beside it.
+  local all_typescript=1 any_typescript=0
   for entry in "${requested[@]}"; do
-    adapter_is_typescript "${entry#*:}" || all_typescript=0
+    if adapter_is_typescript "${entry#*:}"; then
+      any_typescript=1
+    else
+      all_typescript=0
+    fi
   done
 
   if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
@@ -145,7 +154,16 @@ cmd_new() {
     sync_workspace_lockfile "$target"
     resolve_minimum_release_age "$target"
   else
-    rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"
+    rm -rf "${target}/packages-types"
+
+    if [ "$any_typescript" -eq 1 ]; then
+      # No shared workspace without a fully TypeScript project, so the packages
+      # list goes — but a settings-only pnpm-workspace.yaml is valid, and it is
+      # how an app that ships none of its own inherits allowBuilds by walking up.
+      yq --inplace 'del(.packages)' "${target}/pnpm-workspace.yaml"
+    else
+      rm -f "${target}/pnpm-workspace.yaml"
+    fi
     # no typescript app to build a workspace over, but the project root's
     # own package.json (commitlint, for lefthook's commit-msg hook) still
     # needs installing on its own — see docs/decisions/0007: hooks must
@@ -161,6 +179,14 @@ cmd_new() {
     # separate mechanism that does not honor that scope on its own).
     pnpm_install "$target" "installing the project root's own tooling dependencies" \
       "$(dirname "$target")"
+
+    # Each app here stands alone rather than joining a workspace, so each owns
+    # a lockfile the policy will re-check forever. Same reason as cmd_add's
+    # else branch.
+    local generated
+    for generated in "${requested[@]}"; do
+      resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
+    done
   fi
 
   finalize_project "$target"
@@ -298,6 +324,23 @@ cmd_add() {
     # the workspace's first round of apps.
     sync_workspace_lockfile "$project"
     resolve_minimum_release_age "$project"
+  else
+    # Adding a TypeScript app to a project that had none turns it into a
+    # project with one, so ADR-0017's build policy applies now where it did
+    # not before — `scaffold new` drops the root pnpm-workspace.yaml when
+    # nothing TypeScript is requested. Without it pnpm refuses the install
+    # outright (ERR_PNPM_IGNORED_BUILDS), so restore the settings, without the
+    # packages list: there is still no shared workspace here.
+    if adapter_is_typescript "$adapter" && [ ! -f "$workspace_file" ]; then
+      yq '{"allowBuilds": .allowBuilds}' \
+        "${SCAFFOLD_ROOT}/common/pnpm-workspace.yaml" > "$workspace_file"
+    fi
+
+    # No workspace to join, so the new app carries its own lockfile — and
+    # pnpm's minimum-release-age policy re-checks that lockfile on every
+    # frozen install, not just the generator's. Left unresolved, an app added
+    # on a day one of its dependencies was published simply cannot install.
+    resolve_minimum_release_age "$project/$rel"
   fi
 
   sync_ci_roots "$project"
