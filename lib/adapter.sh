@@ -63,11 +63,13 @@ apply_adapter() {
   local parent; parent="$(dirname "$dest")"
   mkdir -p "$parent"
 
-  # pnpm turns on --frozen-lockfile by itself when CI is set, and a generator
-  # run under it cannot install the dependencies it is in the middle of adding:
-  # `pnpm add -D prettier` reports success and leaves no binary, so the very
-  # next `pnpm exec prettier` dies with "Command not found". Generating an app
-  # is the one moment the lockfile is meant to change.
+  # CI=true has to stay: it is what lets pnpm replace a node_modules without a
+  # TTY to confirm on (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY otherwise).
+  # What must not carry over is the frozen lockfile it also switches on —
+  # a generator cannot install what it is in the middle of adding, so
+  # `pnpm add -D prettier` reports success, leaves no binary, and the next
+  # `pnpm exec prettier` dies with "Command not found". Generating an app is
+  # the one moment the lockfile is meant to change.
   ( cd "$parent" && APP_DIR="$(basename "$dest")" \
       npm_config_frozen_lockfile=false eval "$ADAPTER_GENERATOR" )
 
