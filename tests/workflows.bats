@@ -232,3 +232,13 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'tier-b=[]'* ]]
 }
+
+@test "the release call site passes secrets down to the reusable workflow" {
+  scaffold new "$PROJECT" --api nestjs
+  # release please needs the app-token secrets to open its pull request as a
+  # real identity; a reusable workflow sees none of the caller's secrets unless
+  # the call site says so, and the failure is silent — it just falls back.
+  run yq -r '.jobs.release.secrets' "${PROJECT}/.github/workflows/release.yml"
+  [ "$status" -eq 0 ]
+  [ "$output" = "inherit" ]
+}
