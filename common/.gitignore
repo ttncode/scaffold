@@ -9,3 +9,6 @@ coverage/
 
 .DS_Store
 *.swp
+
+# throwaway production install from the php adapters' build task
+/.build/
