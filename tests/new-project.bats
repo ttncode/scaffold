@@ -10,7 +10,7 @@ teardown() {
 
 @test "new creates a git repository on main" {
   run scaffold new "$PROJECT"
-  [ "$status" -eq 0 ]
+  assert_ok
   run git -C "$PROJECT" rev-parse --abbrev-ref HEAD
   [ "$output" = "main" ]
 }
@@ -148,6 +148,6 @@ collect_roots() {
   # `mise install` writes versions but no URLs for tools already in the local
   # cache, and CI's `mise install --locked` rejects exactly that lockfile.
   run grep -c '^url = ' "${PROJECT}/mise.lock"
-  [ "$status" -eq 0 ]
+  assert_ok
   [ "$output" -gt 0 ]
 }

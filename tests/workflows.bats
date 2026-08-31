@@ -42,7 +42,7 @@ teardown() {
   # caller's workflow-level `permissions: {}` grants nothing — so a job with no
   # permissions block of its own fails at startup, before any step runs.
   run bash -c "yq -r '.jobs[] | select(has(\"uses\")) | .permissions // \"MISSING\"' '${PROJECT}'/.github/workflows/*.yml"
-  [ "$status" -eq 0 ]
+  assert_ok
   [[ "$output" != *MISSING* ]]
 }
 
@@ -74,14 +74,19 @@ teardown() {
 
 @test "the owner is detected from gh when the variable is unset" {
   local detected="${WORKDIR}/detected"
-  local account; account="$(gh api user --jq .login)"
+  # gh has no credentials on a runner ("set the GH_TOKEN environment
+  # variable"), so the account this test detects cannot exist there. Skip with
+  # the reason rather than fail on a fact about the environment.
+  local account
+  account="$(gh api user --jq .login 2>/dev/null)" \
+    || skip "gh is not authenticated here, so there is no account to detect"
   # HOME is redirected to hide git config's github.user, so gh's own config
   # has to be pointed back at the real one or this would test an
   # unauthenticated gh instead of a detected account.
   run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
     GH_CONFIG_DIR="${REAL_HOME}/.config/gh" \
     scaffold new "$detected" --api nestjs
-  [ "$status" -eq 0 ]
+  assert_ok
   # detection must be announced, not silent: a wrong account is only visible
   # here, never at generation time otherwise.
   [[ "$output" == *"detected from gh"* ]]
@@ -195,7 +200,7 @@ teardown() {
   [ "${#crons[@]}" -eq 2 ]
   for cron in "${crons[@]}"; do
     run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "$cron"
-    [ "$status" -eq 0 ]
+    assert_ok
     [[ "$output" == *'tier-b=[]'* ]] || nonempty=$((nonempty + 1))
   done
   [ "$nonempty" -eq 1 ]
@@ -211,7 +216,7 @@ teardown() {
   [ -n "$weekly" ]
 
   run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "$weekly"
-  [ "$status" -eq 0 ]
+  assert_ok
   for name in "${SCAFFOLD_ROOT}"/adapters/*/; do
     adapter="$(basename "$name")"
     tier="$(grep '^ADAPTER_TIER=' "${name}/adapter.env" | cut -d'"' -f2)"
@@ -226,11 +231,11 @@ teardown() {
   local commit
   commit="$(git -C "$SCAFFOLD_ROOT" log --format=%H -- adapters/laravel-inertia | tail -1)"
   run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" pull_request "" "${commit}^" "$commit"
-  [ "$status" -eq 0 ]
+  assert_ok
   [[ "$output" == *'tier-b=["laravel-inertia"]'* ]]
 
   run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" pull_request "" "$commit" "$commit"
-  [ "$status" -eq 0 ]
+  assert_ok
   [[ "$output" == *'tier-b=[]'* ]]
 }
 
@@ -240,7 +245,7 @@ teardown() {
   # real identity; a reusable workflow sees none of the caller's secrets unless
   # the call site says so, and the failure is silent — it just falls back.
   run yq -r '.jobs.release.secrets | keys | .[]' "${PROJECT}/.github/workflows/release.yml"
-  [ "$status" -eq 0 ]
+  assert_ok
   [[ "$output" == *RELEASE_APP_ID* ]]
   [[ "$output" == *RELEASE_APP_PRIVATE_KEY* ]]
 }

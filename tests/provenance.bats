@@ -12,12 +12,12 @@ setup() {
 
 @test "UPSTREAM pins a commit" {
   run grep -Eq '^immich-app/immich@[0-9a-f]{7,40}$' "${SCAFFOLD_ROOT}/UPSTREAM"
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "check-provenance reports no drift" {
   run "${SCAFFOLD_ROOT}/scripts/check-provenance.sh"
-  [ "$status" -eq 0 ]
+  assert_ok
   [[ "$output" == *"0 drifted"* ]]
 }
 

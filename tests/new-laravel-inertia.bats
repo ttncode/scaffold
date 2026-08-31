@@ -10,7 +10,7 @@ teardown() {
 
 @test "laravel-inertia generates a single app at apps/app" {
   run scaffold new "$PROJECT" --app laravel-inertia
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -f "${PROJECT}/apps/app/artisan" ]
   # laravel/vue-starter-kit ships a typescript vite config, not vite.config.js
   [ -f "${PROJECT}/apps/app/vite.config.ts" ]
@@ -33,12 +33,12 @@ teardown() {
 @test "the app declares node because vite builds the assets" {
   scaffold new "$PROJECT" --app laravel-inertia
   run grep -q 'node = ' "${PROJECT}/apps/app/mise.toml"
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the generated app passes its own ci-unit" {
   scaffold new "$PROJECT" --app laravel-inertia
   cd "$PROJECT"
   run mise run //apps/app:ci-unit
-  [ "$status" -eq 0 ]
+  assert_ok
 }

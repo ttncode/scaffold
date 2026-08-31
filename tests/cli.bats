@@ -18,7 +18,7 @@ setup() {
 
 @test "scaffold list succeeds even with no adapters installed" {
   run scaffold list
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "load_adapter dies on an unknown adapter" {

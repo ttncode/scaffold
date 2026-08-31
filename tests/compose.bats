@@ -12,14 +12,14 @@ teardown() {
 @test "the compose files are valid" {
   cd "$PROJECT"
   run docker compose -f compose.yaml config --quiet
-  [ "$status" -eq 0 ]
+  assert_ok
   run docker compose -f compose.dev.yaml config --quiet
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the application image tag is parameterised" {
   run grep 'image:.*\${IMAGE_TAG' "${PROJECT}/compose.yaml"
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "third-party images are pinned by digest" {
@@ -35,5 +35,5 @@ teardown() {
 @test "install.sh is executable and passes shellcheck" {
   [ -x "${PROJECT}/install.sh" ]
   run shellcheck "${PROJECT}/install.sh"
-  [ "$status" -eq 0 ]
+  assert_ok
 }

@@ -15,7 +15,7 @@ teardown() {
   source "${SCAFFOLD_ROOT}/lib/lint.sh"
   for task in "${CONTRACT_TASKS[@]}"; do
     run grep -Eq "^\[tasks\.\"?${task}\"?\]" "${PROJECT}/docs/mise.toml"
-    [ "$status" -eq 0 ]
+    assert_ok
   done
 }
 
@@ -44,7 +44,7 @@ teardown() {
   echo '# see docs/decisions/0000 for the rule' >> "${PROJECT}/compose.yaml"
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the adr check rejects an adr missing a required section" {
@@ -74,13 +74,13 @@ Edit `app/page.tsx`. Fonts are loaded with `next/font`.
 EOF
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the docs site builds" {
   cd "$PROJECT"
   run mise run //docs:build
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the docs build fails on a dead link" {

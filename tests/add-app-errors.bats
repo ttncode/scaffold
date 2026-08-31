@@ -60,7 +60,7 @@ teardown() {
   scaffold new "$PROJECT"
   cd "${PROJECT}/docs"
   run "${SCAFFOLD_ROOT}/tests/fixtures/add-fixtures/scaffold" add apps/worker --adapter ok
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -f "${PROJECT}/apps/worker/marker" ]
   [ ! -e "${PROJECT}/docs/apps" ]
 }

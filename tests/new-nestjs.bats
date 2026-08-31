@@ -10,7 +10,7 @@ teardown() {
 
 @test "nestjs generates an app at apps/api" {
   run scaffold new "$PROJECT" --api nestjs
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -f "${PROJECT}/apps/api/nest-cli.json" ]
   [ -f "${PROJECT}/apps/api/mise.toml" ]
 }
@@ -49,5 +49,5 @@ teardown() {
   scaffold new "$PROJECT" --api nestjs
   cd "$PROJECT"
   run mise run //apps/api:ci-unit
-  [ "$status" -eq 0 ]
+  assert_ok
 }

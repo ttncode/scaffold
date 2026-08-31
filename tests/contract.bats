@@ -11,7 +11,7 @@ setup() {
 
 @test "lint_adapters accepts an adapter that satisfies the contract" {
   run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/complete"
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -z "$output" ]
 }
 
@@ -37,7 +37,7 @@ setup() {
 @test "lint_adapters accepts a quoted task header" {
   run grep -q '^\[tasks\."format-fix"\]' \
     "${SCAFFOLD_ROOT}/tests/fixtures/lint/complete/sample/mise.toml"
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "test-unit's suites never generate a real adapter from setup()" {

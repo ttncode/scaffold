@@ -10,7 +10,7 @@ teardown() {
 
 @test "laravel-api generates an app at apps/api" {
   run scaffold new "$PROJECT" --api laravel-api
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -f "${PROJECT}/apps/api/artisan" ]
   [ -f "${PROJECT}/apps/api/mise.toml" ]
 }
@@ -24,7 +24,7 @@ teardown() {
   run grep -q 'php' "${PROJECT}/mise.toml"
   [ "$status" -ne 0 ]
   run grep -q 'php' "${PROJECT}/apps/api/mise.toml"
-  [ "$status" -eq 0 ]
+  assert_ok
 }
 
 @test "the laravel lefthook fragment is merged with the common hooks" {
@@ -51,5 +51,5 @@ teardown() {
   scaffold new "$PROJECT" --api laravel-api
   cd "$PROJECT"
   run mise run //apps/api:ci-unit
-  [ "$status" -eq 0 ]
+  assert_ok
 }
