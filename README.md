@@ -1,27 +1,66 @@
 # scaffold
 
-A bash toolbox that generates fully configured client projects. It wires each
-generated application to a fixed nine-task contract (`install`, `format`,
-`format-fix`, `lint`, `check`, `test`, `build`, `ci-unit`, `checklist`) so CI
-can run the same command against any adapter regardless of language.
+[![CI](https://github.com/ttncode/scaffold/actions/workflows/ci.yml/badge.svg)](https://github.com/ttncode/scaffold/actions/workflows/ci.yml)
+
+A bash toolbox that generates fully configured client projects. Every generated
+application implements the same nine-task contract — `install`, `format`,
+`format-fix`, `lint`, `check`, `test`, `build`, `ci-unit`, `checklist` — so CI
+runs one command per config root and never learns the language.
+
+## Install
+
+The toolbox needs `git`, `mise`, `jq` and `yq`. `mise` supplies the last two,
+so install it first ([instructions](https://mise.jdx.dev/getting-started.html)),
+then:
+
+```sh
+git clone https://github.com/ttncode/scaffold.git
+cd scaffold
+mise install            # jq, yq, bats, shellcheck, zizmor, rush — pinned in mise.toml
+mise exec -- ./scaffold list
+```
+
+`scaffold` refuses to run without those tools and names the missing one, so
+`mise exec --` is the reliable way to invoke it from a clone.
+
+To run it from anywhere, add a shell function rather than putting it on `PATH`:
+it needs its own pinned tools, but must still resolve a relative target against
+wherever you are standing.
+
+```sh
+scaffold() {
+  ( eval "$(mise env -C "$HOME/path/to/scaffold" -s zsh)"
+    "$HOME/path/to/scaffold/scaffold" "$@" )
+}
+```
+
+`mise env -C` prints the environment without changing directory. `mise exec -C`
+would change it as well, and a relative target would then be created inside the
+toolbox instead of where the command was run.
 
 ## Usage
 
 ```sh
 scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
+scaffold add <dir> --adapter <adapter>
+scaffold list
+scaffold lint
 ```
 
+`new` creates a project. `add` installs another application into one that
+already exists. `list` reports the adapters and their tiers. `lint` checks
+every adapter against the contract.
+
 The generated workflows call this account's reusable CI (`dot-github`) and
-publish to this account's `ghcr.io` namespace. `scaffold new` resolves that
-account from `SCAFFOLD_GITHUB_OWNER`, then from `gh api user`, then from
-`git config github.user`; it refuses to generate a project if none of the
-three resolves.
+publish to its `ghcr.io` namespace. `scaffold new` resolves the account from
+`SCAFFOLD_GITHUB_OWNER`, then `gh api user`, then `git config github.user`,
+and refuses to generate if none of the three resolves.
 
 ## Adapter support tiers
 
 "Supported" and "guaranteed" are different words. Tier membership is read
 from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
-`docs/decisions/0012`.
+[ADR-0012](docs/decisions/0012-tiered-adapter-support.md).
 
 | Tier | Adapters | CI runs it | Guarantee |
 | --- | --- | --- | --- |
@@ -31,18 +70,21 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 
 ## Documentation
 
-See `docs/` for the design spec, the architecture decisions
-(`docs/decisions/`), and the implementation plan.
+- [Tour](docs/tour/) — how the pieces fit, eight pages
+- [Decisions](docs/decisions/) — why they fit that way
+- [Runbooks](docs/runbook/) — what to do when something specific happens
+- [Provenance](docs/PROVENANCE.md) — what is copied from immich, and where it drifted
+- [Contributing](CONTRIBUTING.md) — the tasks, the tests, and how to add an adapter
 
 ### Reading path
 
-New to this toolbox: read `docs/tour/01-toolchain.md` through
-`docs/tour/03-ci.md` first — that's day one, enough to generate a project
-and understand what CI does with it.
+New to this toolbox: [01-toolchain](docs/tour/01-toolchain.md) through
+[03-ci](docs/tour/03-ci.md). That is day one — enough to generate a project and
+understand what CI does with it.
 
 Owning it for real, over the first week: the rest of the tour
-(`docs/tour/04-guardrails.md` through `docs/tour/08-adapters.md`), plus
-ADR-0001, ADR-0003, and ADR-0011.
+([04-guardrails](docs/tour/04-guardrails.md) through
+[08-adapters](docs/tour/08-adapters.md)), plus ADR-0001, ADR-0003 and ADR-0011.
 
-`docs/runbook/` is not reading material — consult it when the situation
-that names it actually arises.
+`docs/runbook/` is not reading material — consult it when the situation that
+names it actually arises.

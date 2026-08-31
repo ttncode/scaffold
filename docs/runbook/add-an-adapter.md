@@ -42,8 +42,8 @@ no extra git hook ships `{}` as its fragment.
 ## 5. Verify
 
 ```bash
-scaffold lint
-./scaffold new /tmp/probe --api <name>
+mise exec -- ./scaffold lint
+mise exec -- ./scaffold new /tmp/probe --api <name>
 cd /tmp/probe && mise run "//apps/api:checklist"
 ```
 
@@ -60,7 +60,7 @@ still carries a known, open gap.
 **Via `scaffold new`** (both requested together — no known gap):
 
 ```bash
-./scaffold new /tmp/probe2 --api <name> --web nextjs
+mise exec -- ./scaffold new /tmp/probe2 --api <name> --web nextjs
 ```
 
 **Via `scaffold add`** (joining a workspace that's already installed —
@@ -71,7 +71,7 @@ too — known, not fixed, see the comment above `reconcile=` in `scaffold`
 and ADR-0017's Consequences):
 
 ```bash
-./scaffold new /tmp/probe3 --api nestjs
+mise exec -- ./scaffold new /tmp/probe3 --api nestjs
 cd /tmp/probe3 && scaffold add apps/<name> --adapter <name>
 ```
 

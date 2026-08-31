@@ -42,7 +42,7 @@ exercises `common/mise.root.toml` end to end the way a real generation
 does:
 
 ```bash
-./scaffold new /tmp/probe --api nestjs && cd /tmp/probe && mise run checklist
+mise exec -- ./scaffold new /tmp/probe --api nestjs && cd /tmp/probe && mise run checklist
 ```
 
 ## Done when
