@@ -159,7 +159,12 @@ pnpm_install() {
     # exported inside the subshell, not written as a `VAR=x cmd` prefix: the
     # prefix has to be literal, and an expanded one is read as a command name.
     [ -z "$ceiling" ] || export MISE_CEILING_PATHS="$ceiling"
+    # --no-frozen-lockfile because pnpm turns frozen on by itself when CI=true,
+    # and this install exists precisely to rewrite the lockfile a generator just
+    # produced. Without it the step is a contradiction that only fails on a
+    # runner: reconcile the lockfile, but you may not change the lockfile.
     mise exec -- pnpm install \
+      --no-frozen-lockfile \
       --config.confirm-modules-purge=false \
       --config.minimum-release-age=0
   ) >"$log" 2>&1 || status=$?

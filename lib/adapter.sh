@@ -63,7 +63,13 @@ apply_adapter() {
   local parent; parent="$(dirname "$dest")"
   mkdir -p "$parent"
 
-  ( cd "$parent" && APP_DIR="$(basename "$dest")" eval "$ADAPTER_GENERATOR" )
+  # pnpm turns on --frozen-lockfile by itself when CI is set, and a generator
+  # run under it cannot install the dependencies it is in the middle of adding:
+  # `pnpm add -D prettier` reports success and leaves no binary, so the very
+  # next `pnpm exec prettier` dies with "Command not found". Generating an app
+  # is the one moment the lockfile is meant to change.
+  ( cd "$parent" && APP_DIR="$(basename "$dest")" \
+      npm_config_frozen_lockfile=false eval "$ADAPTER_GENERATOR" )
 
   # overlay everything the adapter ships except adapter.env (sourced, not
   # copied) and lefthook.fragment.yml (merged, not copied verbatim) — the
@@ -87,7 +93,9 @@ apply_adapter() {
   [ -d "${ADAPTER_DIR}/docker" ] && cp -R "${ADAPTER_DIR}/docker" "${dest}/docker"
 
   if [ -n "${ADAPTER_POST_GENERATE:-}" ]; then
-    ( cd "$dest" && eval "$ADAPTER_POST_GENERATE" )
+    # same reason as the generator above: post-generate steps install the tools
+    # the contract needs and then immediately run them.
+    ( cd "$dest" && npm_config_frozen_lockfile=false eval "$ADAPTER_POST_GENERATE" )
   fi
 
   register_config_root "$project" "$rel"
