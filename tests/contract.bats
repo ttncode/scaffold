@@ -54,3 +54,12 @@ setup() {
     [ "$status" -ne 0 ]
   done
 }
+
+@test "lint_adapters rejects a checking task that repairs its own input" {
+  # ADR-0011 states the read-only split is "enforced by the linter rather than
+  # by convention". It was not: lint_adapters checked that a task exists, never
+  # what it runs, so an adapter whose `lint` ran `prettier --write .` passed.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/writing-check"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: lint writes"* ]]
+}

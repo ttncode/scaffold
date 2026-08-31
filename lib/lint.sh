@@ -4,7 +4,7 @@
 # prints one line per problem and returns 1 when any adapter is incomplete.
 lint_adapters() {
   local dir="$1"
-  local adapter name file task status=0
+  local adapter name file task task_body flag status=0
 
   for adapter in "$dir"/*/; do
     [ -d "$adapter" ] || continue
@@ -26,7 +26,32 @@ lint_adapters() {
         status=1
       fi
     done
+
+    for task in "${READ_ONLY_TASKS[@]}"; do
+      task_body="$(task_body "${adapter}mise.toml" "$task")"
+      for flag in "${WRITING_FLAGS[@]}"; do
+        case " $task_body " in
+          *" ${flag} "*|*" ${flag}="*)
+            printf '%s: %s writes (%s) — %s must report, not repair; see docs/decisions/0011\n' \
+              "$name" "$task" "$flag" "$task"
+            status=1
+            ;;
+        esac
+      done
+    done
   done
 
   return "$status"
+}
+
+# task_body <mise.toml> <task>
+# prints every line of one task's table, which is enough to see what it runs:
+# a `run` value can be a single string or an array spanning several lines, and
+# both are covered by printing the whole table rather than parsing the value.
+task_body() {
+  awk -v task="$2" '
+    $0 ~ "^\\[tasks\\.\"?" task "\"?\\]$" { inside = 1; next }
+    inside && /^\[/ { exit }
+    inside { print }
+  ' "$1"
 }

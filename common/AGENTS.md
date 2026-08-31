@@ -6,8 +6,9 @@ This project follows a fixed task contract: `install`, `format`, `format-fix`,
 same way CI does, or `mise run checklist` from the project root to check
 every root.
 
-This project ships no `docs/decisions` directory of its own — that convention
-belongs to the scaffold toolbox that generated it, not to what it generated.
-If this project starts recording its own architecture decisions, put them in
-`docs/decisions` and read the relevant ones before changing behavior they
-cover.
+Architecture decisions live in `docs/decisions`, which ships with a seed ADR
+and a template. `mise run //docs:check` validates every ADR there — required
+sections, a valid status, unique numbering — so a new one has to follow the
+template to pass. Read the relevant ones before changing behavior they cover,
+and add one when you make a decision the next reader would otherwise have to
+reconstruct.

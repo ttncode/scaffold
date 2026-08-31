@@ -1,0 +1,26 @@
+[tasks.install]
+run = "true"
+
+[tasks.format]
+run = "true"
+
+[tasks."format-fix"]
+run = "true"
+
+[tasks.lint]
+run = "prettier --write ."
+
+[tasks.check]
+run = "true"
+
+[tasks.test]
+run = "true"
+
+[tasks.build]
+run = "true"
+
+[tasks.ci-unit]
+run = "true"
+
+[tasks.checklist]
+run = "true"

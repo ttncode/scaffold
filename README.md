@@ -13,8 +13,9 @@ scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
 
 The generated workflows call this account's reusable CI (`dot-github`) and
 publish to this account's `ghcr.io` namespace. `scaffold new` resolves that
-account from `SCAFFOLD_GITHUB_OWNER`, falling back to `git config
-github.user`; it refuses to generate a project if neither is set.
+account from `SCAFFOLD_GITHUB_OWNER`, then from `gh api user`, then from
+`git config github.user`; it refuses to generate a project if none of the
+three resolves.
 
 ## Adapter support tiers
 

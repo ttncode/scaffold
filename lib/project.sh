@@ -290,7 +290,7 @@ sync_ci_roots() {
   rm -f "${project}/.github/workflows/ci.yml.bak"
 }
 
-# finalize_project <project>
+# lock_toolchains <project>
 # `mise install` writes a lockfile naming versions but no download URLs when the
 # tools were already in the local cache, and CI's `mise install --locked` rejects
 # exactly that file. `mise lock` fills in the URLs and checksums. It covers one

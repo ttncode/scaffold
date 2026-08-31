@@ -59,9 +59,15 @@ run = "composer.phar install --no-dev --optimize-autoloader --classmap-authorita
 run = "php artisan migrate --force"
 
 [tasks.ci-unit]
+# :lint runs the same pint invocation as :format here, so this repeats about
+# half a second of work. Listed anyway: every other adapter runs all five, and
+# an omission that reads as deliberate is indistinguishable from one that is
+# not — the day pint stops being both halves, the missing call would go
+# unnoticed in CI.
 run = [
   { task = ":install" },
   { task = ":format" },
+  { task = ":lint" },
   { task = ":check" },
   { task = ":test" },
 ]

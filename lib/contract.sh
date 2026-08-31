@@ -8,3 +8,16 @@ CONTRACT_TASKS=(install format format-fix lint check test build ci-unit checklis
 # every adapter directory must ship these four files.
 # shellcheck disable=SC2034 # read by lib/lint.sh once sourced
 REQUIRED_ADAPTER_FILES=(adapter.env mise.toml Dockerfile .env.example)
+
+# the three contract tasks that report without repairing. ADR-0011: a checking
+# task that repairs its own input passes locally and fails in CI, because CI
+# runs it against a tree it must not modify.
+# shellcheck disable=SC2034 # read by lib/lint.sh once sourced
+READ_ONLY_TASKS=(format lint check)
+
+# substrings that mean a command edits what it reads. Matching text rather than
+# running anything is a deliberate limit: it catches the mistake this guard
+# exists for — a read-only task copied from its own -fix sibling — and cannot
+# catch a tool that writes by default with no flag saying so.
+# shellcheck disable=SC2034 # read by lib/lint.sh once sourced
+WRITING_FLAGS=(--write --fix -w --in-place --overwrite)

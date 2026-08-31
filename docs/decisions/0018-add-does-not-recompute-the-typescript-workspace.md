@@ -11,7 +11,7 @@ every requested adapter's `ADAPTER_LANGUAGE` is `typescript`,
 `packages/types`, registers it as a config root, and keeps
 `pnpm-workspace.yaml`; otherwise both are removed outright
 (`rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"`) —
-see `lib/project.sh`'s `cmd_new`.
+see `scaffold`'s `cmd_new`.
 
 `scaffold add` installs one more adapter into a project that already made
 that decision. Its choice of adapter can contradict the inputs the
