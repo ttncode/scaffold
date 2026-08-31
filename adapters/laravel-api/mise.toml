@@ -44,14 +44,16 @@ run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 # --no-dev strips pint, phpstan and phpunit out of vendor/, and lefthook's
 # pre-commit hook calls ./vendor/bin/pint directly — so building in place makes
 # the next commit fail on a missing binary, and pre-push runs checklist, which
-# runs this. Build into a throwaway tree instead. The real artifact is built by
-# the Dockerfile, which does its own --no-dev install on a clean checkout.
+# runs this. So put the dev tools back afterwards. The real artifact is built
+# by the Dockerfile, which does its own --no-dev install on a clean checkout.
 #
-# The tree goes to the project root, not this app: pint runs rooted here and
-# scans everything it can see except vendor/, so a second vendor tree beside it
-# is thousands of third-party files to reformat.
-env = { COMPOSER_VENDOR_DIR = "../../.build/vendor" }
-run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative"
+# Restoring afterwards rather than installing somewhere else on purpose: a
+# second vendor tree is 46MB of third-party files, and every tool that walks
+# the project — pint, the docs path checker — has to be taught to skip it, one
+# at a time, each time finding out the hard way. `; status=$?; …; exit $status`
+# so the dev tools come back even when the production install fails, without
+# swallowing its exit code.
+run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative; status=$?; composer.phar install --no-interaction --prefer-dist --quiet; exit $status"
 
 [tasks.migrate]
 run = "php artisan migrate --force"
