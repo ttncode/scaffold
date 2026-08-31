@@ -20,3 +20,14 @@ if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
   git config --global user.name "scaffold tests"
   git config --global user.email "tests@scaffold.invalid"
 fi
+
+# assert_ok — bats' `run` captures the command's output, so a bare
+# `[ "$status" -eq 0 ]` reports which line failed and nothing about why. Every
+# CI diagnosis in this repository has started by adding this by hand first.
+assert_ok() {
+  [ "$status" -eq 0 ] || {
+    echo "exit status ${status}; command output follows:"
+    echo "$output"
+    false
+  }
+}

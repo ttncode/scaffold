@@ -12,7 +12,7 @@ teardown() {
 @test "add installs an adapter at an arbitrary path" {
   cd "$PROJECT"
   run scaffold add apps/worker --adapter nestjs
-  [ "$status" -eq 0 ]
+  assert_ok
   [ -f "${PROJECT}/apps/worker/mise.toml" ]
 }
 

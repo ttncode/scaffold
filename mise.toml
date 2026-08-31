@@ -38,6 +38,16 @@ run = "bats tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/d
 description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
 run = "bats tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
 
+[tasks."test-runner"]
+description = "both test lanes under the environment a github runner actually has"
+# jdx/mise-action exports these on every runner, and three CI failures in a row
+# came from behaviour that appears only when they are set: pnpm turns on
+# --frozen-lockfile whenever CI is, and mise auto-trusts every config it finds
+# when MISE_YES is. A green run without them says nothing about the runner —
+# each of those three cost a push and a six-minute wait to see.
+env = { CI = "true", GITHUB_ACTIONS = "true", MISE_YES = "1" }
+run = [{ task = "test-unit" }, { task = "test-integration" }]
+
 [tasks.ci-unit]
 run = [{ task = "lint" }, { task = "test-unit" }]
 
