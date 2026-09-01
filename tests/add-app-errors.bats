@@ -93,7 +93,7 @@ teardown() {
   [ ! -e "${PROJECT}/apps/worker" ]
   # both, not just the first: each is written for the generator's benefit and
   # neither may ship in the caller's project.
-  run grep -cE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"
+  run grep -cE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"
   [ "$output" = "0" ]
 }
 

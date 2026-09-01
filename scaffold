@@ -194,7 +194,7 @@ cmd_add_cleanup() {
   local target="$1" status="$2" workspace_file="$3"
 
   [ -f "$workspace_file" ] \
-    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
+    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' -e '/^minimumReleaseAge: 0$/d' "$workspace_file"
 
   [ "$status" -eq 0 ] && return 0
   [ -n "$target" ] || return 0
@@ -285,8 +285,12 @@ cmd_add() {
   # project hit the same frozen-lockfile refusal — but only on a runner, where
   # CI=true turns it on. Stripped again below on the success path, and by
   # cmd_add_cleanup on a failure.
+  # minimumReleaseAge alongside them: the generator verifies the lockfile it is
+  # about to extend, and a dependency published in the last day fails that check
+  # before scaffold gets a chance to record it. resolve_minimum_release_age
+  # below re-runs the policy at full strength and writes the exact entries.
   [ -f "$workspace_file" ] \
-    && printf 'confirmModulesPurge: false\nfrozenLockfile: false\n' >> "$workspace_file"
+    && printf 'confirmModulesPurge: false\nfrozenLockfile: false\nminimumReleaseAge: 0\n' >> "$workspace_file"
 
   apply_adapter "$adapter" "$project" "$rel"
 
@@ -294,7 +298,7 @@ cmd_add() {
   # below, so relying on it left these two lines in the caller's file forever
   # whenever there was no shared workspace to take the other branch.
   [ -f "$workspace_file" ] \
-    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
+    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' -e '/^minimumReleaseAge: 0$/d' "$workspace_file"
 
   if [ -n "$reconcile" ]; then
     # the new app's own generator already installed straight into the

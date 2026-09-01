@@ -70,6 +70,6 @@ teardown() {
   # The success path disarms the cleanup trap, so the strip has to be explicit —
   # and it lived inside the reconcile branch only, so a project without a shared
   # workspace kept confirmModulesPurge and frozenLockfile forever.
-  run grep -cE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"
-  [ "$output" = "0" ] || { echo "left behind:"; grep -nE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"; false; }
+  run grep -cE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"
+  [ "$output" = "0" ] || { echo "left behind:"; grep -nE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"; false; }
 }
