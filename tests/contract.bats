@@ -40,7 +40,7 @@ setup() {
   assert_ok
 }
 
-@test "test-unit's suites never generate a real adapter from setup()" {
+@test "test-unit's suites never run an adapter generator to completion" {
   # mise.toml's test-unit membership is an explicit file list backed by a
   # comment claiming "no adapter generator anywhere in setup" — the same
   # "synced by a comment, drifts silently" shape task 13's review round 1
@@ -49,9 +49,20 @@ setup() {
   run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
   files="$(grep -oE 'tests/[A-Za-z0-9_-]+\.bats' <<< "$run_line")"
   [ -n "$files" ]
+  # The whole file, not just setup(): a generator call in a test body costs the
+  # lane the same, and one added here reached CI before anyone noticed the lane
+  # had stopped being offline. A call the next two lines assert fails does not
+  # count — those are refused before any generator runs, which is the point of
+  # the error suite.
   for f in $files; do
-    run bash -c "sed -n '/^setup() {/,/^}/p' '${SCAFFOLD_ROOT}/${f}' | grep -E 'scaffold (new|add) .*--(api|web|app|adapter)'"
-    [ "$status" -ne 0 ]
+    run bash -c "grep -A2 -E 'scaffold (new|add) .*--(api|web|app|adapter)' '${SCAFFOLD_ROOT}/${f}' \
+      | grep -B2 -E '^\s*\[ .status. -eq 0 \]|^\s*assert_ok' \
+      | grep -E 'scaffold (new|add) .*--(api|web|app|adapter)'"
+    [ "$status" -ne 0 ] || {
+      echo "${f} runs an adapter generator to completion, so test-unit is no longer offline:"
+      echo "$output"
+      false
+    }
   done
 }
 

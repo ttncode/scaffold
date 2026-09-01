@@ -46,3 +46,19 @@ teardown() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"already exists"* ]]
 }
+@test "add into a mixed-language project leaves other apps' lockfiles alone" {
+  # its own project: this file's setup() already generated one at $PROJECT
+  local mixed="${WORKDIR}/mixed"
+  scaffold new "$mixed" --api laravel-api --web nextjs
+  [ -f "${mixed}/apps/web/pnpm-lock.yaml" ]
+
+  cd "$mixed"
+  run scaffold add apps/app --adapter nestjs
+  assert_ok
+
+  # `reconcile` was keyed on the workspace file existing, but a mixed-language
+  # project keeps a settings-only one with no `packages:`. sync_workspace_lockfile
+  # then deleted every per-app lockfile at depth 3 and rebuilt a root lockfile
+  # that covers no app, leaving both unable to install — with no undo.
+  [ -f "${mixed}/apps/web/pnpm-lock.yaml" ]
+}
