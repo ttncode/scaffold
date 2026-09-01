@@ -193,7 +193,7 @@ cmd_new() {
 cmd_add_cleanup() {
   local target="$1" status="$2" workspace_file="$3"
 
-  [ -n "$workspace_file" ] \
+  [ -f "$workspace_file" ] \
     && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
 
   [ "$status" -eq 0 ] && return 0
@@ -271,7 +271,7 @@ cmd_add() {
   # all pointing at an app that got removed. Editing files the caller
   # already owned has no general undo.
   # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
-  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$reconcile")" EXIT
+  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "${workspace_file}")" EXIT
 
   # frozenLockfile alongside it, and for the same reason: the generator's own
   # `pnpm install` sees 28 dependencies in the new app's package.json that the
@@ -280,7 +280,12 @@ cmd_add() {
   # goes in the workspace file rather than the environment because the generator
   # spawns pnpm through several processes and npm_config_* does not survive the
   # trip — that was tried, and only the runner disagreed.
-  [ -n "$reconcile" ] && printf 'confirmModulesPurge: false\nfrozenLockfile: false\n' >> "$workspace_file"
+  # Whenever the file exists, not only when a shared workspace does: the
+  # generator writes into the root lockfile either way, so a mixed-language
+  # project hit the same frozen-lockfile refusal — but only on a runner, where
+  # CI=true turns it on. cmd_add_cleanup strips both lines on every path.
+  [ -f "$workspace_file" ] \
+    && printf 'confirmModulesPurge: false\nfrozenLockfile: false\n' >> "$workspace_file"
 
   apply_adapter "$adapter" "$project" "$rel"
 
