@@ -92,6 +92,12 @@ cmd_new() {
     case "$1" in
       --web|--api|--app)
         [ $# -ge 2 ] || die "${1} requires an adapter name"
+        # each role maps to one apps/<role> directory, so a repeated flag ran a
+        # second generator against a populated tree and overlaid its files on
+        # the first — two apps' work, one broken result, and no error
+        case " ${requested[*]-} " in
+          *" ${1#--}:"*) die "${1} given more than once" ;;
+        esac
         requested+=("${1#--}:${2}")
         shift 2
         ;;
@@ -124,18 +130,14 @@ cmd_new() {
     done
   fi
 
-  # Two separate questions, and conflating them cost a real defect: whether a
-  # shared packages/types is possible (needs every app to be TypeScript), and
-  # whether the root pnpm-workspace.yaml is needed at all (needs only one).
-  # That file carries ADR-0017's allowBuilds, so deleting it because one app is
-  # PHP took the supply-chain policy away from the TypeScript app beside it.
-  local all_typescript=1 any_typescript=0
+  # This decides one thing only: whether a shared packages/types is possible,
+  # which needs every app to be TypeScript. It used to decide whether the root
+  # pnpm-workspace.yaml survived as well — so one PHP app deleted the file
+  # carrying ADR-0017's allowBuilds, and with it the policy protecting the
+  # TypeScript app beside it. The file now stays either way.
+  local all_typescript=1
   for entry in "${requested[@]}"; do
-    if adapter_is_typescript "${entry#*:}"; then
-      any_typescript=1
-    else
-      all_typescript=0
-    fi
+    adapter_is_typescript "${entry#*:}" || all_typescript=0
   done
 
   if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
@@ -150,14 +152,12 @@ cmd_new() {
   else
     rm -rf "${target}/packages-types"
 
-    if [ "$any_typescript" -eq 1 ]; then
-      # No shared workspace without a fully TypeScript project, so the packages
-      # list goes — but a settings-only pnpm-workspace.yaml is valid, and it is
-      # how an app that ships none of its own inherits allowBuilds by walking up.
-      yq --inplace 'del(.packages)' "${target}/pnpm-workspace.yaml"
-    else
-      rm -f "${target}/pnpm-workspace.yaml"
-    fi
+    # No shared workspace without a fully TypeScript project, so the packages
+    # list goes — but the file stays either way. It carries ADR-0017's
+    # allowBuilds, which applies to any node install here, including the root
+    # package.json a php-only project still needs for commitlint. Deleting it
+    # left that project with no recorded build-script decision at all.
+    yq --inplace 'del(.packages)' "${target}/pnpm-workspace.yaml"
     # The root package.json still needs installing on its own — commitlint
     # backs lefthook's commit-msg hook, which must work in a php-only
     # project (docs/decisions/0007).
@@ -306,11 +306,12 @@ cmd_add() {
         "${SCAFFOLD_ROOT}/common/pnpm-workspace.yaml" > "$workspace_file"
     fi
 
-    # No workspace to join, so the new app carries its own lockfile — and
-    # pnpm's minimum-release-age policy re-checks that lockfile on every
-    # frozen install, not just the generator's. Left unresolved, an app added
-    # on a day one of its dependencies was published simply cannot install.
-    resolve_minimum_release_age "$project/$rel"
+    # Against the project root, not the app: with no workspace to join, the
+    # generator still writes into the root lockfile — pnpm walks up to find it
+    # — so the app has none of its own and passing its path made this return
+    # early, leaving the policy unresolved. An app added on a day one of its
+    # dependencies was published then could not install at all.
+    resolve_minimum_release_age "$project"
   fi
 
   sync_ci_roots "$project"

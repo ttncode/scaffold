@@ -3,8 +3,11 @@ dist/
 build/
 coverage/
 
-.env
-.env.local
+# .env* rather than .env: install.sh writes ./.env.XXXXXX holding the
+# generated database password, and a signal between creating and moving it
+# leaves that file behind.
+.env*
+!.env.example
 *.local
 
 .DS_Store

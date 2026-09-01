@@ -29,7 +29,9 @@ teardown() {
 
 @test "the laravel lefthook fragment is merged with the common hooks" {
   scaffold new "$PROJECT" --api laravel-api
-  run yq '.pre-commit.commands | has("pint")' "${PROJECT}/lefthook.yml"
+  # suffixed with the app it came from, so two apps of the same language keep
+  # a hook each rather than one overwriting the other
+  run yq '.pre-commit.commands | has("pint-apps-api")' "${PROJECT}/lefthook.yml"
   [ "$output" = "true" ]
   run yq '.pre-commit.commands | has("gitleaks")' "${PROJECT}/lefthook.yml"
   [ "$output" = "true" ]
@@ -37,7 +39,7 @@ teardown() {
 
 @test "the fragment resolves the app root" {
   scaffold new "$PROJECT" --api laravel-api
-  run yq '.pre-commit.commands.pint.root' "${PROJECT}/lefthook.yml"
+  run yq '.pre-commit.commands.pint-apps-api.root' "${PROJECT}/lefthook.yml"
   [ "$output" = "apps/api/" ]
 }
 
@@ -104,4 +106,15 @@ teardown() {
   local hooks
   hooks="$(printf '%s\n' "$output" | grep -c pint)"
   [ "$hooks" -eq 2 ] || { echo "expected 2 pint hooks, found ${hooks}:"; echo "$output"; false; }
+}
+
+@test "a php-only project still ships the build policy" {
+  scaffold new "$PROJECT" --api laravel-api
+  # The root package.json is node tooling — commitlint backs the commit-msg
+  # hook — so ADR-0017's allowBuilds applies even with no TypeScript app. This
+  # branch used to delete the file that carries it outright.
+  [ -f "${PROJECT}/pnpm-workspace.yaml" ]
+  run yq -r '.allowBuilds | keys | .[]' "${PROJECT}/pnpm-workspace.yaml"
+  assert_ok
+  [[ "$output" == *"unrs-resolver"* ]]
 }

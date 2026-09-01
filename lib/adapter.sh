@@ -15,9 +15,9 @@ load_adapter() {
   [ -d "$dir" ] || die "unknown adapter: ${name} (run: scaffold list)"
 
   ADAPTER_DIR="$dir"
-  # a stale value from a previously loaded adapter must not leak into one that
-  # does not define it
-  unset -v ADAPTER_POST_GENERATE
+  # every optional value, not just one: a stale ADAPTER_LANGUAGE or ROLE from
+  # the previous load would otherwise be read as this adapter's own
+  unset -v ADAPTER_POST_GENERATE ADAPTER_LANGUAGE ADAPTER_ROLE ADAPTER_TIER
   # shellcheck source=/dev/null
   # `|| return 1` so an unreadable adapter.env fails here, rather than letting
   # the default below become this function's last, always-successful command

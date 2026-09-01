@@ -92,3 +92,12 @@ setup() {
   [[ "$output" == *$'\t'"api"$'\t'* ]] \
     || { echo "no intact adapter survived the listing:"; echo "$output"; false; }
 }
+
+@test "a role requested twice is refused instead of generating twice into one path" {
+  # Both adapters map to the same apps/<role> directory, so the second
+  # generator ran against a populated tree and overlaid its own files on the
+  # first — two apps' worth of work, one broken result, no error.
+  run scaffold new "${BATS_TEST_TMPDIR}/dup" --web nextjs --web nestjs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"--web"* ]]
+}
