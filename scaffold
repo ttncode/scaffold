@@ -283,14 +283,20 @@ cmd_add() {
   # Whenever the file exists, not only when a shared workspace does: the
   # generator writes into the root lockfile either way, so a mixed-language
   # project hit the same frozen-lockfile refusal — but only on a runner, where
-  # CI=true turns it on. cmd_add_cleanup strips both lines on every path.
+  # CI=true turns it on. Stripped again below on the success path, and by
+  # cmd_add_cleanup on a failure.
   [ -f "$workspace_file" ] \
     && printf 'confirmModulesPurge: false\nfrozenLockfile: false\n' >> "$workspace_file"
 
   apply_adapter "$adapter" "$project" "$rel"
 
+  # Both branches, and explicitly: the success path disarms the cleanup trap
+  # below, so relying on it left these two lines in the caller's file forever
+  # whenever there was no shared workspace to take the other branch.
+  [ -f "$workspace_file" ] \
+    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
+
   if [ -n "$reconcile" ]; then
-    sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' "$workspace_file"
     # the new app's own generator already installed straight into the
     # shared root lockfile (see sync_workspace_lockfile's own comment on
     # why not every adapter's generator can be trusted to do that cleanly);
@@ -311,12 +317,11 @@ cmd_add() {
         "${SCAFFOLD_ROOT}/common/pnpm-workspace.yaml" > "$workspace_file"
     fi
 
-    # Against the project root, not the app: with no workspace to join, the
-    # generator still writes into the root lockfile — pnpm walks up to find it
-    # — so the app has none of its own and passing its path made this return
-    # early, leaving the policy unresolved. An app added on a day one of its
-    # dependencies was published then could not install at all.
-    resolve_minimum_release_age "$project"
+    # Install from the app, record in the root: the app is where pnpm resolves
+    # its dependencies, and the root workspace file is what pnpm reads when it
+    # walks up from there. Running both halves at the root found no violation,
+    # because the root package.json names none of the app's dependencies.
+    resolve_minimum_release_age "${project}/${rel}" "$project"
   fi
 
   sync_ci_roots "$project"

@@ -62,3 +62,14 @@ teardown() {
   # that covers no app, leaving both unable to install — with no undo.
   [ -f "${mixed}/apps/web/pnpm-lock.yaml" ]
 }
+
+@test "a successful add leaves no temporary workspace relaxation behind" {
+  cd "$PROJECT"
+  run scaffold add apps/worker --adapter nestjs
+  assert_ok
+  # The success path disarms the cleanup trap, so the strip has to be explicit —
+  # and it lived inside the reconcile branch only, so a project without a shared
+  # workspace kept confirmModulesPurge and frozenLockfile forever.
+  run grep -cE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"
+  [ "$output" = "0" ] || { echo "left behind:"; grep -nE 'confirmModulesPurge|frozenLockfile' "${PROJECT}/pnpm-workspace.yaml"; false; }
+}

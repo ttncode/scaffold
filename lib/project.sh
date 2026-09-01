@@ -193,14 +193,22 @@ pnpm_install() {
 # entries in the project's own file instead, leaving the policy live for
 # everything it adds later. Excluding one batch can reveal another, so this
 # loops — capped, so a different failure cannot spin forever.
+# resolve_minimum_release_age <install-dir> [settings-dir]
+# Runs the frozen install from <install-dir> and records the exclusions in
+# <settings-dir>'s pnpm-workspace.yaml, defaulting to the same place.
+#
+# The two differ for an app outside a workspace: its contract tasks install
+# from the app, which is the only place pnpm resolves its dependencies — the
+# project root holds the lockfile but its own package.json names none of them,
+# so running there found no violation and the app still could not install.
 resolve_minimum_release_age() {
   local project="$1"
-  local workspace_file="${project}/pnpm-workspace.yaml"
+  local settings="${2:-$1}"
+  local workspace_file="${settings}/pnpm-workspace.yaml"
 
-  # Keyed on the lockfile, not the workspace file: keying on the latter skipped
-  # the policy entirely for a mixed-language project and for an app added to
-  # one, so pnpm rejected a lockfile its own generator had just written.
-  [ -f "${project}/pnpm-lock.yaml" ] || return 0
+  # Keyed on the lockfile pnpm will actually verify — which for an app outside
+  # a workspace is the root's, found by walking up.
+  [ -f "${project}/pnpm-lock.yaml" ] || [ -f "${settings}/pnpm-lock.yaml" ] || return 0
 
   local max_rounds=10 round=0 log entries all_entries=""
   log="$(mktemp)"
