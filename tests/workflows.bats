@@ -169,22 +169,18 @@ teardown() {
 }
 
 @test "an adapter with an unrecognised ADAPTER_TIER fails loudly instead of vanishing" {
-  local env_file="${SCAFFOLD_ROOT}/adapters/nextjs/adapter.env"
-  cp "$env_file" "${BATS_TEST_TMPDIR}/adapter.env.bak"
-  sed -i 's/ADAPTER_TIER="A"/ADAPTER_TIER="Z"/' "$env_file"
-  run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
-  cp "${BATS_TEST_TMPDIR}/adapter.env.bak" "$env_file"
+  local toolbox; toolbox="$(copy_toolbox)"
+  sed -i 's/ADAPTER_TIER="A"/ADAPTER_TIER="Z"/' "${toolbox}/adapters/nextjs/adapter.env"
+  run "${toolbox}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
   [ "$status" -eq 1 ]
   [[ "$output" == *"nextjs"* ]]
   [[ "$output" == *"Z"* ]]
 }
 
 @test "an adapter missing ADAPTER_TIER entirely fails loudly instead of crashing blind" {
-  local env_file="${SCAFFOLD_ROOT}/adapters/nextjs/adapter.env"
-  cp "$env_file" "${BATS_TEST_TMPDIR}/adapter.env.bak"
-  sed -i '/^ADAPTER_TIER=/d' "$env_file"
-  run "${SCAFFOLD_ROOT}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
-  cp "${BATS_TEST_TMPDIR}/adapter.env.bak" "$env_file"
+  local toolbox; toolbox="$(copy_toolbox)"
+  sed -i '/^ADAPTER_TIER=/d' "${toolbox}/adapters/nextjs/adapter.env"
+  run "${toolbox}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
   [ "$status" -eq 1 ]
   [[ "$output" == *"nextjs"* ]]
   [[ "$output" != *"unbound variable"* ]]

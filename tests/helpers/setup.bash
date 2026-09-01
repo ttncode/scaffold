@@ -27,3 +27,21 @@ assert_ok() {
     false
   }
 }
+
+# copy_toolbox — a private copy of the toolbox for a test that has to modify
+# it. Two tests need to see how the scripts behave against a broken adapter or
+# a drifted file; editing the real tree made them race each other once the
+# suites started running with --jobs, and one left ADAPTER_TIER="Z" behind in
+# a tracked file. The scripts resolve their own root from their location, so
+# running them out of the copy is enough.
+copy_toolbox() {
+  local dest="${BATS_TEST_TMPDIR}/toolbox"
+  mkdir -p "$dest"
+  cp -R "${SCAFFOLD_ROOT}/adapters" "${SCAFFOLD_ROOT}/lib" \
+        "${SCAFFOLD_ROOT}/scripts" "${SCAFFOLD_ROOT}/common" \
+        "${SCAFFOLD_ROOT}/scaffold" "$dest/"
+  cp "${SCAFFOLD_ROOT}/UPSTREAM" "$dest/" 2>/dev/null || true
+  mkdir -p "$dest/docs"
+  cp "${SCAFFOLD_ROOT}/docs/PROVENANCE.md" "$dest/docs/" 2>/dev/null || true
+  printf '%s' "$dest"
+}

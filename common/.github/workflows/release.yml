@@ -16,10 +16,18 @@ jobs:
       issues: write
       packages: write
       pull-requests: write
-    # This account's own reusable workflow, tracked by a moving major tag on
-    # purpose (ADR-0005) so one fix reaches every project at once. The
-    # third-party actions inside it are still sha-pinned; the trade-off is
-    # scoped to a repository this account controls.
+    # A moving major tag, on purpose (ADR-0005): one fix reaches every project
+    # at once, without a pull request into each. The third-party actions inside
+    # are sha-pinned.
+    #
+    # What that costs, stated plainly because the tag outlives the engagement:
+    # this is a write channel into this repository's CI that survives handover
+    # and any revoked access, and release.yml grants the called workflow
+    # contents: write, packages: write and the release app's private key. One
+    # force-push of the tag reaches every project generated from this toolbox
+    # simultaneously, with no review and no signal here. Accepted, not solved —
+    # sha-pinning with Renovate is the alternative, and it gives up the
+    # one-fix-reaches-everything the tag was chosen for.
     uses: you/.github/.github/workflows/app-release.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     # release please opens its pull request as a github app when the repository
     # has RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY, so the checks on that pull

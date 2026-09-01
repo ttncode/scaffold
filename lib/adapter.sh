@@ -54,6 +54,13 @@ merge_lefthook_fragment() {
   rendered="$(mktemp)"
   sed "s|@APP_ROOT@|${rel}/|g" "$fragment" > "$rendered"
 
+  # Suffix every command name with the app it came from. The merge below is
+  # key-wise, so two apps of the same language — both laravel adapters define
+  # `pint` — would otherwise leave one hook scoped to whichever was applied
+  # last, and the other app's code unformatted on commit, silently.
+  yq --inplace "(.. | select(has(\"commands\")) | .commands) |=
+      with_entries(.key |= . + \"-${rel//\//-}\")" "$rendered"
+
   # cleaned up on both paths: under `set -e` a yq failure leaves immediately
   # and the file survives the run. Not a RETURN trap — that fires again in
   # callers, where $rendered is out of scope and the shell aborts.

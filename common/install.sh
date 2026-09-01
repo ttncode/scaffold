@@ -50,19 +50,32 @@ download_release_assets() {
   echo "downloading example.env..."
   local tmp_env
   tmp_env="$(mktemp ./.env.XXXXXX)" || return 1
-  trap 'rm -f "$tmp_env"' EXIT
+  # Two changes from the obvious `trap 'rm -f "$tmp_env"' EXIT`, both needed
+  # before a Ctrl-C stopped leaving the generated password on disk: the path is
+  # baked in with printf %q, because bash unwinds function locals before
+  # running the trap; and the signals are named, because a plain EXIT trap does
+  # not run when one kills the shell.
+  # shellcheck disable=SC2064 # expanding now is the point
+  trap "rm -f $(printf '%q' "$tmp_env")" EXIT INT TERM HUP
   if ! curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env"; then
-    trap - EXIT
+    trap - EXIT INT TERM HUP
     rm -f "$tmp_env"
     return 1
   fi
   if ! generate_database_password "$tmp_env"; then
-    trap - EXIT
+    trap - EXIT INT TERM HUP
     rm -f "$tmp_env"
     return 1
   fi
-  mv "$tmp_env" ./.env
-  trap - EXIT
+  # checked, like every other step here: an unchecked mv returns 0 through the
+  # trap below, so a failure reported success and left the password file behind.
+  if ! mv "$tmp_env" ./.env; then
+    rm -f "$tmp_env"
+    trap - EXIT INT TERM HUP
+    echo "could not write .env" >&2
+    return 1
+  fi
+  trap - EXIT INT TERM HUP
 }
 
 # Fails hard if the substitution misses: a password silently staying

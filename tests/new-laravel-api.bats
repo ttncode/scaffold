@@ -93,3 +93,15 @@ teardown() {
   run mise run //apps/worker:install
   assert_ok
 }
+
+@test "two php apps each keep their own pint hook" {
+  scaffold new "$PROJECT" --api laravel-api --app laravel-inertia
+  # Both fragments define pre-commit.commands.pint, and yq's merge is key-wise,
+  # so the second overwrote the first — one hook survived, scoped to one app,
+  # and the other app's php was never formatted on commit. Silently.
+  run yq -r '.pre-commit.commands | keys | .[]' "${PROJECT}/lefthook.yml"
+  assert_ok
+  local hooks
+  hooks="$(printf '%s\n' "$output" | grep -c pint)"
+  [ "$hooks" -eq 2 ] || { echo "expected 2 pint hooks, found ${hooks}:"; echo "$output"; false; }
+}

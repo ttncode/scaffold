@@ -22,10 +22,9 @@ setup() {
 }
 
 @test "check-provenance detects a modified verbatim file" {
-  cp "${SCAFFOLD_ROOT}/common/.editorconfig" "${BATS_TEST_TMPDIR}/backup"
-  echo "# drift" >> "${SCAFFOLD_ROOT}/common/.editorconfig"
-  run "${SCAFFOLD_ROOT}/scripts/check-provenance.sh"
-  cp "${BATS_TEST_TMPDIR}/backup" "${SCAFFOLD_ROOT}/common/.editorconfig"
+  local toolbox; toolbox="$(copy_toolbox)"
+  echo "# drift" >> "${toolbox}/common/.editorconfig"
+  run "${toolbox}/scripts/check-provenance.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"DRIFTED"* ]]
 }

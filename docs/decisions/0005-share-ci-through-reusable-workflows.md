@@ -28,6 +28,15 @@ commit or a fixed minor version.
   Mitigated by running the smoke suite against the workflow repository's
   `main` before moving `v1` to point at it, and by rolling back with a tag
   move rather than a revert-and-redeploy per project.
+- The blast radius of a *deliberate* change is the same, and the smoke suite
+  does not detect one. `v1` is a write channel into every generated project's
+  CI that outlives the engagement: it keeps working after handover, after
+  collaborator access is revoked, and after the client stops working with the
+  account that owns it. `app-release.yml` grants the called workflow
+  `contents: write`, `packages: write` and the release app's private key, so
+  whoever controls the tag controls those in every project at once. Accepted
+  rather than solved. SHA-pinning each call site with Renovate bumping them is
+  the alternative, and it gives up the property this decision was made for.
 - A generated project's own `.github/workflows/` carries no logic to fix
   later — the entire reason for the split. Any logic that did end up there
   would need a per-project patch to change, which is exactly what this
