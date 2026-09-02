@@ -1,6 +1,7 @@
 # scaffold
 
 [![CI](https://github.com/ttncode/scaffold/actions/workflows/ci.yml/badge.svg)](https://github.com/ttncode/scaffold/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A bash toolbox that generates fully configured client projects. Every generated
 application implements the same nine-task contract — `install`, `format`,
@@ -88,3 +89,11 @@ Owning it for real, over the first week: the rest of the tour
 
 `docs/runbook/` is not reading material — consult it when the situation that
 names it actually arises.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+That covers this toolbox. A project it generates carries no licence of its own:
+the toolbox does not write one, because who owns generated work and on what
+terms is a question for the engagement it was generated for, not a default.
