@@ -142,8 +142,11 @@ setup() {
 
   run apply_service_setup "$app" ""
   assert_ok
-  run grep -q '@SERVICE_SETUP@' "${app}/Dockerfile"
-  [ "$status" -ne 0 ]
+  # exact content, not just "no anchor line" — that proxy would still pass
+  # if the anchor were replaced by a blank line instead of removed
+  run cat "${app}/Dockerfile"
+  assert_ok
+  [ "$output" = "$(printf 'FROM scratch\nCMD ["true"]')" ]
 }
 
 @test "apply_service_setup splices in every selected service's block" {
@@ -156,5 +159,28 @@ setup() {
   run grep -q '^RUN one$' "${app}/Dockerfile"
   assert_ok
   run grep -q '^RUN two$' "${app}/Dockerfile"
+  assert_ok
+}
+
+@test "apply_service_setup dies when the Dockerfile has no anchor" {
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app"
+  printf 'FROM scratch\nCMD ["true"]\n' > "${app}/Dockerfile"
+
+  run apply_service_setup "$app" "RUN one"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no @SERVICE_SETUP@ anchor"* ]]
+}
+
+@test "apply_service_setup passes a block through without escape processing" {
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+
+  # a literal backslash-t, two characters — awk's -v assignment does
+  # C-style escape processing and would collapse this into a tab
+  run apply_service_setup "$app" 'RUN echo \t done'
+  assert_ok
+  run grep -Fq 'RUN echo \t done' "${app}/Dockerfile"
   assert_ok
 }

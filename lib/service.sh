@@ -124,8 +124,11 @@ apply_service_setup() {
     || die "no @SERVICE_SETUP@ anchor in ${file}"
 
   local rendered; rendered="$(mktemp)"
-  awk -v block="$block" '
-    /^# @SERVICE_SETUP@$/ { if (block != "") printf "%s\n", block; next }
+  # ENVIRON, not -v: awk's -v does C-style escape processing on the assigned
+  # value, so a literal backslash in the block (e.g. \t, \") is consumed
+  # instead of passed through. ENVIRON does none of that.
+  block="$block" awk '
+    /^# @SERVICE_SETUP@$/ { if (ENVIRON["block"] != "") printf "%s\n", ENVIRON["block"]; next }
     { print }
   ' "$file" > "$rendered"
   mv "$rendered" "$file"
