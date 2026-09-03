@@ -81,7 +81,7 @@ setup() {
   run yq -e '.services.app.depends_on.database.condition == "service_healthy"' \
     "${project}/compose.yaml"
   assert_ok
-  run yq -e '.volumes.database != null' "${project}/compose.yaml"
+  run yq -e '.volumes | has("database")' "${project}/compose.yaml"
   assert_ok
   run yq -e '.services.database.tmpfs != null' "${project}/compose.test.yaml"
   assert_ok
@@ -274,7 +274,7 @@ service_driver_apply() {
 service_driver_dockerfile() { :; }
 EOF
 
-  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture leaky clean
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture leaky clean
   assert_ok
 }
 
@@ -300,7 +300,7 @@ service_driver_apply() {
 service_driver_dockerfile() { :; }
 EOF
 
-  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture broken
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture broken
   [ "$status" -eq 1 ]
   [[ "$output" == *"the broken driver failed for fixture"* ]]
   [ ! -e "${app}/installed" ]
@@ -327,10 +327,87 @@ service_driver_apply() { false; touch installed; }
 service_driver_dockerfile() { :; }
 EOF
 
-  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture careless
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture careless
   [ "$status" -eq 1 ]
   [[ "$output" == *"the careless driver failed for fixture"* ]]
   [ ! -e "${app}/installed" ]
+}
+
+@test "apply_service_drivers dies clearly when services are selected but no driver family is set" {
+  # Same blank-interpolation shape lint_services once had: an empty family
+  # reaching the loop below produces "no driver for  — run 'scaffold lint'"
+  # (two spaces, no name). Guarded before the loop instead, so this never
+  # even reaches load_service.
+  local app="${BATS_TEST_TMPDIR}/no-family-app"
+  mkdir -p "$app"
+
+  run apply_service_drivers "$app" "$app" "" nonexistent-service
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no driver family"* ]]
+  [[ "$output" != *"has no driver for  "* ]]
+}
+
+@test "apply_service_drivers points a driver at the real project root, not the app's own ancestor" {
+  # scaffold add creates its app one directory below the project root
+  # ("worker", not "apps/worker"); a driver that assumed the fixed
+  # apps/<role> depth would land two directories above the app instead —
+  # reproduced directly against the pre-fix nest.sh, which mutated this
+  # decoy file with exit 0 and never noticed the real root had no
+  # pnpm-workspace.yaml of its own.
+  local root="${BATS_TEST_TMPDIR}/rootcheck/project"
+  local decoy="${BATS_TEST_TMPDIR}/rootcheck"
+  local app="${root}/worker"
+  local fakebin="${BATS_TEST_TMPDIR}/rootcheck/fakebin"
+  mkdir -p "$app" "$fakebin"
+  printf 'allowBuilds: {}\n' > "${decoy}/pnpm-workspace.yaml"
+
+  # stands in for pnpm add/pnpm add -D, both network calls nest.sh's driver
+  # makes before the yq guard this test exercises
+  cat > "${fakebin}/pnpm" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "${fakebin}/pnpm"
+
+  PATH="${fakebin}:${PATH}" run apply_service_drivers "$app" "$root" nest mysql
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"could not set allowBuilds for prisma in pnpm-workspace.yaml"* ]]
+  [ ! -f "${root}/pnpm-workspace.yaml" ]
+  run cat "${decoy}/pnpm-workspace.yaml"
+  [ "$output" = "allowBuilds: {}" ]
+}
+
+@test "apply_service_drivers skips a driver's empty dockerfile output instead of splicing a blank line" {
+  local toolbox; toolbox="$(copy_toolbox)"
+  local app="${BATS_TEST_TMPDIR}/blank-line-app"
+  mkdir -p "$app" "${toolbox}/services/quiet/drivers" "${toolbox}/services/loud/drivers"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+
+  cat > "${toolbox}/services/quiet/service.env" <<'EOF'
+SERVICE_NAME="quiet"
+SERVICE_KIND="cache"
+SERVICE_IMAGE="example/quiet@sha256:deadbeef"
+EOF
+  cat > "${toolbox}/services/quiet/drivers/fixture.sh" <<'EOF'
+service_driver_apply() { :; }
+service_driver_dockerfile() { :; }
+EOF
+
+  cat > "${toolbox}/services/loud/service.env" <<'EOF'
+SERVICE_NAME="loud"
+SERVICE_KIND="database"
+SERVICE_IMAGE="example/loud@sha256:deadbeef"
+EOF
+  cat > "${toolbox}/services/loud/drivers/fixture.sh" <<'EOF'
+service_driver_apply() { :; }
+service_driver_dockerfile() { printf 'RUN loud-setup\n'; }
+EOF
+
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture loud quiet
+  assert_ok
+  run cat "${app}/Dockerfile"
+  assert_ok
+  [ "$output" = "$(printf 'FROM scratch\nRUN loud-setup\nCMD ["true"]')" ]
 }
 
 @test "every database service has a driver for every family that takes one" {

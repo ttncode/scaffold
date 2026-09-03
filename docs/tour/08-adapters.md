@@ -27,11 +27,12 @@ place of the anchor. A driver is expected to do two things: install
 whatever the framework needs to reach the service (a composer package, a
 pnpm package, a Prisma schema) and write the connection variables into
 `.env.example` with `write_env_lines`, never a bare append, since a driver
-runs against an `.env.example` the adapter already shipped. With no
-services selected the anchor is removed outright; a Dockerfile that ships
-it unreplaced fails to build. `ADAPTER_ROLE=web` takes no driver at all —
-the presentation tier opens no connection to a database — so `nextjs`'s
-Dockerfile carries no anchor to begin with.
+runs against an `.env.example` the adapter already shipped. `nextjs`'s
+Dockerfile ships the anchor like every other adapter's — `tests/service.bats`
+requires it on all of them — but `ADAPTER_ROLE=web` takes no driver at all,
+so `apply_adapter` calls `apply_service_setup` with an empty block, which
+removes the anchor outright rather than replacing it. A Dockerfile that
+ships the anchor unreplaced fails to build.
 
 ## Read this
 

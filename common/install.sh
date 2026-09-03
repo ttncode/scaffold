@@ -40,7 +40,7 @@ download_release_assets() {
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
-    if grep -qE '^[A-Z_]*_PASSWORD=changeme$' .env; then
+    if grep -qE '^[A-Za-z_][A-Za-z0-9_]*=changeme$' .env; then
       echo ".env still has a password set to changeme; set real values in .env before running this again"
       return 1
     fi
@@ -78,10 +78,12 @@ download_release_assets() {
   trap - EXIT INT TERM HUP
 }
 
-# Every *_PASSWORD the assembled .env carries, not one hardcoded name: a
-# project may have a database, a cache, both or neither, and a name that was
-# right when this was written stops being generated the moment the set
-# changes — silently, because nothing reads back what it did not expect.
+# Every variable still at the literal `changeme` the assembled .env carries,
+# not a *_PASSWORD name match: example.env's own header names the literal as
+# the contract, and a service naming its variable differently (e.g.
+# RABBITMQ_DEFAULT_PASS) still needs a real value generated for it — a name
+# pattern is a convention nothing enforces, the literal is what's actually
+# checked below.
 #
 # Fails hard if a substitution misses: a password staying "changeme" because
 # example.env's text drifted is a credential defaulting to a known value.
@@ -98,7 +100,7 @@ generate_service_passwords() {
       echo "could not set ${name} in ${file}; refusing to start with an unconfirmed password"
       return 1
     }
-  done < <(sed -n 's/^\([A-Z_]*_PASSWORD\)=changeme$/\1/p' "$file")
+  done < <(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=changeme$/\1/p' "$file")
 }
 
 # docker rejects the placeholder on its own, but with "invalid reference
@@ -130,6 +132,11 @@ main() {
 
 # sourced by the toolbox's tests to exercise one function at a time; running
 # main on source would try to download a release from a CHANGEME url.
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+# `${BASH_SOURCE[0]:-$0}`, not a bare `${BASH_SOURCE[0]}`: this is documented
+# as curl-piped (`curl ... | bash`, same as the immich script it's adapted
+# from), and piped in there is no BASH_SOURCE at all — `set -o nounset` above
+# killed the script before this line under the bare form, silently, in the
+# one way this project is actually run.
+if [ "${BASH_SOURCE[0]:-$0}" = "${0}" ]; then
   main
 fi

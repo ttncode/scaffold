@@ -71,3 +71,31 @@ INNER_EOF
   run grep -c '=changeme$' env.fixture
   [ "$output" = "0" ]
 }
+
+@test "install.sh generates a password whose name does not end in _PASSWORD" {
+  # the real contract is common/example.env's own: the literal `changeme`
+  # marks a secret, not a *_PASSWORD suffix. A service naming its variable
+  # differently (RABBITMQ_DEFAULT_PASS) got no generated value under the old
+  # ^[A-Z_]*_PASSWORD=changeme$ pattern, and tripped no check either.
+  cd "$PROJECT"
+  cat > env.fixture2 <<'INNER_EOF'
+RABBITMQ_DEFAULT_PASS=changeme
+APP_PORT=8080
+INNER_EOF
+  run bash -c "source ./install.sh 2>/dev/null; generate_service_passwords env.fixture2"
+  assert_ok
+  run grep -c '=changeme$' env.fixture2
+  [ "$output" = "0" ]
+}
+
+@test "install.sh survives being piped into bash instead of dying on an unbound variable" {
+  # documented as curl-piped (`curl ... | bash`), same as the immich script
+  # this is adapted from — piped in, BASH_SOURCE[0] is unbound, and
+  # `set -o nounset` used to kill the script before the source guard even ran.
+  mkdir -p "${WORKDIR}/piped"
+  cd "${WORKDIR}/piped"
+  run bash < "${PROJECT}/install.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"unbound variable"* ]]
+  [[ "$output" == *"could not download the release assets"* ]]
+}

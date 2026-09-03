@@ -305,13 +305,18 @@ The work is layered instead, and the existing tier system carries it:
 | structural | every pull request, seconds | all | fragments merge, `docker compose config` validates, the driver matrix is complete, digests appear once |
 | generation, default cell | every pull request | 2 | `mysql` with no cache, on Tier A adapters |
 | generation, full | nightly | 16 | Tier A across 4 databases and 2 caches |
-| Tier B | weekly | 8 | `laravel-inertia` across the same |
 
 The structural layer carries most of the load: a broken fragment, a stale
 digest, a missing driver, a service whose health check never passes `docker
 compose config` — all of it is caught in seconds without building a container.
 The generation layers are reserved for what only appears when the thing actually
 runs.
+
+Tier B (`laravel-inertia`) is not covered by the service matrix — its own
+weekly `smoke-tier-b` job in `.github/workflows/adapters.yml` runs
+`tests/new-laravel-inertia.bats` against whatever `--db` the generator's own
+tests select, not the full database/cache grid. A regression specific to
+Tier B crossed with a non-default service would only surface by hand.
 
 Tests follow the isolation rule the suite already holds to: each test generates
 into its own `BATS_TEST_TMPDIR` against a copied toolbox (`copy_toolbox`), so

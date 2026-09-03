@@ -124,7 +124,7 @@ apply_adapter() {
   # package manager's state by here, and .env.example has been copied in from
   # the adapter, which is the file the driver edits.
   if [ "${ADAPTER_ROLE}" != "web" ] && [ "${#SCAFFOLD_SERVICES[@]}" -gt 0 ]; then
-    apply_service_drivers "$dest" "$ADAPTER_FAMILY" "${SCAFFOLD_SERVICES[@]}"
+    apply_service_drivers "$dest" "$project" "$ADAPTER_FAMILY" "${SCAFFOLD_SERVICES[@]}"
   else
     # The anchor is not optional: a Dockerfile shipping it verbatim would fail
     # to build.

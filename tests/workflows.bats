@@ -235,6 +235,25 @@ teardown() {
   [[ "$output" == *'tier-b=[]'* ]]
 }
 
+@test "adapters.yml's service matrix stays in sync with scaffold list --services" {
+  # scripts/adapter-matrix.sh's own header states the principle for tiers:
+  # the matrix comes from the source of truth, not a second list baked into
+  # the workflow, so they can't drift apart silently. adapters.yml's db: and
+  # cache: axes are exactly that second list — ADR-0019 promises a fifth
+  # service costs one directory, and this is what makes a missed workflow
+  # line fail loudly instead of silently shipping an untested combination.
+  local db_expected cache_expected db_actual cache_actual
+
+  db_expected="$( { scaffold list --services | awk -F'\t' '$2 == "database" { print $1 }'; echo none; } | sort )"
+  cache_expected="$( { scaffold list --services | awk -F'\t' '$2 == "cache" { print $1 }'; echo none; } | sort )"
+
+  db_actual="$(yq -r '.jobs.services.strategy.matrix.db[]' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml" | sort)"
+  cache_actual="$(yq -r '.jobs.services.strategy.matrix.cache[]' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml" | sort)"
+
+  [ "$db_expected" = "$db_actual" ]
+  [ "$cache_expected" = "$cache_actual" ]
+}
+
 @test "the release call site passes secrets down to the reusable workflow" {
   scaffold new "$PROJECT" --api nestjs
   # release please needs the app-token secrets to open its pull request as a

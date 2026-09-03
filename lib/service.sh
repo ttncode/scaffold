@@ -7,11 +7,11 @@ load_service() {
   local name="$1"
 
   case "$name" in
-    ''|*[!a-z0-9-]*|-*) die "not a usable service name: ${name}" ;;
+    ''|*[!a-z0-9-]*|-*) die "not a usable service name: ${name} (run: scaffold list)" ;;
   esac
 
   local dir="${SCAFFOLD_ROOT}/services/${name}"
-  [ -d "$dir" ] || die "unknown service: ${name}"
+  [ -d "$dir" ] || die "unknown service: ${name} (run: scaffold list)"
 
   # shellcheck disable=SC2034 # read by the caller
   SERVICE_DIR="$dir"
@@ -170,7 +170,7 @@ write_env_lines() {
   done
 }
 
-# apply_service_drivers <app-dir> <family> <service>...
+# apply_service_drivers <app-dir> <project-root> <family> <service>...
 # A service knows how to run a container; a driver knows how one framework
 # talks to it. service_driver_apply runs in its own `bash -e` process, not a
 # subshell, and not per driver's own parameters leaking into the next one for
@@ -180,13 +180,25 @@ write_env_lines() {
 # vanish. A separate process keeps its own `-e` no matter how this function is
 # invoked; a subshell's suppression is enforced only by every driver body
 # remembering `|| return 1`, which is what this replaces.
+#
+# project-root is a caller-supplied argument, not `app`'s ancestor derived by
+# counting `..`: cmd_new's apps/<role> and cmd_add's caller-chosen directory
+# nest at different depths, so a driver that needs the project root (a
+# pnpm-workspace.yaml edit) cannot recover it from its own cwd.
 apply_service_drivers() {
-  local app="$1" family="$2"; shift 2
-  local service driver block=""
+  local app="$1" project="$2" family="$3"; shift 3
+  local service driver block="" rendered
 
   # web is the presentation tier and takes no driver — the caller decides
   # that from ADAPTER_ROLE, so reaching here with a family that has none is a
-  # wiring mistake, not a supported case.
+  # wiring mistake, not a supported case. An api/app adapter with no
+  # ADAPTER_FAMILY set is the same mistake one step later: caught here, by
+  # name, instead of interpolating a blank into every driver-not-found message
+  # below.
+  if [ $# -gt 0 ] && [ -z "$family" ]; then
+    die "${app} has services selected but no driver family — run 'scaffold lint'"
+  fi
+
   for service in "$@"; do
     load_service "$service"
     driver="${SERVICE_DIR}/drivers/${family}.sh"
@@ -202,6 +214,7 @@ apply_service_drivers() {
     # composer require, and pnpm turns the frozen lockfile on by itself
     # whenever CI is set — a driver cannot install what it is adding.
     npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+      SCAFFOLD_PROJECT_ROOT="$project" \
       bash -euo pipefail -c '
         cd "$1"
         # shellcheck source=/dev/null
@@ -214,8 +227,13 @@ apply_service_drivers() {
       ' _ "$app" "$driver" \
       || die "the ${service} driver failed for ${family}"
 
+    # A driver with nothing to add to the Dockerfile (redis's drivers, on
+    # both families) returns an empty string; appending it anyway spliced a
+    # blank line into the client's Dockerfile whenever it ran alongside one
+    # that does have output.
     # shellcheck source=/dev/null # family varies, so the path isn't constant
-    block+="$( . "$driver"; service_driver_dockerfile )"$'\n'
+    rendered="$( . "$driver"; service_driver_dockerfile )"
+    [ -n "$rendered" ] && block+="${rendered}"$'\n'
   done
 
   apply_service_setup "$app" "${block%$'\n'}"

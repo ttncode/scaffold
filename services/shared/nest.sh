@@ -28,14 +28,14 @@ service_driver_apply() {
   # a project that picked a service needing prisma carries the dependency at
   # all. Left undecided, cmd_new's later workspace-level reinstall fails
   # non-interactively (ERR_PNPM_IGNORED_BUILDS).
-  # role_path only ever yields apps/<role>, so the project root is reliably
-  # two levels up from here — no git dependency, and no assumption that
-  # --skip-git kept a nested .git out of the way.
+  # SCAFFOLD_PROJECT_ROOT, exported by apply_service_drivers: cmd_add's app
+  # directory is caller-chosen, not always apps/<role>, so a fixed `../..`
+  # guess reaches outside the project it was meant to edit.
   if ! yq --inplace \
     '.allowBuilds.prisma = true
      | .allowBuilds."@prisma/engines" = true
      | .allowBuilds."@prisma/client" = true' \
-    "../../pnpm-workspace.yaml"; then
+    "${SCAFFOLD_PROJECT_ROOT}/pnpm-workspace.yaml"; then
     die "could not set allowBuilds for prisma in pnpm-workspace.yaml"
   fi
 
