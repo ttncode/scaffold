@@ -16,6 +16,11 @@ service_driver_apply() {
   # `composer install` (the Docker vendor stage, same situation) both resolve
   # laravel-mongodb without --ignore-platform-req. Setting it after the lock
   # exists does not work.
+  #
+  # 1.21.0 has to stay the version `pecl install mongodb` actually builds in
+  # service_driver_dockerfile below: that call has no version pin of its own
+  # (pecl always resolves latest), so a newer extension release moves the
+  # image out from under this number with nothing here to notice.
   composer config platform.ext-mongodb 1.21.0 --no-interaction || return 1
   composer require mongodb/laravel-mongodb --no-interaction || return 1
 

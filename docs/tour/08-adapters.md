@@ -57,6 +57,19 @@ ships the anchor unreplaced fails to build.
   pnpm blocks an unapproved postinstall build by default
   (`ERR_PNPM_IGNORED_BUILDS`) — the same guard ADR-0017 already names for
   `unrs-resolver` and `esbuild`.
+- `services/shared/laravel.sh` writes `DB_HOST=localhost`, not the compose
+  service name `database`: `.env.example` describes `mise run dev` (the app
+  running on the host), which reaches the database through
+  `compose.dev.yaml`'s published port, not the compose network.
+- `services/mongodb/drivers/laravel.sh` — `composer config platform.ext-mongodb
+  1.21.0` has to stay the version `service_driver_dockerfile`'s `pecl install
+  mongodb` actually builds a few lines below; pecl carries no version pin of
+  its own, so a newer extension release moves the image out from under this
+  number with nothing here to notice.
+- `services/redis/drivers/nest.sh` installs the cache packages and writes
+  `REDIS_URL`; it registers no NestJS module. Wiring `CacheModule` to it is
+  left to the developer, the same way every adapter's own generator leaves
+  the rest of the framework's setup.
 - ADR-0003 for the overlay decision itself, ADR-0012 for how tiers decide
   what CI actually runs, ADR-0018 for why adding a second adapter later
   never retroactively rewires the shared TypeScript workspace, and

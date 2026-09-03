@@ -57,7 +57,7 @@ every adapter and every service against the contract.
 except `--db`, which defaults to `mysql` for a project with an `--api` or
 `--app` adapter. Requesting either on a project with neither is refused —
 the `web` tier has no driver, so nothing in the project could reach it. See
-[ADR-0020](docs/decisions/0020-mysql-is-the-default-database.md).
+[ADR-0020](docs/decisions/0020-database-default-is-derived-from-requested-adapters.md).
 
 The generated workflows call this account's reusable CI (`dot-github`) and
 publish to its `ghcr.io` namespace. `scaffold new` resolves the account from

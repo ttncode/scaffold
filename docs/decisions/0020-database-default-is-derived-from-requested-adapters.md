@@ -1,4 +1,4 @@
-# 0020 — MySQL is the default database
+# 0020 — the database default is derived from requested adapters, not fixed
 
 Status: Accepted
 Date: 2026-09-03

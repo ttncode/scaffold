@@ -125,10 +125,14 @@ whether it clears the immediate failure:
 ## Consequences
 
 - A generated project's `pnpm-workspace.yaml` differs project to project:
-  `allowBuilds` is fixed (from `common/`), but `minimumReleaseAgeExclude`
-  is computed once, at generation time, and is specific to whatever was
-  genuinely too fresh that day. Two `scaffold new` runs on different days
-  can produce different exclude lists for the same adapters.
+  `allowBuilds`'s baseline entries ship fixed from `common/`, but
+  `services/shared/nest.sh` adds three more of its own (`prisma`,
+  `@prisma/engines`, `@prisma/client`) for a project that picked a
+  `nest`-family database service — same instrument, decided per project
+  instead of once for every project. `minimumReleaseAgeExclude` is computed
+  once, at generation time, and is specific to whatever was genuinely too
+  fresh that day. Two `scaffold new` runs on different days can produce
+  different exclude lists for the same adapters.
 - `scaffold new` for an all-typescript project takes longer and needs the
   network more than before: `sync_workspace_lockfile` and
   `resolve_minimum_release_age` each run at least one more real `pnpm

@@ -19,9 +19,12 @@ service_driver_apply() {
     composer require "$LARAVEL_PACKAGE" --no-interaction || return 1
   fi
 
+  # localhost, not the compose service name: .env.example describes host-side
+  # `mise run dev` (see docs/tour/08-adapters.md), which reaches the database
+  # through compose.dev.yaml's published port, not the compose network.
   write_env_lines .env.example \
     "DB_CONNECTION=${LARAVEL_CONNECTION}" \
-    "DB_HOST=database" \
+    "DB_HOST=localhost" \
     "DB_PORT=${LARAVEL_PORT}" \
     "DB_DATABASE=app" \
     "DB_USERNAME=app" \
