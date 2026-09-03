@@ -184,3 +184,30 @@ setup() {
   run grep -Fq 'RUN echo \t done' "${app}/Dockerfile"
   assert_ok
 }
+
+@test "write_env_lines replaces a key rather than duplicating it" {
+  local file="${BATS_TEST_TMPDIR}/.env.example"
+  printf 'DB_HOST=localhost\nAPP_ENV=local\n' > "$file"
+
+  run write_env_lines "$file" "DB_HOST=database" "DB_PORT=3306"
+  assert_ok
+  run grep -c '^DB_HOST=' "$file"
+  [ "$output" = "1" ]
+  run grep -qx 'DB_HOST=database' "$file"
+  assert_ok
+  run grep -qx 'DB_PORT=3306' "$file"
+  assert_ok
+}
+
+@test "every database service has a driver for every family that takes one" {
+  # A missing file means the combination was never wired. It never means the
+  # tier does not need one — the web role is excluded by role, above.
+  local service family
+  for service in "${SCAFFOLD_ROOT}"/services/*/; do
+    [ -f "${service}service.env" ] || continue
+    for family in laravel nest; do
+      [ -f "${service}drivers/${family}.sh" ] \
+        || { echo "no ${family} driver in ${service}"; false; }
+    done
+  done
+}

@@ -118,3 +118,13 @@ teardown() {
   assert_ok
   [[ "$output" == *"unrs-resolver"* ]]
 }
+
+@test "the api is configured for the project's database" {
+  scaffold new "$PROJECT" --api laravel-api
+  run grep -qx 'DB_CONNECTION=mysql' "${PROJECT}/apps/api/.env.example"
+  assert_ok
+  run grep -q 'pdo_mysql' "${PROJECT}/apps/api/Dockerfile"
+  assert_ok
+  run grep -q '@SERVICE_SETUP@' "${PROJECT}/apps/api/Dockerfile"
+  [ "$status" -ne 0 ]
+}

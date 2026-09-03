@@ -15,14 +15,21 @@ run = "pnpm exec prettier --write ."
 [tasks.lint]
 run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
 
+[tasks.prisma]
+# prisma writes the client that tsc type-checks against, so it has to run
+# before check and before build — the same shape as the nextjs adapter's
+# `next typegen`. A project generated with --db none has no schema and no
+# prisma, and this does nothing; a real prisma failure still fails.
+run = "if [ -f prisma/schema.prisma ]; then pnpm exec prisma generate; fi"
+
 [tasks.check]
-run = "pnpm exec tsc --noEmit"
+run = [{ task = ":prisma" }, "pnpm exec tsc --noEmit"]
 
 [tasks.test]
 run = "pnpm exec jest --passWithNoTests"
 
 [tasks.build]
-run = "pnpm exec nest build"
+run = [{ task = ":prisma" }, "pnpm exec nest build"]
 
 [tasks.ci-unit]
 # same reason as :install's env above — ci-unit calls :install too.

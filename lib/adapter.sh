@@ -120,6 +120,17 @@ apply_adapter() {
            eval "$ADAPTER_POST_GENERATE" )
   fi
 
+  # After post-generate: the generator and its own follow-up have settled the
+  # package manager's state by here, and .env.example has been copied in from
+  # the adapter, which is the file the driver edits.
+  if [ "${ADAPTER_ROLE}" != "web" ] && [ "${#SCAFFOLD_SERVICES[@]}" -gt 0 ]; then
+    apply_service_drivers "$dest" "$ADAPTER_FAMILY" "${SCAFFOLD_SERVICES[@]}"
+  else
+    # The anchor is not optional: a Dockerfile shipping it verbatim would fail
+    # to build.
+    apply_service_setup "$dest" ""
+  fi
+
   register_config_root "$project" "$rel"
   merge_lefthook_fragment "${ADAPTER_DIR}/lefthook.fragment.yml" "$project" "$rel"
 }

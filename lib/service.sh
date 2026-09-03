@@ -133,3 +133,59 @@ apply_service_setup() {
   ' "$file" > "$rendered"
   mv "$rendered" "$file"
 }
+
+# write_env_lines <file> <line>...
+# Sets each KEY=value, replacing the key if it is already there. A driver runs
+# against an .env.example the adapter shipped, so appending blindly would
+# leave two values for one key and let the loser win depending on the reader.
+write_env_lines() {
+  local file="$1"; shift
+  local line key
+
+  [ -f "$file" ] || : > "$file"
+  for line in "$@"; do
+    key="${line%%=*}"
+    if grep -q "^${key}=" "$file"; then
+      sed -i.bak "s|^${key}=.*|${line}|" "$file"
+      rm -f "${file}.bak"
+    else
+      printf '%s\n' "$line" >> "$file"
+    fi
+  done
+}
+
+# apply_service_drivers <app-dir> <family> <service>...
+# A service knows how to run a container; a driver knows how one framework
+# talks to it. Runs in a subshell per driver so a driver's parameters cannot
+# leak into the next one.
+apply_service_drivers() {
+  local app="$1" family="$2"; shift 2
+  local service driver block=""
+
+  # web is the presentation tier and takes no driver — the caller decides
+  # that from ADAPTER_ROLE, so reaching here with a family that has none is a
+  # wiring mistake, not a supported case.
+  for service in "$@"; do
+    load_service "$service"
+    driver="${SERVICE_DIR}/drivers/${family}.sh"
+    [ -f "$driver" ] \
+      || die "${service} has no driver for ${family} — run 'scaffold lint'"
+
+    # Same two variables as apply_adapter's ADAPTER_POST_GENERATE call, and
+    # for the same reason: service_driver_apply runs pnpm add / composer
+    # require, and pnpm turns the frozen lockfile on by itself whenever CI is
+    # set — a driver cannot install what it is adding.
+    # shellcheck source=/dev/null # family varies, so the path isn't constant
+    ( cd "$app" \
+        && export npm_config_frozen_lockfile=false \
+                  npm_config_verify_deps_before_run=false \
+        && . "$driver" \
+        && service_driver_apply ) \
+      || die "the ${service} driver failed for ${family}"
+
+    # shellcheck source=/dev/null
+    block+="$( . "$driver"; service_driver_dockerfile )"$'\n'
+  done
+
+  apply_service_setup "$app" "${block%$'\n'}"
+}

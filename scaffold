@@ -114,8 +114,9 @@ cmd_new() {
   init_project "$target" "$name"
 
   # Hardcoded for now; Task 9 replaces this with the --db and --cache flags.
-  assemble_compose "$target" mysql
-  assemble_example_env "$target" mysql
+  SCAFFOLD_SERVICES=(mysql)
+  assemble_compose "$target" "${SCAFFOLD_SERVICES[@]}"
+  assemble_example_env "$target" "${SCAFFOLD_SERVICES[@]}"
 
   local entry flag adapter
   if [ "${#requested[@]}" -gt 0 ]; then
@@ -357,6 +358,11 @@ cmd_add() {
     warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
   fi
 }
+
+# The services this run selected, read by apply_adapter. A global rather than
+# another apply_adapter parameter: it is one value for the whole run, and
+# apply_adapter already takes three.
+SCAFFOLD_SERVICES=()
 
 main() {
   require_tools
