@@ -121,7 +121,8 @@ Each service carries a shared body plus three deltas:
 
 | File | Contents |
 | --- | --- |
-| `compose.fragment.yaml` | `image`, `environment`, `healthcheck` |
+| `compose.fragment.yaml` | `environment` and `healthcheck`; the image is
+injected from `SERVICE_IMAGE` so the digest is never written in a fragment |
 | `compose.prod.fragment.yaml` | named volume, `restart: always` |
 | `compose.dev.fragment.yaml` | port published on `127.0.0.1` |
 | `compose.test.fragment.yaml` | `tmpfs` storage |
