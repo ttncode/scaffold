@@ -109,3 +109,24 @@ assemble_example_env() {
     cat "${SERVICE_DIR}/env.fragment" >> "${project}/example.env"
   done
 }
+
+# apply_service_setup <app-dir> <block>
+# Replaces the Dockerfile's anchor comment with the concatenated output of
+# every selected service's driver. Concatenated rather than substituted per
+# service, so `--db mongodb --cache redis` produces two blocks instead of one
+# overwriting the other.
+apply_service_setup() {
+  local app="$1" block="$2"
+  local file="${app}/Dockerfile"
+
+  [ -f "$file" ] || return 0
+  grep -q '^# @SERVICE_SETUP@$' "$file" \
+    || die "no @SERVICE_SETUP@ anchor in ${file}"
+
+  local rendered; rendered="$(mktemp)"
+  awk -v block="$block" '
+    /^# @SERVICE_SETUP@$/ { if (block != "") printf "%s\n", block; next }
+    { print }
+  ' "$file" > "$rendered"
+  mv "$rendered" "$file"
+}

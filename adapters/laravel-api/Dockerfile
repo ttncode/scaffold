@@ -7,8 +7,8 @@ RUN composer install --no-dev --no-scripts --no-interaction \
     --prefer-dist --optimize-autoloader
 
 FROM php:8.3.21-fpm-alpine@sha256:d2170b0f8da574062b289566a05f25ab57173315a356c9f7519b5e444ae96dac AS runtime
-RUN apk add --no-cache postgresql-dev \
- && docker-php-ext-install pdo_pgsql opcache
+RUN docker-php-ext-install opcache
+# @SERVICE_SETUP@
 WORKDIR /var/www
 COPY --from=vendor /app/vendor ./vendor
 COPY . .

@@ -120,3 +120,41 @@ setup() {
   run grep -c '^DB_' "${SCAFFOLD_ROOT}/common/example.env"
   [ "$output" = "0" ]
 }
+
+@test "every adapter declares a framework family" {
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    grep -Eq '^ADAPTER_FAMILY="(laravel|nest|next)"$' "${adapter}adapter.env" \
+      || { echo "no ADAPTER_FAMILY in ${adapter}adapter.env"; false; }
+  done
+}
+
+@test "every adapter Dockerfile carries the service anchor" {
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    grep -q '^# @SERVICE_SETUP@$' "${adapter}Dockerfile" \
+      || { echo "no @SERVICE_SETUP@ anchor in ${adapter}Dockerfile"; false; }
+  done
+}
+
+@test "apply_service_setup removes the anchor when nothing was selected" {
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+
+  run apply_service_setup "$app" ""
+  assert_ok
+  run grep -q '@SERVICE_SETUP@' "${app}/Dockerfile"
+  [ "$status" -ne 0 ]
+}
+
+@test "apply_service_setup splices in every selected service's block" {
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+
+  run apply_service_setup "$app" "$(printf 'RUN one\nRUN two\n')"
+  assert_ok
+  run grep -q '^RUN one$' "${app}/Dockerfile"
+  assert_ok
+  run grep -q '^RUN two$' "${app}/Dockerfile"
+  assert_ok
+}
