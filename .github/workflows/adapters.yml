@@ -125,13 +125,51 @@ jobs:
           php-version: "8.3"
       - run: bats tests/compose.bats
 
+  services:
+    # Four databases and two caches across two families is eight combinations
+    # per adapter, and one tier a generation costs minutes — so the full grid
+    # is nightly, and every pull request gets the default cell through
+    # tests/new-*.bats instead.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [laravel-api, nestjs]
+        db: [mysql, postgres, mongodb, none]
+        cache: [none, redis]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - env:
+          ADAPTER: ${{ matrix.adapter }}
+          DB: ${{ matrix.db }}
+          CACHE: ${{ matrix.cache }}
+        run: |
+          work="$(mktemp -d)"
+          ./scaffold new "${work}/demo" --api "$ADAPTER" --db "$DB" --cache "$CACHE"
+          cd "${work}/demo"
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.test.yaml config --quiet
+          mise run //apps/api:checklist
+
   notify-on-schedule-failure:
     # a weekly-only lane nobody watches is theatre; surface a red run as an
     # issue instead of leaving it in a schedule tab no one opens.
     if: >-
       ${{ always() && github.event_name == 'schedule' &&
-      (needs.smoke.result == 'failure' || needs.smoke-tier-b.result == 'failure' || needs.compose.result == 'failure') }}
-    needs: [smoke, smoke-tier-b, compose]
+      (needs.smoke.result == 'failure' || needs.smoke-tier-b.result == 'failure' ||
+       needs.compose.result == 'failure' || needs.services.result == 'failure') }}
+    needs: [smoke, smoke-tier-b, compose, services]
     runs-on: ubuntu-latest
     permissions:
       issues: write

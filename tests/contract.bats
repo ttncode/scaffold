@@ -110,3 +110,8 @@ setup() {
   run scaffold lint
   assert_ok
 }
+
+@test "tests/service.bats runs in a lane" {
+  run grep -q 'tests/service.bats' "${SCAFFOLD_ROOT}/mise.toml"
+  assert_ok
+}
