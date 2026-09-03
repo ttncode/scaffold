@@ -1,4 +1,7 @@
 services:
   database:
     ports:
+      # loopback, not 0.0.0.0: docker publishes to every interface by default
+      # and its iptables rules bypass most host firewalls, so the bare form
+      # exposes this password-is-"app" database to the whole local network.
       - "127.0.0.1:27017:27017"

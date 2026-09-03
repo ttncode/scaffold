@@ -1,4 +1,7 @@
 services:
   cache:
     ports:
+      # loopback, not 0.0.0.0: docker publishes to every interface by default
+      # and its iptables rules bypass most host firewalls, so the bare form
+      # exposes this password-is-"app" cache to the whole local network.
       - "127.0.0.1:6379:6379"

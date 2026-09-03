@@ -266,6 +266,36 @@ EOF
   assert_ok
 }
 
+@test "apply_service_drivers dies when a driver fails partway through service_driver_apply" {
+  local toolbox; toolbox="$(copy_toolbox)"
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app" "${toolbox}/services/broken/drivers"
+
+  cat > "${toolbox}/services/broken/service.env" <<'EOF'
+SERVICE_NAME="broken"
+SERVICE_KIND="database"
+SERVICE_IMAGE="example/broken@sha256:deadbeef"
+EOF
+  # Mirrors the real bug's shape: a fallible command fails, then a later
+  # command in the same function would otherwise succeed. `|| return 1` is
+  # what every service_driver_apply needs to make the failure visible instead
+  # of it vanishing into the function's own exit status — set -e does not
+  # help here, since apply_service_drivers runs the driver as the left
+  # operand of `||`, which disables set -e for the whole subshell.
+  cat > "${toolbox}/services/broken/drivers/fixture.sh" <<'EOF'
+service_driver_apply() {
+  false || return 1
+  touch installed
+}
+service_driver_dockerfile() { :; }
+EOF
+
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture broken
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the broken driver failed for fixture"* ]]
+  [ ! -e "${app}/installed" ]
+}
+
 @test "every database service has a driver for every family that takes one" {
   # A missing file means the combination was never wired. It never means the
   # tier does not need one — the web role is excluded by role, above.
@@ -358,6 +388,8 @@ EOF
     "${project}/compose.yaml"
   assert_ok
   run yq -e '.services.cache.command[3] == "--appendonly"' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.cache.command[4] == "yes"' "${project}/compose.yaml"
   assert_ok
   run yq -e '.services.cache.healthcheck.test | length == 5' "${project}/compose.yaml"
   assert_ok

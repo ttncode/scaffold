@@ -14,9 +14,12 @@ service_driver_apply() {
   # than a driver that only ever writes datasource+generator should force on
   # every service. 6 is the newest stable major that still reads `url` from
   # the schema.
-  pnpm add @prisma/client@6
-  pnpm add -D prisma@6
-  mkdir -p prisma
+  # This runs inside `( ... ) || die` (apply_service_drivers), which disables
+  # `set -e` for everything in the subshell — a fallible command left
+  # unchecked here keeps running and its failure vanishes.
+  pnpm add @prisma/client@6 || return 1
+  pnpm add -D prisma@6 || return 1
+  mkdir -p prisma || return 1
 
   # All three fetch or place the query engine binary through an
   # install-time script, with no pure-js fallback — same category as esbuild
@@ -37,7 +40,7 @@ service_driver_apply() {
 
   # datasource and generator only. models describe the client's domain, which
   # this toolbox does not know — see the spec's non-goals.
-  cat > prisma/schema.prisma <<EOF
+  cat > prisma/schema.prisma <<EOF || return 1
 generator client {
   provider = "prisma-client-js"
 }
@@ -48,7 +51,7 @@ datasource db {
 }
 EOF
 
-  write_env_lines .env.example "DATABASE_URL=${PRISMA_URL}"
+  write_env_lines .env.example "DATABASE_URL=${PRISMA_URL}" || return 1
 }
 
 service_driver_dockerfile() {
