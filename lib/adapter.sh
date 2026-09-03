@@ -17,7 +17,7 @@ load_adapter() {
   ADAPTER_DIR="$dir"
   # every optional value, not just one: a stale ADAPTER_LANGUAGE or ROLE from
   # the previous load would otherwise be read as this adapter's own
-  unset -v ADAPTER_POST_GENERATE ADAPTER_LANGUAGE ADAPTER_ROLE ADAPTER_TIER
+  unset -v ADAPTER_POST_GENERATE ADAPTER_LANGUAGE ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY
   # shellcheck source=/dev/null
   # `|| return 1` so an unreadable adapter.env fails here, rather than letting
   # the default below become this function's last, always-successful command
@@ -25,6 +25,9 @@ load_adapter() {
   # not contract-required yet, and validate_tiers reports a bad value better
   # than `set -u` reports an unbound one
   : "${ADAPTER_TIER:=}"
+  # not contract-required yet either — the linter is the gate — so a fixture
+  # adapter with no family still loads
+  : "${ADAPTER_FAMILY:=}"
 
   # An adapter.env that parses but omits a name used to reach the caller, where
   # reading $ADAPTER_NAME under `set -u` killed the shell mid-loop — so one
