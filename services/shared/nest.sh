@@ -24,11 +24,16 @@ service_driver_apply() {
   # a project that picked a service needing prisma carries the dependency at
   # all. Left undecided, cmd_new's later workspace-level reinstall fails
   # non-interactively (ERR_PNPM_IGNORED_BUILDS).
-  yq --inplace \
+  # role_path only ever yields apps/<role>, so the project root is reliably
+  # two levels up from here — no git dependency, and no assumption that
+  # --skip-git kept a nested .git out of the way.
+  if ! yq --inplace \
     '.allowBuilds.prisma = true
      | .allowBuilds."@prisma/engines" = true
      | .allowBuilds."@prisma/client" = true' \
-    "$(git rev-parse --show-toplevel)/pnpm-workspace.yaml"
+    "../../pnpm-workspace.yaml"; then
+    die "could not set allowBuilds for prisma in pnpm-workspace.yaml"
+  fi
 
   # datasource and generator only. models describe the client's domain, which
   # this toolbox does not know — see the spec's non-goals.

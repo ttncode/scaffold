@@ -140,15 +140,31 @@ apply_service_setup() {
 # leave two values for one key and let the loser win depending on the reader.
 write_env_lines() {
   local file="$1"; shift
-  local line key
+  local line key rendered
 
   [ -f "$file" ] || : > "$file"
   for line in "$@"; do
     key="${line%%=*}"
     if grep -q "^${key}=" "$file"; then
-      sed -i.bak "s|^${key}=.*|${line}|" "$file"
-      rm -f "${file}.bak"
+      rendered="$(mktemp)"
+      # awk, not sed: a value can carry sed's own replacement syntax (&, |)
+      # — a MongoDB DATABASE_URL's query string does. ENVIRON, not -v, so a
+      # backslash in the value survives instead of being read as an escape.
+      if ! KEY="$key" LINE="$line" awk '
+        BEGIN { prefix = ENVIRON["KEY"] "=" }
+        substr($0, 1, length(prefix)) == prefix { print ENVIRON["LINE"]; next }
+        { print }
+      ' "$file" > "$rendered"; then
+        rm -f "$rendered"
+        die "could not set ${key} in ${file}"
+      fi
+      mv "$rendered" "$file"
     else
+      # a file with no trailing newline would otherwise get this key
+      # concatenated onto the end of the last line
+      if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then
+        printf '\n' >> "$file"
+      fi
       printf '%s\n' "$line" >> "$file"
     fi
   done

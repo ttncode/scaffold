@@ -199,6 +199,70 @@ setup() {
   assert_ok
 }
 
+@test "write_env_lines survives a value with sed metacharacters on replace" {
+  # a MongoDB DATABASE_URL carries both & and | in the wild; sed's own
+  # replacement syntax would otherwise mangle them (and $ would need
+  # escaping too, so a backslash is thrown in on top).
+  local file="${BATS_TEST_TMPDIR}/.env.example"
+  local value='mongodb://app:app@localhost/app?authSource=admin&x=1|y\z'
+  printf 'DATABASE_URL=placeholder\n' > "$file"
+
+  run write_env_lines "$file" "DATABASE_URL=${value}"
+  assert_ok
+  run write_env_lines "$file" "DATABASE_URL=${value}"
+  assert_ok
+
+  run grep -c '^DATABASE_URL=' "$file"
+  [ "$output" = "1" ]
+  run grep -Fxq "DATABASE_URL=${value}" "$file"
+  assert_ok
+}
+
+@test "write_env_lines appends onto a file with no trailing newline" {
+  local file="${BATS_TEST_TMPDIR}/.env.example"
+  printf 'APP_ENV=local' > "$file"
+
+  run write_env_lines "$file" "DB_HOST=database"
+  assert_ok
+  run grep -qx 'APP_ENV=local' "$file"
+  assert_ok
+  run grep -qx 'DB_HOST=database' "$file"
+  assert_ok
+}
+
+@test "apply_service_drivers does not leak one driver's parameters into the next" {
+  local toolbox; toolbox="$(copy_toolbox)"
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app" \
+    "${toolbox}/services/leaky/drivers" "${toolbox}/services/clean/drivers"
+
+  cat > "${toolbox}/services/leaky/service.env" <<'EOF'
+SERVICE_NAME="leaky"
+SERVICE_KIND="database"
+SERVICE_IMAGE="example/leaky@sha256:deadbeef"
+EOF
+  cat > "${toolbox}/services/leaky/drivers/fixture.sh" <<'EOF'
+service_driver_apply() { FIXTURE_PARAM=set; }
+service_driver_dockerfile() { :; }
+EOF
+
+  cat > "${toolbox}/services/clean/service.env" <<'EOF'
+SERVICE_NAME="clean"
+SERVICE_KIND="cache"
+SERVICE_IMAGE="example/clean@sha256:deadbeef"
+EOF
+  cat > "${toolbox}/services/clean/drivers/fixture.sh" <<'EOF'
+service_driver_apply() {
+  [ -z "${FIXTURE_PARAM:-}" ] \
+    || { echo "leaky's FIXTURE_PARAM survived into clean's driver" >&2; exit 1; }
+}
+service_driver_dockerfile() { :; }
+EOF
+
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture leaky clean
+  assert_ok
+}
+
 @test "every database service has a driver for every family that takes one" {
   # A missing file means the combination was never wired. It never means the
   # tier does not need one — the web role is excluded by role, above.
