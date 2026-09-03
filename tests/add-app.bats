@@ -73,3 +73,15 @@ teardown() {
   run grep -cE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"
   [ "$output" = "0" ] || { echo "left behind:"; grep -nE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"; false; }
 }
+
+@test "an app added later is wired to the project's own database" {
+  # setup() generated $PROJECT with --api nestjs and no --db, so it recorded
+  # mysql, the default database for a project with a backend.
+  cd "$PROJECT"
+  run scaffold add apps/worker --adapter nestjs
+  assert_ok
+  run grep -q '^DATABASE_URL=' "${PROJECT}/apps/worker/.env.example"
+  assert_ok
+  run grep -q 'provider = "mysql"' "${PROJECT}/apps/worker/prisma/schema.prisma"
+  assert_ok
+}

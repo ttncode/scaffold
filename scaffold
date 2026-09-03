@@ -294,6 +294,16 @@ cmd_add() {
   { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
     || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
 
+  # Read back rather than asked for: an application added in month six is
+  # wired to the database the project has had since month one, and a second
+  # answer to a question already settled is a way for the two to disagree.
+  local recorded
+  SCAFFOLD_SERVICES=()
+  for recorded in database cache; do
+    recorded="$(project_service "$project" "$recorded")"
+    [ -n "$recorded" ] && SCAFFOLD_SERVICES+=("$recorded")
+  done
+
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
 
