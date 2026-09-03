@@ -130,7 +130,7 @@ jobs:
     # per adapter, and one tier a generation costs minutes — so the full grid
     # is nightly, and every pull request gets the default cell through
     # tests/new-*.bats instead.
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event.schedule == '17 3 * * *' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -147,7 +147,14 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: corepack enable
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - id: language
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
+          echo "value=${lang}" >> "$GITHUB_OUTPUT"
+      - if: steps.language.outputs.value == 'php'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
       - env:

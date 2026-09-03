@@ -106,7 +106,7 @@ lint_services() {
       }
     fi
 
-    for family in "${families[@]-}"; do
+    for family in "${families[@]}"; do
       [ -f "${service}drivers/${family}.sh" ] || {
         printf '%s: no driver for %s\n' "$name" "$family"
         status=1

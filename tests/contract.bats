@@ -100,6 +100,41 @@ setup() {
   [[ "$output" == *"sample: no driver for laravel"* ]]
 }
 
+@test "lint_services reports a missing required file" {
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-file" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: missing file env.fragment"* ]]
+}
+
+@test "lint_services reports service.env missing a required variable" {
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-var" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: service.env does not set SERVICE_KIND"* ]]
+}
+
+@test "lint_services reports SERVICE_IMAGE not pinned by digest" {
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/unpinned-image" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: SERVICE_IMAGE is not pinned by digest"* ]]
+}
+
+@test "lint_services does not misreport a driver gap when no adapter drives any family" {
+  # "${families[@]-}" looped once with family="" whenever families was empty
+  # (bash 5.2: an empty array under the "-" default operator still yields one
+  # blank element), printing "$service: no driver for " for every service.
+  run lint_services \
+    "${SCAFFOLD_ROOT}/services" \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/web-only-adapters"
+  assert_ok
+  [ -z "$output" ]
+}
+
 @test "lint_adapters requires a framework family" {
   run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/no-generator"
   [ "$status" -eq 1 ]
