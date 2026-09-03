@@ -43,6 +43,7 @@ toolbox instead of where the command was run.
 
 ```sh
 scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
+                    [--db <service>] [--cache <service>]
 scaffold add <dir> --adapter <adapter>
 scaffold list
 scaffold lint
@@ -50,7 +51,13 @@ scaffold lint
 
 `new` creates a project. `add` installs another application into one that
 already exists. `list` reports the adapters and their tiers. `lint` checks
-every adapter against the contract.
+every adapter and every service against the contract.
+
+`--db` and `--cache` select a database and a cache; each defaults to `none`
+except `--db`, which defaults to `mysql` for a project with an `--api` or
+`--app` adapter. Requesting either on a project with neither is refused —
+the `web` tier has no driver, so nothing in the project could reach it. See
+[ADR-0020](docs/decisions/0020-mysql-is-the-default-database.md).
 
 The generated workflows call this account's reusable CI (`dot-github`) and
 publish to its `ghcr.io` namespace. `scaffold new` resolves the account from
@@ -68,6 +75,22 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 | A | `nextjs`, `nestjs`, `laravel-api` | every pull request, and nightly | stays green through every dependency bump |
 | B | `laravel-inertia` | when `adapters/laravel-inertia/**` changes, and weekly | verified regularly, not on every push — a full generation measures ~5 minutes per test |
 | C | none currently | not automatically verified | may rot; no guarantee at all |
+
+## Services
+
+A database or cache is a directory under `services/`, not an adapter — see
+[ADR-0019](docs/decisions/0019-services-are-not-adapters.md). Each ships a
+driver per adapter family (`laravel`, `nest`, `next`); `scaffold lint`
+requires the full matrix before an adapter in a new family can merge.
+
+| Slot | Services | Default |
+| --- | --- | --- |
+| `--db` | `mysql`, `postgres`, `mongodb`, `none` | `mysql` (with `--api` or `--app`), otherwise `none` |
+| `--cache` | `redis`, `none` | `none` |
+
+No DynamoDB: `compose.yaml` is attached to every release for a client to run
+(ADR-0014), and the only DynamoDB that fits a compose file is an emulator
+with no production counterpart in a self-hosted stack.
 
 ## Documentation
 

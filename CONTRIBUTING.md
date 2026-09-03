@@ -55,6 +55,26 @@ the result. It must ship `adapter.env`, `mise.toml`, `Dockerfile` and
 this by rejecting a writing flag in their `run` — see
 [ADR-0011](docs/decisions/0011-task-contract-names-follow-immich.md).
 
+## Adding a service
+
+A service is a directory under `services/`, not an adapter — see
+[ADR-0019](docs/decisions/0019-services-are-not-adapters.md). It must ship
+six files: `service.env` (`SERVICE_NAME`, `SERVICE_KIND`, a digest-pinned
+`SERVICE_IMAGE`), a shared `compose.fragment.yaml`, a `compose.prod.fragment.yaml`
+/ `compose.dev.fragment.yaml` / `compose.test.fragment.yaml` delta per lane,
+and an `env.fragment`. None of the compose fragments may carry their own
+`image:` line — `assemble_compose` writes the digest in from `service.env`.
+
+It must also ship a driver, `drivers/<family>.sh`, for every adapter family
+whose role is `api` or `app` — `laravel` and `nest` today; `next` takes none,
+because `nextjs`'s role is `web` and the presentation tier opens no
+connection. `scaffold lint` derives that family list from the adapters
+themselves and fails a service that is missing any one of them, by name. A
+new adapter family is the same problem from the other direction: it cannot
+merge until every existing service has a `drivers/<that-family>.sh`, which is
+why the lint requires the full matrix rather than checking each service in
+isolation.
+
 ## Commits
 
 Conventional Commits, enforced by lefthook at `commit-msg`. `feat:` and `fix:`
