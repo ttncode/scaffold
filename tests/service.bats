@@ -41,6 +41,19 @@ setup() {
   done
 }
 
+@test "no fragment pins its own image" {
+  # assemble_compose injects SERVICE_IMAGE from service.env; a fragment
+  # carrying its own image: line would silently fight that, and the digest
+  # would no longer live in the one place it's supposed to.
+  for fragment in "${SCAFFOLD_ROOT}"/services/*/compose*.fragment.yaml; do
+    [ -f "$fragment" ] || continue
+    if grep -q '^\s*image:' "$fragment"; then
+      echo "${fragment} pins its own image"
+      false
+    fi
+  done
+}
+
 @test "assemble_compose writes a valid stack for one database" {
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
@@ -59,6 +72,25 @@ setup() {
   run yq -e '.volumes.database != null' "${project}/compose.yaml"
   assert_ok
   run yq -e '.services.database.tmpfs != null' "${project}/compose.test.yaml"
+  assert_ok
+
+  run yq -e '.services.database.ports[0] == "127.0.0.1:3306:3306"' \
+    "${project}/compose.dev.yaml"
+  assert_ok
+  run yq -e '.services.database.image | test("@sha256:")' "${project}/compose.dev.yaml"
+  assert_ok
+
+  # the prod fragment merges after the shared one, so its changeme default
+  # has to win; swapping that order or dropping the override breaks nothing
+  # the rest of this test would catch.
+  run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-changeme}"' \
+    "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-app}"' \
+    "${project}/compose.dev.yaml"
+  assert_ok
+  run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-app}"' \
+    "${project}/compose.test.yaml"
   assert_ok
 }
 
