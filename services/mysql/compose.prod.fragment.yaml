@@ -1,0 +1,12 @@
+services:
+  database:
+    environment:
+      MYSQL_PASSWORD: ${DB_PASSWORD:-changeme}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - database:/var/lib/mysql
+    restart: always
+volumes:
+  # {}, not a bare key: a YAML null merges into service.bats' "!= null"
+  # check as null, and compose treats the two identically anyway.
+  database: {}

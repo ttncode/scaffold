@@ -35,3 +35,60 @@ service_compose_key() {
     *) die "unknown service kind: ${1}" ;;
   esac
 }
+
+# assemble_compose <project> <service>...
+# The common compose files ship the application service alone; each selected
+# service's block is merged in per lane. The image is injected here rather
+# than written in a fragment so a service's digest lives only in its
+# service.env.
+assemble_compose() {
+  local project="$1"; shift
+  local service lane file key merged
+
+  for service in "$@"; do
+    load_service "$service"
+    key="$(service_compose_key "$SERVICE_KIND")"
+
+    # The fragment has to publish under the key its kind implies, or the
+    # depends_on below would name a service that is not there.
+    yq -e ".services.${key} != null" "${SERVICE_DIR}/compose.fragment.yaml" >/dev/null \
+      || die "${service}'s compose fragment does not define services.${key}"
+
+    for lane in prod dev test; do
+      case "$lane" in
+        prod) file="${project}/compose.yaml" ;;
+        dev) file="${project}/compose.dev.yaml" ;;
+        test) file="${project}/compose.test.yaml" ;;
+      esac
+
+      merged="$(mktemp)"
+      # cleaned up on both paths: under `set -e` a yq failure leaves
+      # immediately and the temporary file survives the run.
+      if ! yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' \
+        "${SERVICE_DIR}/compose.fragment.yaml" \
+        "${SERVICE_DIR}/compose.${lane}.fragment.yaml" > "$merged"; then
+        rm -f "$merged"
+        die "could not assemble ${service}'s ${lane} block"
+      fi
+
+      if ! SERVICE_IMAGE="$SERVICE_IMAGE" yq --inplace \
+        ".services.${key}.image = strenv(SERVICE_IMAGE)" "$merged"; then
+        rm -f "$merged"
+        die "could not set ${service}'s image"
+      fi
+
+      if ! yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
+        "$file" "$merged"; then
+        rm -f "$merged"
+        die "could not merge ${service} into ${file}"
+      fi
+      rm -f "$merged"
+    done
+
+    # Only the production lane carries an application service to wait on; the
+    # dev and test lanes are the service on its own.
+    yq --inplace \
+      ".services.app.depends_on.${key}.condition = \"service_healthy\"" \
+      "${project}/compose.yaml"
+  done
+}

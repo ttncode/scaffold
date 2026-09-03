@@ -1,0 +1,4 @@
+services:
+  database:
+    tmpfs:
+      - /var/lib/mysql

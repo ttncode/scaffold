@@ -113,6 +113,9 @@ cmd_new() {
   # so a failure inside it is covered too; nothing to install here.
   init_project "$target" "$name"
 
+  # Hardcoded for now; Task 9 replaces this with the --db and --cache flags.
+  assemble_compose "$target" mysql
+
   local entry flag adapter
   if [ "${#requested[@]}" -gt 0 ]; then
     for entry in "${requested[@]}"; do

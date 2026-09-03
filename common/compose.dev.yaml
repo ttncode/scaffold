@@ -1,22 +1,8 @@
-# local development only: a throwaway database an app started outside
-# docker (mise run dev, etc.) can point DB_HOST=localhost at. never shipped
-# as a release asset — see compose.yaml for the stack a client actually runs.
+# local development only: throwaway services an app started outside docker
+# (mise run dev, etc.) can point at on localhost. never shipped as a release
+# asset — see compose.yaml for the stack a client actually runs. the services
+# themselves are merged in by scaffold from the selection made at generation
+# time.
 name: app-dev
 
-services:
-  database:
-    image: docker.io/library/postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
-    environment:
-      POSTGRES_DB: app
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-    ports:
-      # loopback, not 0.0.0.0: docker publishes to every interface by default
-      # and its iptables rules bypass most host firewalls, so the bare form
-      # exposes this password-is-"app" database to the whole local network.
-      - "127.0.0.1:5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+services: {}

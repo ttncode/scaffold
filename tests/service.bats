@@ -40,3 +40,35 @@ setup() {
       || { echo "no digest in ${service}service.env"; false; }
   done
 }
+
+@test "assemble_compose writes a valid stack for one database" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+
+  run assemble_compose "$project" mysql
+  assert_ok
+
+  run yq -e '.services.database.image | test("@sha256:")' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.app.depends_on.database.condition == "service_healthy"' \
+    "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.volumes.database != null' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.database.tmpfs != null' "${project}/compose.test.yaml"
+  assert_ok
+}
+
+@test "a project with no services has no depends_on" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" "$project/"
+
+  run assemble_compose "$project"
+  assert_ok
+  run yq -e '.services.app.depends_on == null' "${project}/compose.yaml"
+  assert_ok
+}
