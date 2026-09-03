@@ -14,6 +14,8 @@ source "${SCAFFOLD_ROOT}/lib/contract.sh"
 source "${SCAFFOLD_ROOT}/lib/lint.sh"
 # shellcheck source=lib/adapter.sh
 source "${SCAFFOLD_ROOT}/lib/adapter.sh"
+# shellcheck source=lib/service.sh
+source "${SCAFFOLD_ROOT}/lib/service.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 
