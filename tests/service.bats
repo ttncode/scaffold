@@ -27,6 +27,18 @@ setup() {
   [[ "$output" == *"unknown service: nonesuch"* ]]
 }
 
+@test "load_service returns 1 on a malformed service.env" {
+  # cmd_list calls load_service per service and must treat a missing var as a
+  # per-service error rather than a `set -u` crash — the same completeness
+  # check load_adapter already has for adapters.
+  local dir="${BATS_TEST_TMPDIR}/services/broken"
+  mkdir -p "$dir"
+  printf 'SERVICE_NAME="broken"\nSERVICE_KIND="database"\n' > "${dir}/service.env"
+
+  SCAFFOLD_ROOT="$BATS_TEST_TMPDIR" run load_service broken
+  [ "$status" -eq 1 ]
+}
+
 @test "service_compose_key rejects a kind nothing depends on" {
   run service_compose_key storage
   [ "$status" -eq 1 ]

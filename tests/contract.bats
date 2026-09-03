@@ -82,3 +82,31 @@ setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"adapter.env does not set ADAPTER_GENERATOR"* ]]
 }
+
+@test "lint_services accepts the services that ship" {
+  run lint_services "${SCAFFOLD_ROOT}/services" "${SCAFFOLD_ROOT}/adapters"
+  assert_ok
+  [ -z "$output" ]
+}
+
+@test "lint_services reports a service missing a driver" {
+  # The gate exists so an adapter in a new family cannot merge until every
+  # service has been taught about it. A gate that cannot fail is worse than
+  # no gate, so this fixture proves this one can.
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-driver" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: no driver for laravel"* ]]
+}
+
+@test "lint_adapters requires a framework family" {
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/no-generator"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"adapter.env does not set ADAPTER_FAMILY"* ]]
+}
+
+@test "scaffold lint covers the services that ship" {
+  run scaffold lint
+  assert_ok
+}

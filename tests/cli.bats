@@ -93,6 +93,17 @@ setup() {
     || { echo "no intact adapter survived the listing:"; echo "$output"; false; }
 }
 
+@test "scaffold list reports a malformed service and continues" {
+  # load_service's own completeness check exists so a broken service.env is a
+  # per-service error, not a `set -u` crash that kills the rest of the
+  # listing — same shape as the adapter case above, now exercised for services.
+  run "${SCAFFOLD_ROOT}/tests/fixtures/broken-services/scaffold" list
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"good"* ]]
+  [[ "$output" == *"[error]"* ]]
+  [[ "$output" == *"broken"* ]]
+}
+
 @test "a role requested twice is refused instead of generating twice into one path" {
   # Both adapters map to the same apps/<role> directory, so the second
   # generator ran against a populated tree and overlaid its own files on the

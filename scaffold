@@ -44,7 +44,7 @@ require_tools() {
 }
 
 cmd_list() {
-  local adapter name status=0
+  local adapter service name status=0
   local -a output
 
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
@@ -62,12 +62,31 @@ cmd_list() {
     unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_POST_GENERATE
   done
 
+  for service in "${SCAFFOLD_ROOT}"/services/*/; do
+    [ -d "$service" ] || continue
+    name="$(basename "$service")"
+    # services/shared holds the parameterised driver bodies, not a service
+    [ "$name" = shared ] && continue
+
+    if load_service "$name" >/dev/null 2>&1; then
+      output+=("$SERVICE_NAME"$'\t'"$SERVICE_KIND"$'\t'"-")
+    else
+      output+=("[error]"$'\t'"$name"$'\t'"(malformed service)")
+      status=1
+    fi
+
+    unset SERVICE_DIR SERVICE_NAME SERVICE_KIND SERVICE_IMAGE
+  done
+
   printf '%s\n' "${output[@]}" | sort
   return "$status"
 }
 
 cmd_lint() {
-  lint_adapters "${SCAFFOLD_ROOT}/adapters"
+  local status=0
+  lint_adapters "${SCAFFOLD_ROOT}/adapters" || status=1
+  lint_services "${SCAFFOLD_ROOT}/services" "${SCAFFOLD_ROOT}/adapters" || status=1
+  return "$status"
 }
 
 # EXIT, not ERR: die() exits directly and never trips an ERR trap.
