@@ -277,11 +277,9 @@ SERVICE_KIND="database"
 SERVICE_IMAGE="example/broken@sha256:deadbeef"
 EOF
   # Mirrors the real bug's shape: a fallible command fails, then a later
-  # command in the same function would otherwise succeed. `|| return 1` is
-  # what every service_driver_apply needs to make the failure visible instead
-  # of it vanishing into the function's own exit status — set -e does not
-  # help here, since apply_service_drivers runs the driver as the left
-  # operand of `||`, which disables set -e for the whole subshell.
+  # command in the same function would otherwise succeed. `|| return 1` makes
+  # the failure visible at the point it happens; apply_service_drivers'
+  # process-level `set -e` (below) would also catch a driver that omits it.
   cat > "${toolbox}/services/broken/drivers/fixture.sh" <<'EOF'
 service_driver_apply() {
   false || return 1
@@ -293,6 +291,33 @@ EOF
   SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture broken
   [ "$status" -eq 1 ]
   [[ "$output" == *"the broken driver failed for fixture"* ]]
+  [ ! -e "${app}/installed" ]
+}
+
+# The guarantee has to hold even when a driver forgets `|| return 1`
+# altogether — that is what makes it structural rather than conventional.
+# `( ... ) || die` (the previous shape) makes the subshell the left operand
+# of `||`, and bash disables `set -e` inside that; this driver has no
+# `|| return 1` anywhere, so it only dies here if apply_service_drivers runs
+# it somewhere `set -e` still applies.
+@test "apply_service_drivers dies on an unchecked driver failure with no || return 1 anywhere" {
+  local toolbox; toolbox="$(copy_toolbox)"
+  local app="${BATS_TEST_TMPDIR}/app"
+  mkdir -p "$app" "${toolbox}/services/careless/drivers"
+
+  cat > "${toolbox}/services/careless/service.env" <<'EOF'
+SERVICE_NAME="careless"
+SERVICE_KIND="database"
+SERVICE_IMAGE="example/careless@sha256:deadbeef"
+EOF
+  cat > "${toolbox}/services/careless/drivers/fixture.sh" <<'EOF'
+service_driver_apply() { false; touch installed; }
+service_driver_dockerfile() { :; }
+EOF
+
+  SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" fixture careless
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the careless driver failed for fixture"* ]]
   [ ! -e "${app}/installed" ]
 }
 
@@ -335,6 +360,46 @@ EOF
   cd "$project"
   run docker compose -f compose.yaml config --quiet
   assert_ok
+}
+
+# No generated Laravel skeleton needed — same fixture shape as
+# register_config_root's anchor tests in tests/new-project.bats: a file
+# carrying just the anchor line is enough to prove the insert.
+@test "register_mongodb_connection inserts the mongodb connection at the anchor" {
+  local file="${BATS_TEST_TMPDIR}/config/database.php"
+  mkdir -p "$(dirname "$file")"
+  printf "<?php\n\nreturn [\n    'connections' => [\n    ],\n];\n" > "$file"
+
+  run bash -c "
+    source '${SCAFFOLD_ROOT}/lib/log.sh'
+    source '${SCAFFOLD_ROOT}/services/mongodb/drivers/laravel.sh'
+    register_mongodb_connection '$file'
+  "
+  assert_ok
+
+  run grep -Fxq "        'mongodb' => [" "$file"
+  assert_ok
+  run grep -Fq "'dsn' => env('DB_URI', 'mongodb://localhost:27017')," "$file"
+  assert_ok
+  run grep -Fq "'database' => env('DB_DATABASE', 'app')," "$file"
+  assert_ok
+}
+
+# The half that matters: an anchor that stops matching (a Laravel skeleton
+# upgrade reformats config/database.php) must fail loudly here instead of
+# shipping an app whose DB_CONNECTION names a connection nothing defines.
+@test "register_mongodb_connection dies when the anchor is missing" {
+  local file="${BATS_TEST_TMPDIR}/config/database.php"
+  mkdir -p "$(dirname "$file")"
+  printf "<?php\n\nreturn [\n    'connections' => [],\n];\n" > "$file"
+
+  run bash -c "
+    source '${SCAFFOLD_ROOT}/lib/log.sh'
+    source '${SCAFFOLD_ROOT}/services/mongodb/drivers/laravel.sh'
+    register_mongodb_connection '$file'
+  "
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"config/database.php"* ]]
 }
 
 @test "a database and a cache assemble side by side" {

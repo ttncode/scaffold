@@ -11,9 +11,10 @@
 #   LARAVEL_SETUP          the Dockerfile block, or ""
 
 service_driver_apply() {
-  # This runs inside `( ... ) || die` (apply_service_drivers), which disables
-  # `set -e` for everything in the subshell — a fallible command left
-  # unchecked here keeps running and its failure vanishes.
+  # apply_service_drivers runs this in its own `bash -e` process, so a
+  # fallible command left unchecked here is caught there too — `|| return 1`
+  # stays anyway: it names the failure at the point it happens instead of
+  # leaving that to the caller's generic message.
   if [ -n "$LARAVEL_PACKAGE" ]; then
     composer require "$LARAVEL_PACKAGE" --no-interaction || return 1
   fi

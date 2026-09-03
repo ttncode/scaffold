@@ -172,8 +172,14 @@ write_env_lines() {
 
 # apply_service_drivers <app-dir> <family> <service>...
 # A service knows how to run a container; a driver knows how one framework
-# talks to it. Runs in a subshell per driver so a driver's parameters cannot
-# leak into the next one.
+# talks to it. service_driver_apply runs in its own `bash -e` process, not a
+# subshell, and not per driver's own parameters leaking into the next one for
+# the same reason: `( ... ) || die` makes the subshell the left operand of
+# `||`, and bash disables `set -e` for everything inside that — a fallible
+# command a driver forgot to check would keep running and its failure would
+# vanish. A separate process keeps its own `-e` no matter how this function is
+# invoked; a subshell's suppression is enforced only by every driver body
+# remembering `|| return 1`, which is what this replaces.
 apply_service_drivers() {
   local app="$1" family="$2"; shift 2
   local service driver block=""
@@ -187,19 +193,28 @@ apply_service_drivers() {
     [ -f "$driver" ] \
       || die "${service} has no driver for ${family} — run 'scaffold lint'"
 
-    # Same two variables as apply_adapter's ADAPTER_POST_GENERATE call, and
-    # for the same reason: service_driver_apply runs pnpm add / composer
-    # require, and pnpm turns the frozen lockfile on by itself whenever CI is
-    # set — a driver cannot install what it is adding.
-    # shellcheck source=/dev/null # family varies, so the path isn't constant
-    ( cd "$app" \
-        && export npm_config_frozen_lockfile=false \
-                  npm_config_verify_deps_before_run=false \
-        && . "$driver" \
-        && service_driver_apply ) \
+    # die and write_env_lines are shell functions, not exported, so the new
+    # process needs its own copies — lib/log.sh and lib/service.sh do nothing
+    # but define functions when sourced, so re-sourcing them here re-runs
+    # nothing. SCAFFOLD_ROOT reaches the child because `scaffold` exports it;
+    # same two npm_config_* variables as apply_adapter's ADAPTER_POST_GENERATE
+    # call, and for the same reason: service_driver_apply runs pnpm add /
+    # composer require, and pnpm turns the frozen lockfile on by itself
+    # whenever CI is set — a driver cannot install what it is adding.
+    npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+      bash -euo pipefail -c '
+        cd "$1"
+        # shellcheck source=/dev/null
+        . "${SCAFFOLD_ROOT}/lib/log.sh"
+        # shellcheck source=/dev/null
+        . "${SCAFFOLD_ROOT}/lib/service.sh"
+        # shellcheck source=/dev/null
+        . "$2"
+        service_driver_apply
+      ' _ "$app" "$driver" \
       || die "the ${service} driver failed for ${family}"
 
-    # shellcheck source=/dev/null
+    # shellcheck source=/dev/null # family varies, so the path isn't constant
     block+="$( . "$driver"; service_driver_dockerfile )"$'\n'
   done
 

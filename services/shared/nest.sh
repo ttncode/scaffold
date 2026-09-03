@@ -14,9 +14,10 @@ service_driver_apply() {
   # than a driver that only ever writes datasource+generator should force on
   # every service. 6 is the newest stable major that still reads `url` from
   # the schema.
-  # This runs inside `( ... ) || die` (apply_service_drivers), which disables
-  # `set -e` for everything in the subshell — a fallible command left
-  # unchecked here keeps running and its failure vanishes.
+  # apply_service_drivers runs this in its own `bash -e` process, so a
+  # fallible command left unchecked here is caught there too — `|| return 1`
+  # stays anyway: it names the failure at the point it happens instead of
+  # leaving that to the caller's generic message.
   pnpm add @prisma/client@6 || return 1
   pnpm add -D prisma@6 || return 1
   mkdir -p prisma || return 1

@@ -7,9 +7,10 @@ service_driver_apply() {
   # stage, and this is the only difference between the two for a cache this
   # size.
   #
-  # This runs inside `( ... ) || die` (apply_service_drivers), which disables
-  # `set -e` for everything in the subshell — a fallible command left
-  # unchecked here keeps running and its failure vanishes.
+  # apply_service_drivers runs this in its own `bash -e` process, so a
+  # fallible command left unchecked here is caught there too — `|| return 1`
+  # stays anyway: it names the failure at the point it happens instead of
+  # leaving that to the caller's generic message.
   composer require predis/predis --no-interaction || return 1
 
   write_env_lines .env.example \
