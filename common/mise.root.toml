@@ -1,5 +1,13 @@
 monorepo_root = true
 
+# The services this project was generated against. `scaffold add` reads these
+# so an application added later is wired to the same database as the first
+# one. Changing them here does not migrate anything — see the toolbox's
+# ADR-0019.
+[vars]
+database = "@DATABASE@"
+cache = "@CACHE@"
+
 [monorepo]
 config_roots = [
   "docs",

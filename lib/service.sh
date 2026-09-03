@@ -220,3 +220,29 @@ apply_service_drivers() {
 
   apply_service_setup "$app" "${block%$'\n'}"
 }
+
+# record_services <project> <database> <cache>
+# mise.root.toml ships the two placeholders; substituting them is the same
+# technique as @PROJECT_NAME@ rather than a second way of writing toml.
+record_services() {
+  local project="$1" database="$2" cache="$3"
+  local file="${project}/mise.toml"
+
+  sed -i.bak -e "s|@DATABASE@|${database}|" -e "s|@CACHE@|${cache}|" "$file"
+  rm -f "${file}.bak"
+
+  grep -q '@DATABASE@\|@CACHE@' "$file" \
+    && die "could not record the selected services in ${file} — has [vars] been reformatted?"
+  return 0
+}
+
+# project_service <project> <database|cache>
+# Prints nothing for `none`, and nothing for a project generated before this
+# existed, so a caller can test the value rather than compare it to a word.
+project_service() {
+  local project="$1" key="$2" value
+
+  value="$(yq -p toml -oy -r ".vars.${key} // \"\"" "${project}/mise.toml" 2>/dev/null || true)"
+  [ "$value" = "none" ] || [ "$value" = "null" ] && return 0
+  printf '%s' "$value"
+}

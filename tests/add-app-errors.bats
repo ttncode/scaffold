@@ -97,3 +97,27 @@ teardown() {
   [ "$output" = "0" ]
 }
 
+@test "scaffold new rejects an unknown database" {
+  run scaffold new "${BATS_TEST_TMPDIR}/p" --api laravel-api --db orable
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unknown service: orable"* ]]
+}
+
+@test "scaffold new rejects a cache in the database slot" {
+  run scaffold new "${BATS_TEST_TMPDIR}/p" --api laravel-api --db redis
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"redis is a cache, not a database"* ]]
+}
+
+@test "scaffold new refuses a database for a project with no backend" {
+  run scaffold new "${BATS_TEST_TMPDIR}/p" --web nextjs --db mysql
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no application to connect it"* ]]
+}
+
+@test "scaffold new rejects a repeated --db" {
+  run scaffold new "${BATS_TEST_TMPDIR}/p" --db mysql --db postgres
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--db given more than once"* ]]
+}
+

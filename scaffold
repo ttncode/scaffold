@@ -23,6 +23,7 @@ usage() {
   cat <<'EOF'
 usage:
   scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
+                      [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
   scaffold list
   scaffold lint
@@ -89,6 +90,7 @@ cmd_new() {
   local target="$1"; shift
   local name; name="$(basename "$target")"
   local -a requested=()
+  local database="" cache=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -103,9 +105,54 @@ cmd_new() {
         requested+=("${1#--}:${2}")
         shift 2
         ;;
+      --db|--cache)
+        [ $# -ge 2 ] || die "${1} requires a service name"
+        case "$1" in
+          --db)
+            [ -z "$database" ] || die "--db given more than once"
+            database="$2" ;;
+          --cache)
+            [ -z "$cache" ] || die "--cache given more than once"
+            cache="$2" ;;
+        esac
+        shift 2
+        ;;
       *) die "unknown option: ${1}" ;;
     esac
   done
+
+  # A project with no api or app adapter has nothing to connect: the web tier
+  # takes no driver, so it would get a running database, a set of variables,
+  # and no way to reach either.
+  local has_backend=0 entry
+  for entry in ${requested[@]+"${requested[@]}"}; do
+    case "$entry" in
+      api:*|app:*) has_backend=1 ;;
+    esac
+  done
+
+  if [ -z "$database" ]; then
+    [ "$has_backend" -eq 1 ] && database="mysql" || database="none"
+  fi
+  [ -n "$cache" ] || cache="none"
+
+  local -a services=()
+  if [ "$database" != none ]; then
+    [ "$has_backend" -eq 1 ] \
+      || die "--db ${database} but there is no application to connect it — add --api or --app"
+    load_service "$database"
+    [ "$SERVICE_KIND" = database ] \
+      || die "${database} is a ${SERVICE_KIND}, not a database"
+    services+=("$database")
+  fi
+  if [ "$cache" != none ]; then
+    [ "$has_backend" -eq 1 ] \
+      || die "--cache ${cache} but there is no application to connect it — add --api or --app"
+    load_service "$cache"
+    [ "$SERVICE_KIND" = cache ] \
+      || die "${cache} is a ${SERVICE_KIND}, not a cache"
+    services+=("$cache")
+  fi
 
   require_git_identity
 
@@ -113,10 +160,10 @@ cmd_new() {
   # so a failure inside it is covered too; nothing to install here.
   init_project "$target" "$name"
 
-  # Hardcoded for now; Task 9 replaces this with the --db and --cache flags.
-  SCAFFOLD_SERVICES=(mysql)
-  assemble_compose "$target" "${SCAFFOLD_SERVICES[@]}"
-  assemble_example_env "$target" "${SCAFFOLD_SERVICES[@]}"
+  SCAFFOLD_SERVICES=(${services[@]+"${services[@]}"})
+  record_services "$target" "$database" "$cache"
+  assemble_compose "$target" ${services[@]+"${services[@]}"}
+  assemble_example_env "$target" ${services[@]+"${services[@]}"}
 
   local entry flag adapter
   if [ "${#requested[@]}" -gt 0 ]; then

@@ -462,3 +462,19 @@ EOF
     "${project}/compose.yaml"
   assert_ok
 }
+
+@test "record_services and project_service round-trip" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  sed 's|@PROJECT_NAME@|demo|g' "${SCAFFOLD_ROOT}/common/mise.root.toml" \
+    > "${project}/mise.toml"
+
+  run record_services "$project" mysql none
+  assert_ok
+  run project_service "$project" database
+  assert_ok
+  [ "$output" = "mysql" ]
+  run project_service "$project" cache
+  assert_ok
+  [ -z "$output" ]
+}
