@@ -92,3 +92,20 @@ assemble_compose() {
       "${project}/compose.yaml"
   done
 }
+
+# assemble_example_env <project> <service>...
+# The infrastructure side of a service's configuration. What the application
+# itself needs is written by that service's driver, in the application's own
+# .env.example, because DB_CONNECTION is Laravel's phrasing and DATABASE_URL
+# is Prisma's for the same server.
+assemble_example_env() {
+  local project="$1"; shift
+  local service
+
+  for service in "$@"; do
+    load_service "$service"
+    [ -f "${SERVICE_DIR}/env.fragment" ] || continue
+    printf '\n' >> "${project}/example.env"
+    cat "${SERVICE_DIR}/env.fragment" >> "${project}/example.env"
+  done
+}

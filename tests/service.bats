@@ -104,3 +104,19 @@ setup() {
   run yq -e '.services.app.depends_on == null' "${project}/compose.yaml"
   assert_ok
 }
+
+@test "assemble_example_env appends only the selected services' variables" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/example.env" "$project/"
+
+  run assemble_example_env "$project" mysql
+  assert_ok
+  run grep -qx 'DB_PASSWORD=changeme' "${project}/example.env"
+  assert_ok
+}
+
+@test "example.env carries no database variables until a service adds them" {
+  run grep -c '^DB_' "${SCAFFOLD_ROOT}/common/example.env"
+  [ "$output" = "0" ]
+}

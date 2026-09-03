@@ -115,6 +115,7 @@ cmd_new() {
 
   # Hardcoded for now; Task 9 replaces this with the --db and --cache flags.
   assemble_compose "$target" mysql
+  assemble_example_env "$target" mysql
 
   local entry flag adapter
   if [ "${#requested[@]}" -gt 0 ]; then

@@ -55,3 +55,19 @@ teardown() {
       || { echo "no .dockerignore in ${adapter}"; false; }
   done
 }
+
+@test "install.sh generates a password for every service that has one" {
+  # DB_PASSWORD was a hardcoded name in three places, so a project with a
+  # cache as well as a database left REDIS_PASSWORD on the literal default
+  # and nothing said so.
+  cd "$PROJECT"
+  cat > env.fixture <<'INNER_EOF'
+DB_PASSWORD=changeme
+REDIS_PASSWORD=changeme
+APP_PORT=8080
+INNER_EOF
+  run bash -c "source ./install.sh 2>/dev/null; generate_service_passwords env.fixture"
+  assert_ok
+  run grep -c '=changeme$' env.fixture
+  [ "$output" = "0" ]
+}

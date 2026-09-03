@@ -27,8 +27,8 @@ create_directory() {
 # compose.yaml is always overwritten so it never drifts from the image it
 # names. .env never is: it holds this installation's real password and the
 # operator's edits, and re-running to pick up a release must not lose either.
-# A kept .env is still checked for an unset DB_PASSWORD=changeme, so an
-# upgrade cannot leave production postgres on the literal default.
+# A kept .env is still checked for any password left at changeme, so an
+# upgrade cannot leave a production service on the literal default.
 #
 # Two cleanup mechanisms, both needed: the explicit `rm -f` before each
 # `return 1`, since an EXIT trap would not fire until the script ends; and the
@@ -40,8 +40,8 @@ download_release_assets() {
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
-    if grep -qx 'DB_PASSWORD=changeme' .env; then
-      echo ".env has DB_PASSWORD=changeme; set a real password in .env before running this again"
+    if grep -qE '^[A-Z_]*_PASSWORD=changeme$' .env; then
+      echo ".env still has a password set to changeme; set real values in .env before running this again"
       return 1
     fi
     return 0
@@ -62,7 +62,7 @@ download_release_assets() {
     rm -f "$tmp_env"
     return 1
   fi
-  if ! generate_database_password "$tmp_env"; then
+  if ! generate_service_passwords "$tmp_env"; then
     trap - EXIT INT TERM HUP
     rm -f "$tmp_env"
     return 1
@@ -78,21 +78,27 @@ download_release_assets() {
   trap - EXIT INT TERM HUP
 }
 
-# Fails hard if the substitution misses: a password silently staying
-# "changeme" because example.env's text drifted is a credential defaulting to
-# a known value.
+# Every *_PASSWORD the assembled .env carries, not one hardcoded name: a
+# project may have a database, a cache, both or neither, and a name that was
+# right when this was written stops being generated the moment the set
+# changes — silently, because nothing reads back what it did not expect.
 #
-# Known, not fixed: the password is briefly visible in sed's argv to other
+# Fails hard if a substitution misses: a password staying "changeme" because
+# example.env's text drifted is a credential defaulting to a known value.
+#
+# Known, not fixed: each password is briefly visible in sed's argv to other
 # local users. Pre-existing in the immich script this came from.
-generate_database_password() {
-  local file="$1" password
-  password="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
-  sed -i.bak "s/DB_PASSWORD=changeme/DB_PASSWORD=${password}/" "$file"
-  rm -f "${file}.bak"
-  grep -qF "DB_PASSWORD=${password}" "$file" || {
-    echo "could not set the database password in ${file} (DB_PASSWORD=changeme not found); refusing to start with an unconfirmed password"
-    return 1
-  }
+generate_service_passwords() {
+  local file="$1" name password
+  while IFS= read -r name; do
+    password="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
+    sed -i.bak "s/^${name}=changeme\$/${name}=${password}/" "$file"
+    rm -f "${file}.bak"
+    grep -qF "${name}=${password}" "$file" || {
+      echo "could not set ${name} in ${file}; refusing to start with an unconfirmed password"
+      return 1
+    }
+  done < <(sed -n 's/^\([A-Z_]*_PASSWORD\)=changeme$/\1/p' "$file")
 }
 
 # docker rejects the placeholder on its own, but with "invalid reference
@@ -122,4 +128,8 @@ main() {
   start_stack || { echo 'could not start the stack; check the output above'; return 1; }
 }
 
-main
+# sourced by the toolbox's tests to exercise one function at a time; running
+# main on source would try to download a release from a CHANGEME url.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main
+fi
