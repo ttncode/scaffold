@@ -1,0 +1,8 @@
+services:
+  cache:
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-app}"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-app}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

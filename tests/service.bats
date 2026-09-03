@@ -114,6 +114,9 @@ setup() {
   assert_ok
   run grep -qx 'DB_PASSWORD=changeme' "${project}/example.env"
   assert_ok
+  # redis was not selected, so its variable must not appear either
+  run grep -q '^REDIS_PASSWORD=' "${project}/example.env"
+  [ "$status" -eq 1 ]
 }
 
 @test "example.env carries no database variables until a service adds them" {
@@ -301,5 +304,64 @@ EOF
   assert_ok
   cd "$project"
   run docker compose -f compose.yaml config --quiet
+  assert_ok
+}
+
+@test "a database and a cache assemble side by side" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+
+  run assemble_compose "$project" mysql redis
+  assert_ok
+  run yq -e '.services.database != null and .services.cache != null' \
+    "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.app.depends_on | keys | length == 2' \
+    "${project}/compose.yaml"
+  assert_ok
+  cd "$project"
+  run docker compose -f compose.yaml config --quiet
+  assert_ok
+}
+
+@test "a cache contributes its own password to example.env" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/example.env" "$project/"
+
+  run assemble_example_env "$project" mysql redis
+  assert_ok
+  run grep -c '=changeme$' "${project}/example.env"
+  [ "$output" = "2" ]
+}
+
+@test "redis's production command and healthcheck fully replace the shared ones" {
+  # yq's * replaces arrays wholesale rather than merging them index by index;
+  # a half-merge would leave the shared "app" password sitting next to the
+  # production "--appendonly" flag instead of the "changeme" default.
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+
+  run assemble_compose "$project" redis
+  assert_ok
+  # length pins the count so a half-merge (extra elements left over from the
+  # shared array) fails here instead of only in the password check below.
+  run yq -e '.services.cache.command | length == 5' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.cache.command[2] == "${REDIS_PASSWORD:-changeme}"' \
+    "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.cache.command[3] == "--appendonly"' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.cache.healthcheck.test | length == 5' "${project}/compose.yaml"
+  assert_ok
+  run yq -e '.services.cache.healthcheck.test[3] == "${REDIS_PASSWORD:-changeme}"' \
+    "${project}/compose.yaml"
   assert_ok
 }
