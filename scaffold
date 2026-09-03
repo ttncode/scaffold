@@ -25,7 +25,7 @@ usage:
   scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                       [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
-  scaffold list
+  scaffold list [--adapters] [--services]
   scaffold lint
 EOF
 }
@@ -46,7 +46,23 @@ require_tools() {
 cmd_list() {
   local adapter service name status=0
   local -a output
+  local want_adapters=0 want_services=0
 
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --adapters) want_adapters=1; shift ;;
+      --services) want_services=1; shift ;;
+      *) die "unknown option: ${1}" ;;
+    esac
+  done
+
+  # neither flag given: list both, the human default `scaffold list` keeps
+  if [ "$want_adapters" -eq 0 ] && [ "$want_services" -eq 0 ]; then
+    want_adapters=1
+    want_services=1
+  fi
+
+  if [ "$want_adapters" -eq 1 ]; then
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
     [ -d "$adapter" ] || continue
     name="$(basename "$adapter")"
@@ -61,7 +77,9 @@ cmd_list() {
 
     unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_POST_GENERATE
   done
+  fi
 
+  if [ "$want_services" -eq 1 ]; then
   for service in "${SCAFFOLD_ROOT}"/services/*/; do
     [ -d "$service" ] || continue
     name="$(basename "$service")"
@@ -77,6 +95,7 @@ cmd_list() {
 
     unset SERVICE_DIR SERVICE_NAME SERVICE_KIND SERVICE_IMAGE
   done
+  fi
 
   printf '%s\n' "${output[@]}" | sort
   return "$status"

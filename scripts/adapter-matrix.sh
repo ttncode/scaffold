@@ -2,7 +2,7 @@
 # adapter-matrix.sh <event-name> <schedule-cron> [base-sha] [head-sha] —
 # print the tier-a and tier-b matrices as GITHUB_OUTPUT lines (see
 # docs/decisions/0012). tier membership comes from each adapter's own
-# adapter.env (via `scaffold list`), not a second list baked into the
+# adapter.env (via `scaffold list --adapters`), not a second list baked into the
 # workflow, so the tier recorded on the adapter and the tier CI runs can't
 # drift apart silently.
 #
@@ -28,7 +28,7 @@ to_json_array() {
 }
 
 adapters_at_tier() {
-  "${ROOT}/scaffold" list | awk -F'\t' -v tier="$1" '$3 == tier { print $1 }'
+  "${ROOT}/scaffold" list --adapters | awk -F'\t' -v tier="$1" '$3 == tier { print $1 }'
 }
 
 # a well-formed but unrecognised ADAPTER_TIER (a typo, a trailing space)
@@ -45,7 +45,7 @@ validate_tiers() {
         exit 1
         ;;
     esac
-  done < <("${ROOT}/scaffold" list)
+  done < <("${ROOT}/scaffold" list --adapters)
 }
 
 validate_tiers

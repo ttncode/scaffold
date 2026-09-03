@@ -21,6 +21,45 @@ setup() {
   assert_ok
 }
 
+@test "scaffold list --adapters prints only adapters" {
+  run scaffold list --adapters
+  assert_ok
+  [[ "$output" == *"laravel-api"* ]]
+  [[ "$output" == *"laravel-inertia"* ]]
+  [[ "$output" == *"nestjs"* ]]
+  [[ "$output" == *"nextjs"* ]]
+  [[ "$output" != *"mongodb"* ]]
+  [[ "$output" != *"mysql"* ]]
+  [[ "$output" != *"postgres"* ]]
+  [[ "$output" != *"redis"* ]]
+}
+
+@test "scaffold list --services prints only services" {
+  run scaffold list --services
+  assert_ok
+  [[ "$output" == *"mongodb"* ]]
+  [[ "$output" == *"mysql"* ]]
+  [[ "$output" == *"postgres"* ]]
+  [[ "$output" == *"redis"* ]]
+  [[ "$output" != *"laravel-api"* ]]
+  [[ "$output" != *"laravel-inertia"* ]]
+  [[ "$output" != *"nestjs"* ]]
+  [[ "$output" != *"nextjs"* ]]
+}
+
+@test "scaffold list with no flag prints both adapters and services" {
+  run scaffold list
+  assert_ok
+  [[ "$output" == *"laravel-api"* ]]
+  [[ "$output" == *"mongodb"* ]]
+}
+
+@test "scaffold list rejects an unknown option" {
+  run scaffold list --bogus
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown option: --bogus"* ]]
+}
+
 @test "load_adapter dies on an unknown adapter" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/adapter.sh"
