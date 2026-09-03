@@ -231,7 +231,7 @@ record_services() {
   sed -i.bak -e "s|@DATABASE@|${database}|" -e "s|@CACHE@|${cache}|" "$file"
   rm -f "${file}.bak"
 
-  grep -q '@DATABASE@\|@CACHE@' "$file" \
+  grep -Eq '@DATABASE@|@CACHE@' "$file" \
     && die "could not record the selected services in ${file} — has [vars] been reformatted?"
   return 0
 }

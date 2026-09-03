@@ -316,10 +316,10 @@ cmd_add() {
   # Read back rather than asked for: an application added in month six is
   # wired to the database the project has had since month one, and a second
   # answer to a question already settled is a way for the two to disagree.
-  local recorded
+  local kind recorded
   SCAFFOLD_SERVICES=()
-  for recorded in database cache; do
-    recorded="$(project_service "$project" "$recorded")"
+  for kind in database cache; do
+    recorded="$(project_service "$project" "$kind")"
     [ -n "$recorded" ] && SCAFFOLD_SERVICES+=("$recorded")
   done
 

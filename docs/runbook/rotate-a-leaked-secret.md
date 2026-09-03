@@ -14,7 +14,7 @@ commit still has a working credential.
 ## 1. Rotate the credential
 
 The database password is the one this toolbox generates for you
-(`install.sh`'s `generate_database_password`): change `DB_PASSWORD` in the
+(`install.sh`'s `generate_service_passwords`): change `DB_PASSWORD` in the
 affected host's `.env` to a new value and restart the stack —
 `docker compose up -d` picks up the new value without touching the
 `database` volume's existing data. For any other leaked credential (a
