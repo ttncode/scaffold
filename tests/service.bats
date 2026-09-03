@@ -289,3 +289,17 @@ EOF
   run docker compose -f compose.yaml config --quiet
   assert_ok
 }
+
+@test "mongodb assembles a valid stack" {
+  local project="${BATS_TEST_TMPDIR}/proj"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+
+  run assemble_compose "$project" mongodb
+  assert_ok
+  cd "$project"
+  run docker compose -f compose.yaml config --quiet
+  assert_ok
+}

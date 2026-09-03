@@ -1,0 +1,11 @@
+services:
+  database:
+    environment:
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - database:/data/db
+    restart: always
+volumes:
+  # {}, not a bare key: a YAML null merges into service.bats' "!= null"
+  # check as null, and compose treats the two identically anyway.
+  database: {}
