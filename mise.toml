@@ -33,7 +33,7 @@ run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app-errors.bat
 
 [tasks."test-integration"]
 description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
-run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats"
+run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app.bats tests/compose.bats tests/docs.bats tests/workflows.bats tests/wizard-integration.bats"
 
 [tasks."test-runner"]
 description = "both test lanes under the environment a github runner actually has"

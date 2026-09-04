@@ -158,3 +158,8 @@ setup() {
   run grep -q 'tests/wizard.bats' "${SCAFFOLD_ROOT}/mise.toml"
   assert_ok
 }
+
+@test "tests/wizard-integration.bats runs in a lane" {
+  run grep -q 'tests/wizard-integration.bats' "${SCAFFOLD_ROOT}/mise.toml"
+  assert_ok
+}
