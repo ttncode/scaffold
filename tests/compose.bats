@@ -99,3 +99,17 @@ INNER_EOF
   [[ "$output" != *"unbound variable"* ]]
   [[ "$output" == *"could not download the release assets"* ]]
 }
+
+@test "a mixed-language web app's Dockerfile can see ADR-0017's build policy" {
+  # apps/web is its own pnpm root here (no shared workspace with the php api),
+  # so common/pnpm-workspace.yaml's allowBuilds never reaches it on its own —
+  # the app needs its own copy of the decision, and the Dockerfile needs to
+  # actually copy it into the build context, same as it already does for the
+  # lockfile.
+  local mixed="${WORKDIR}/mixed"
+  scaffold new "$mixed" --api laravel-api --web nextjs
+  run grep -c 'COPY .*pnpm-workspace.yaml' "${mixed}/apps/web/Dockerfile"
+  [ "$output" -ge 1 ]
+  run yq '.allowBuilds."unrs-resolver"' "${mixed}/apps/web/pnpm-workspace.yaml"
+  [ "$output" = "false" ]
+}

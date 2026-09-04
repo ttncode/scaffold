@@ -274,6 +274,8 @@ cmd_new() {
     # else branch.
     local generated
     for generated in "${requested[@]}"; do
+      adapter_is_typescript "${generated#*:}" \
+        && sync_standalone_build_policy "${target}/$(role_path "${generated%%:*}")" "$target"
       resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
     done
   fi

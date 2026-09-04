@@ -168,6 +168,28 @@ sync_workspace_lockfile() {
   pnpm_install "$project" "reconciling the workspace lockfile"
 }
 
+# sync_standalone_build_policy <app-dir> <project-root>
+# An app that stands alone rather than joining the workspace (mixed-language)
+# resolves its own generator's pnpm-workspace.yaml, if any — the root one,
+# carrying ADR-0017's allowBuilds, is never reached: pnpm's upward search
+# stops at the first workspace file it finds, and so does the docker build
+# context (apps/<role> only, never the root). Without this, common's baseline
+# (unrs-resolver, esbuild, @parcel/watcher) is simply absent for this app, and
+# any of it this app needs fails ERR_PNPM_IGNORED_BUILDS the moment nothing
+# outside apps/<role> is there to answer for it. Merge: common wins on a key
+# both name, the app's own generator (e.g. create-next-app denying sharp)
+# keeps any key only it names.
+sync_standalone_build_policy() {
+  local app="$1" project="$2"
+  local file="${app}/pnpm-workspace.yaml"
+
+  [ -f "$file" ] || printf '{}\n' > "$file"
+
+  yq eval-all --inplace \
+    'select(fileIndex==0).allowBuilds = ((select(fileIndex==0).allowBuilds // {}) * select(fileIndex==1).allowBuilds) | select(fileIndex==0)' \
+    "$file" "${project}/pnpm-workspace.yaml"
+}
+
 # pnpm_install <dir> <what-for> [ceiling]
 # pnpm reports its failures on stdout, so silencing the install leaves a `die`
 # that names the step and proves nothing — a CI failure here was unreadable
