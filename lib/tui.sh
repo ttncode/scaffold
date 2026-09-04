@@ -46,41 +46,39 @@ tui_end() {
   tput cnorm 2>/dev/null || true
 }
 
-# tui_name_is_usable <name>
-# init_project (lib/project.sh) holds this rule as two case patterns, because
-# it has to reject a bad name too — it is also reachable from the flags and
-# from `scaffold add`. Duplicated on purpose rather than sourced, so the
-# prompt can reject a name before four screens of answers are collected;
-# tests/wizard.bats asserts the two agree.
+# tui_name_is_usable <name> — project_name_is_usable (lib/project.sh), so
+# the prompt can reject a bad name before the rest of the wizard's screens
+# are shown, rather than after init_project rejects it during generation.
 tui_name_is_usable() {
-  local name="$1"
-
-  case "$name" in
-    [a-z0-9]*) ;;
-    *) return 1 ;;
-  esac
-  case "$name" in
-    *[!a-z0-9._-]*) return 1 ;;
-  esac
+  project_name_is_usable "$1"
 }
 
 # tui_prompt_name — reads a project name, re-asking until it satisfies
 # tui_name_is_usable. Manages its own echo state rather than relying on
 # tui_begin's, because a name is typed and has to be seen, unlike a menu
-# selection.
+# selection. Same for the cursor: tui_begin hides it for the menu screens,
+# but a name is typed, so this screen needs a caret.
 tui_prompt_name() {
   local name saved
   saved="$(stty -g 2>/dev/null || true)"
   stty echo 2>/dev/null || true
+  # cmd_wizard reads this function back with `name="$(tui_prompt_name)"`,
+  # capturing everything written to stdout — so tput's escape sequences go to
+  # stderr, the same fd the rest of this prompt already writes to, or they'd
+  # land inside $name instead of on the terminal.
+  tput cnorm >&2 2>/dev/null || true
 
   while true; do
     printf '%b' "${BOLD}? Project name: ${RESET}" >&2
-    IFS= read -r name
+    # EOF (Ctrl-D) leaves $name empty and would otherwise re-prompt forever;
+    # exit the way Esc does elsewhere and let the EXIT trap restore the tty.
+    IFS= read -r name || { printf '\n' >&2; exit 130; }
     tui_name_is_usable "$name" && break
-    printf '%b\n' "${RED}  not a usable project name: ${name}${RESET}" >&2
+    printf '%b\n' "${RED}  ${PROJECT_NAME_RULE}: ${name}${RESET}" >&2
   done
 
   [ -n "$saved" ] && stty "$saved" 2>/dev/null
+  tput civis >&2 2>/dev/null || true
   printf '%s\n' "$name"
 }
 
@@ -114,14 +112,22 @@ _tui_render() {
   echo -e "${BOLD}? ${REPLY}${RESET}\033[K"
   echo -e "\033[K"
 
-  local i value meta pointer
+  local i value meta pointer label
   for i in "${!options[@]}"; do
     value="${options[$i]%%$'\t'*}"
     meta="${options[$i]#*$'\t'}"
     pointer=" "
     [ "$i" -eq "$cursor" ] && pointer="»"
 
-    _tui_fit "${value} (${meta})" $(( limit - 2 ))
+    # An empty meta means the caller had nothing to add beyond the value
+    # itself (wizard_options' database/cache rows) — "mysql ()" would say
+    # less than plain "mysql".
+    if [ -n "$meta" ]; then
+      label="${value} (${meta})"
+    else
+      label="$value"
+    fi
+    _tui_fit "$label" $(( limit - 2 ))
     if [ "$i" -eq "$cursor" ]; then
       echo -e " ${GREEN}${pointer} ${REPLY}${RESET}\033[K"
     else

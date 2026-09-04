@@ -35,24 +35,24 @@ list`, the same promise ADR-0019 makes for everything else that reads that
 listing.
 
 Before generating anything, the wizard prints the `scaffold new` command
-its answers mean — `wizard_command` builds it independently of the argv
-`cmd_wizard` actually passes to `cmd_new`, so the two cannot drift apart —
-and asks to confirm. The second project from the same answers is scripted
-rather than clicked.
+its answers mean — `wizard_command` renders it from `wizard_new_args`'
+argv, the same argv `cmd_wizard` passes to `cmd_new` — and asks to confirm.
+The second project from the same answers is scripted rather than clicked.
 
 ## Read this
 
-- `lib/wizard.sh` — `wizard_options`, `wizard_questions`, `wizard_command`:
-  three pure, string-in/string-out functions that hold everything that
-  could be wrong about the wizard's logic, tested without a terminal at
-  all.
+- `lib/wizard.sh` — `wizard_options`, `wizard_questions`, `wizard_prompt_for`,
+  `wizard_new_args`, `wizard_command`: pure, string-in/string-out functions
+  that hold everything that could be wrong about the wizard's logic, tested
+  without a terminal at all.
 - `lib/tui.sh` — the terminal machinery: hiding and restoring the cursor,
   turning off terminal echo for the whole menu, draining the autorepeat
-  backlog, and `tui_name_is_usable`, a second copy of `init_project`'s name
-  rule kept only because `tests/wizard.bats` pins the two together.
-- `scaffold`'s `cmd_wizard` — the four-screen flow: name, shape, then
-  whatever `wizard_questions` asks for that shape; `SCAFFOLD_WIZARD_DRY_RUN=1`
-  stops it just before `cmd_new` would run.
+  backlog, and `tui_name_is_usable`, which calls `project_name_is_usable`
+  (`lib/project.sh`) — the same rule `init_project` enforces for the flags
+  and `scaffold add`.
+- `scaffold`'s `cmd_wizard` — name, shape, then one to four more screens
+  depending on the shape, from `wizard_questions`;
+  `SCAFFOLD_WIZARD_DRY_RUN=1` stops it just before `cmd_new` would run.
 - `tests/wizard.bats` — the pure functions get direct tests; one pty test
   drives the real screens with a scripted key sequence and asserts only on
   the command line it prints at the end, not on frames.
@@ -68,14 +68,11 @@ Delete the `[ -t 0 ] ||` guard from `scaffold`'s `main` and nothing in
 deliberately drives the wizard through a real pty, and `tests/cli.bats`'s
 "scaffold with no arguments prints usage and fails" is what actually
 depends on the guard — bats gives that test's `run scaffold` a closed
-stdin. With the guard gone, that closed stdin doesn't make `cmd_wizard`
-exit either: `tui_prompt_name` reads empty lines as an unusable project
-name forever, so the process spins at full CPU instead of hanging or
-failing — confirmed by removing the check in a scratch copy and watching
-`ps` show a `scaffold` process pinned at 95% CPU with no output but
-`not a usable project name`, repeated. Locally the test just hangs; in CI
-the unit job's five-minute timeout (`.github/workflows/ci.yml`) kills it
-and reports a timeout, not a missing TTY check.
+stdin. With the guard gone, that closed stdin reaches `tui_prompt_name`'s
+first `read`, which now hits EOF and exits 130 instead of looping on an
+empty name forever (confirmed by removing the guard in a scratch copy) —
+so the test still fails, on the wrong status and no `usage:` text, just
+without needing CI's five-minute timeout to say so.
 
 ## Try it
 

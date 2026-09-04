@@ -459,47 +459,11 @@ cmd_add() {
   fi
 }
 
-# _wizard_prompt_for <kind> — the question text tui_select shows for one of
-# wizard_questions' kinds.
-_wizard_prompt_for() {
-  case "$1" in
-    web) printf 'Frontend' ;;
-    api) printf 'Backend' ;;
-    app) printf 'Fullstack framework' ;;
-    database) printf 'Database' ;;
-    cache) printf 'Cache' ;;
-    *) die "unknown question kind: ${1}" ;;
-  esac
-}
-
 # _wizard_select_or_cancel <prompt> <footer> <option>... — tui_select, with
 # Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
 # design rules out back navigation; re-run is the only way out either way.
 _wizard_select_or_cancel() {
   tui_select "$@" || exit 130
-}
-
-# _wizard_new_args <kind=value>... — cmd_new's argv, one token per line.
-# Kept separate from wizard_command's printed string (same mapping, sharing
-# it would mean building argv by re-parsing the string cmd_wizard already
-# showed the user) so the run cannot drift from what the summary displayed.
-_wizard_new_args() {
-  local pair kind value
-
-  for pair in "$@"; do
-    kind="${pair%%=*}"
-    value="${pair#*=}"
-    case "$kind" in
-      web|api|app)
-        if [ "$value" != none ]; then
-          printf -- '--%s\n%s\n' "$kind" "$value"
-        fi
-        ;;
-      database) printf -- '--db\n%s\n' "$value" ;;
-      cache) printf -- '--cache\n%s\n' "$value" ;;
-      *) die "unknown answer: ${pair}" ;;
-    esac
-  done
 }
 
 # cmd_wizard — name, shape, then one to four more screens depending on the
@@ -530,7 +494,7 @@ cmd_wizard() {
     # never touches fd0.
     local -a options
     mapfile -t options < <(wizard_order_options "$kind" "$listing")
-    _wizard_select_or_cancel "$(_wizard_prompt_for "$kind")" "$footer" "${options[@]}"
+    _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "$footer" "${options[@]}"
     answers+=("${kind}=${TUI_CHOICE}")
   done
 
@@ -568,7 +532,7 @@ cmd_wizard() {
   fi
 
   local -a new_args
-  mapfile -t new_args < <(_wizard_new_args "${answers[@]}")
+  mapfile -t new_args < <(wizard_new_args "${answers[@]}")
   cmd_new "$name" "${new_args[@]}"
 }
 

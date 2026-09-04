@@ -24,11 +24,14 @@ wizard_options() {
       fi
       ;;
     database)
-      awk -F'\t' '$2 == "database" { printf "%s\t%s\n", $1, $2 }' <<< "$listing"
+      # No meta column: the kind is the only thing the listing carries per
+      # service, and the question is already titled "Database" — printing it
+      # again said nothing "mysql" didn't already.
+      awk -F'\t' '$2 == "database" { printf "%s\t\n", $1 }' <<< "$listing"
       printf 'none\tno database service\n'
       ;;
     cache)
-      awk -F'\t' '$2 == "cache" { printf "%s\t%s\n", $1, $2 }' <<< "$listing"
+      awk -F'\t' '$2 == "cache" { printf "%s\t\n", $1 }' <<< "$listing"
       printf 'none\tno cache service\n'
       ;;
     *) die "unknown question kind: ${kind}" ;;
@@ -99,23 +102,46 @@ wizard_questions() {
   esac
 }
 
-# wizard_command <name> <kind=value>...
-# What the answers would have been typed as. Printed before the run so the
-# second project is scripted rather than clicked.
-wizard_command() {
-  local name="$1"; shift
-  local out="scaffold new ${name}" pair kind value
+# wizard_prompt_for <kind> — the question text tui_select shows for one of
+# wizard_questions' kinds.
+wizard_prompt_for() {
+  case "$1" in
+    web) printf 'Frontend' ;;
+    api) printf 'Backend' ;;
+    app) printf 'Fullstack framework' ;;
+    database) printf 'Database' ;;
+    cache) printf 'Cache' ;;
+    *) die "unknown question kind: ${1}" ;;
+  esac
+}
+
+# wizard_new_args <kind=value>... — cmd_new's argv, one token per line.
+wizard_new_args() {
+  local pair kind value
 
   for pair in "$@"; do
     kind="${pair%%=*}"
     value="${pair#*=}"
     case "$kind" in
-      web|api|app) [ "$value" = none ] || out+=" --${kind} ${value}" ;;
-      database) out+=" --db ${value}" ;;
-      cache) out+=" --cache ${value}" ;;
+      web|api|app)
+        if [ "$value" != none ]; then
+          printf -- '--%s\n%s\n' "$kind" "$value"
+        fi
+        ;;
+      database) printf -- '--db\n%s\n' "$value" ;;
+      cache) printf -- '--cache\n%s\n' "$value" ;;
       *) die "unknown answer: ${pair}" ;;
     esac
   done
+}
 
+# wizard_command <name> <kind=value>...
+# What the answers would have been typed as. Printed before the run so the
+# second project is scripted rather than clicked.
+wizard_command() {
+  local name="$1"; shift
+  local -a args; mapfile -t args < <(wizard_new_args "$@")
+  local out="scaffold new ${name}"
+  [ "${#args[@]}" -eq 0 ] || out+=" ${args[*]}"
   printf '%s\n' "$out"
 }

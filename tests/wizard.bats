@@ -3,6 +3,7 @@
 setup() {
   load 'helpers/setup'
   source "${SCAFFOLD_ROOT}/lib/log.sh"
+  source "${SCAFFOLD_ROOT}/lib/contract.sh"
   source "${SCAFFOLD_ROOT}/lib/wizard.sh"
 
   # The real listing, so a new adapter or service shows up here without
@@ -33,6 +34,20 @@ setup() {
   [[ "$output" == *"none"* ]]
   run wizard_options "$LISTING" cache
   [[ "$output" == *"none"* ]]
+}
+
+@test "wizard_options carries no meta for a database or cache entry" {
+  # The kind is the only per-service column the listing has, and the
+  # question is already titled "Database"/"Cache" — repeating it as meta
+  # said nothing "mysql" didn't already.
+  run wizard_options "$LISTING" database
+  assert_ok
+  [[ "$output" == *"mysql"$'\t'* ]]
+  [[ "$output" != *"mysql"$'\t'"database"* ]]
+  run wizard_options "$LISTING" cache
+  assert_ok
+  [[ "$output" == *"redis"$'\t'* ]]
+  [[ "$output" != *"redis"$'\t'"cache"* ]]
 }
 
 @test "wizard_options carries each adapter's own tier" {
@@ -92,6 +107,52 @@ setup() {
   [ "$count" -eq "$(wc -l <<< "$shapes")" ]
 }
 
+@test "wizard_questions asks about services exactly when a shape's roles need drivers" {
+  # DRIVEN_ROLES (lib/contract.sh) is where "only api and app carry services"
+  # actually lives — asserting against it, rather than against one shape's
+  # fixed output, means a role that later gains drivers breaks this test
+  # instead of leaving a stale "web equals web" assertion nobody would notice
+  # go silent. A shape's own name is its role list, api-only shapes and
+  # web+api alike.
+  local shape roles role driven questions
+  for shape in $(wizard_shapes | cut -f1); do
+    IFS='+' read -ra roles <<< "$shape"
+    driven=0
+    for role in "${roles[@]}"; do
+      case " ${DRIVEN_ROLES[*]} " in
+        *" ${role} "*) driven=1 ;;
+      esac
+    done
+
+    questions="$(wizard_questions "$shape")"
+    if [ "$driven" -eq 1 ]; then
+      [[ "$questions" == *"database"* ]]
+      [[ "$questions" == *"cache"* ]]
+    else
+      [[ "$questions" != *"database"* ]]
+      [[ "$questions" != *"cache"* ]]
+    fi
+  done
+}
+
+@test "every kind wizard_questions yields is accepted by wizard_prompt_for, wizard_options and wizard_new_args" {
+  # wizard_prompt_for used to live in scaffold, unreachable by any unit test —
+  # a kind added to wizard_questions and not there died mid-wizard, after the
+  # name and shape screens were already answered. wizard_shapes' own test
+  # closed this hole for shapes; this closes it for kinds.
+  local shape kind
+  for shape in $(wizard_shapes | cut -f1); do
+    for kind in $(wizard_questions "$shape"); do
+      run wizard_prompt_for "$kind"
+      assert_ok
+      run wizard_options "$LISTING" "$kind"
+      assert_ok
+      run wizard_new_args "${kind}=none"
+      assert_ok
+    done
+  done
+}
+
 @test "wizard_command writes the flags the answers mean" {
   run wizard_command demo web=nextjs api=nestjs database=postgres cache=redis
   assert_ok
@@ -119,9 +180,11 @@ setup() {
 }
 
 @test "the name prompt enforces init_project's rule before anything is created" {
-  # init_project refuses a name it cannot substitute into sed and an image
-  # reference. Catching it at the prompt means the user retypes a word rather
-  # than reading a failure after four screens of answers.
+  # tui_name_is_usable calls project_name_is_usable (lib/project.sh) — the
+  # same function init_project calls — so catching a bad name at the prompt
+  # means the user retypes a word rather than reading a failure after the
+  # rest of the wizard's screens.
+  source "${SCAFFOLD_ROOT}/lib/project.sh"
   source "${SCAFFOLD_ROOT}/lib/tui.sh"
   run tui_name_is_usable "Demo Project"
   [ "$status" -ne 0 ]
@@ -131,20 +194,31 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "tui_name_is_usable agrees with init_project's own rule" {
-  # Two copies of one rule (lib/tui.sh explains why) are only safe pinned
-  # together — otherwise the wizard could accept a name that scaffold new
-  # then refuses to generate.
-  source "${SCAFFOLD_ROOT}/lib/tui.sh"
-  local dir="${BATS_TEST_TMPDIR}/agree" name
-  for name in "Demo Project" "demo-01" "-leading"; do
-    run scaffold new "${dir}/${name}"
-    if tui_name_is_usable "$name"; then
-      [[ "$output" != *"project name"* ]]
-    else
-      [[ "$output" == *"project name"* ]]
-    fi
-  done
+@test "Ctrl-D at the name prompt exits instead of spinning forever" {
+  # read returns 1 on EOF, leaving name empty; tui_name_is_usable "" fails,
+  # and pre-fix the loop just re-asked forever. The TTY guard in main only
+  # keeps a non-terminal stdin out — it does nothing about Ctrl-D on a real
+  # one, so this drives tui_prompt_name itself under a pty. Bounded by an
+  # outer timeout so a regression here fails this test instead of hanging it.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local driver="${BATS_TEST_TMPDIR}/drive-name-prompt.sh"
+  cat > "$driver" <<EOF
+#!/usr/bin/env bash
+source "${SCAFFOLD_ROOT}/lib/log.sh"
+source "${SCAFFOLD_ROOT}/lib/project.sh"
+source "${SCAFFOLD_ROOT}/lib/tui.sh"
+tui_prompt_name >/dev/null
+EOF
+
+  local out="${BATS_TEST_TMPDIR}/eof.log" status=0
+  { sleep 1; printf '\x04'; sleep 1; } \
+    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || status=$?
+
+  # 124 is timeout(1) killing a still-spinning process; 130 is exit's own
+  # Ctrl-C/Ctrl-D convention (128 + SIGINT) and what the fix now returns.
+  [ "$status" -ne 124 ] || { echo "tui_prompt_name spun until the outer timeout killed it:"; cat "$out"; false; }
+  [ "$status" -eq 130 ]
 }
 
 @test "the wizard reaches a command without generating anything" {

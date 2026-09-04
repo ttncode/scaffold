@@ -49,24 +49,36 @@ require_git_identity() {
   done
 }
 
+# PROJECT_NAME_RULE — what a usable project name has to satisfy, in the
+# user's terms. Shared by init_project's die() and the wizard's prompt
+# (lib/tui.sh) so a rejected name gets the same sentence either way.
+PROJECT_NAME_RULE="a project name must start with a lowercase letter or digit, and may contain only lowercase letters, digits, '.', '_' and '-'"
+
+# project_name_is_usable <name>
+# The name is substituted into `sed s|@PROJECT_NAME@|...|` and into the image
+# reference in the generated workflows. A `|` would close the sed expression
+# early and a `&` would expand to the whole match, so an unchecked name can
+# rewrite the file it is being written into. The same characters are illegal
+# in an OCI image name, so one rule covers both: lowercase, digits, and
+# separators, starting alphanumeric. Called from init_project (the flags and
+# `scaffold add`) and from the wizard's name prompt, so the two cannot drift.
+project_name_is_usable() {
+  local name="$1"
+
+  case "$name" in
+    [a-z0-9]*) ;;
+    *) return 1 ;;
+  esac
+  case "$name" in
+    *[!a-z0-9._-]*) return 1 ;;
+  esac
+}
+
 # init_project <dir> <name>
 init_project() {
   local dir="$1" name="$2"
 
-  # The name is substituted into `sed s|@PROJECT_NAME@|...|` and into the
-  # image reference in the generated workflows. A `|` would close the sed
-  # expression early and a `&` would expand to the whole match, so an
-  # unchecked name can rewrite the file it is being written into. The same
-  # characters are illegal in an OCI image name, so one rule covers both:
-  # lowercase, digits, and separators, starting alphanumeric.
-  case "$name" in
-    [a-z0-9]*) ;;
-    *) die "project name must start with a lowercase letter or digit: ${name}" ;;
-  esac
-  case "$name" in
-    *[!a-z0-9._-]*)
-      die "project name may contain only lowercase letters, digits, '.', '_' and '-': ${name}" ;;
-  esac
+  project_name_is_usable "$name" || die "${PROJECT_NAME_RULE}: ${name}"
 
   [ -e "$dir" ] && die "refusing to overwrite existing path: ${dir}"
 
