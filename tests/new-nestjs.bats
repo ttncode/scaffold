@@ -52,6 +52,19 @@ teardown() {
   assert_ok
 }
 
+# Reproduces the bug directly: apply_service_drivers exports SCAFFOLD_PROJECT_ROOT
+# for a driver's child process, whose cwd is the app directory, not the
+# caller's — a relative target left nest.sh's `stat` resolving against the
+# wrong place. `scaffold new` is the only path that can hand the driver a
+# relative root at all; cmd_add's is always absolute via `git rev-parse
+# --show-toplevel`.
+@test "a relative target still reaches a nest-family db driver" {
+  cd "$WORKDIR"
+  run scaffold new relative-demo --api nestjs --db mysql
+  assert_ok
+  [ -f "relative-demo/pnpm-workspace.yaml" ]
+}
+
 @test "the generated app's README does not trip the secret scanner" {
   scaffold new "$PROJECT" --api nestjs
   # `nest new` writes badge URLs containing a placeholder `?token=`, which

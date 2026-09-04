@@ -131,6 +131,15 @@ cmd_new() {
   [ $# -gt 0 ] || die "new requires a project name"
 
   local target="$1"; shift
+  # Absolute here, once, rather than in every consumer: apply_service_drivers
+  # exports this as SCAFFOLD_PROJECT_ROOT into a driver's child process, whose
+  # cwd is the app directory, not the caller's — a relative value would
+  # resolve against the wrong place there. cmd_add gets the same guarantee
+  # for free from `git rev-parse --show-toplevel`.
+  case "$target" in
+    /*) ;;
+    *) target="$(pwd)/${target}" ;;
+  esac
   local name; name="$(basename "$target")"
   local -a requested=()
   local database="" cache=""
