@@ -219,8 +219,10 @@ git status
 ```
 
 Expect: `apps/worker` exists, `mise.toml` gained a config root, `ci.yml`'s
-`roots:` gained an entry, and nothing else changed. Expect the changes to be
-left uncommitted for review.
+`roots:` gained an entry, and `lefthook.yml`, `pnpm-workspace.yaml` and
+`pnpm-lock.yaml` also changed — the new app's own hooks, `allowBuilds` and
+`minimumReleaseAgeExclude` entries, and dependencies. Expect the changes to
+be left uncommitted for review.
 
 The new application is wired to the database and cache this project already
 recorded, not asked again: `apps/worker/.env.example` names a `DATABASE_URL`

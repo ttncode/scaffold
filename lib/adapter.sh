@@ -88,8 +88,13 @@ apply_adapter() {
   # confirm on. The frozen lockfile it also switches on must not: a generator
   # cannot install what it is adding, so `pnpm add -D prettier` reports
   # success, leaves no binary, and the next `pnpm exec prettier` is not found.
+  #
+  # Through mise exec, not a bare eval: without it, node and pnpm resolve from
+  # whatever is ambient on the caller's PATH instead of the project's own
+  # pin — composer stays ambient too, on purpose (docs/decisions/0016).
   ( cd "$parent" && APP_DIR="$(basename "$dest")" \
-      npm_config_frozen_lockfile=false eval "$ADAPTER_GENERATOR" )
+      npm_config_frozen_lockfile=false \
+      mise exec -- bash -c "$ADAPTER_GENERATOR" )
 
   # everything the adapter ships except adapter.env (sourced) and
   # lefthook.fragment.yml (merged). dotglob so .env.example is not skipped.
@@ -117,7 +122,7 @@ apply_adapter() {
     ( cd "$dest" \
         && npm_config_frozen_lockfile=false \
            npm_config_verify_deps_before_run=false \
-           eval "$ADAPTER_POST_GENERATE" )
+           mise exec -- bash -c "$ADAPTER_POST_GENERATE" )
   fi
 
   # After post-generate: the generator and its own follow-up have settled the

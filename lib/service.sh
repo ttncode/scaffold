@@ -213,7 +213,21 @@ apply_service_drivers() {
     # call, and for the same reason: service_driver_apply runs pnpm add /
     # composer require, and pnpm turns the frozen lockfile on by itself
     # whenever CI is set — a driver cannot install what it is adding.
-    npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+    #
+    # pnpm/node go in by PATH, not `mise exec -C`: this script also calls yq
+    # (the allowBuilds edit above `pnpm add` in services/shared/nest.sh),
+    # which the project's own mise.toml does not pin — `mise exec` resolves
+    # PATH from scratch for the directory it is given, so wrapping the whole
+    # call in it would satisfy pnpm and lose yq. A bare `pnpm add` here
+    # resolves ambient, which just linked node_modules against whatever store
+    # the generator's mise-pinned pnpm used, the same skew apply_adapter fixes.
+    # composer is left alone either way — not mise-managed (ADR-0016).
+    local pnpm_bin node_bin
+    pnpm_bin="$(dirname "$(mise which pnpm -C "$app")")"
+    node_bin="$(dirname "$(mise which node -C "$app")")"
+
+    PATH="${pnpm_bin}:${node_bin}:${PATH}" \
+      npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
       SCAFFOLD_PROJECT_ROOT="$project" \
       bash -euo pipefail -c '
         cd "$1"

@@ -76,6 +76,24 @@ setup() {
   [ "$ADAPTER_NAME" = "sample" ]
 }
 
+@test "apply_adapter runs the generator and post-generate through the project's mise toolchain" {
+  # A bare `eval "$ADAPTER_GENERATOR"` picked up whatever node/pnpm happened
+  # to be on the caller's PATH instead of the project's own pin — the
+  # generator writes a lockfile and node_modules with one pnpm major, every
+  # later `mise run` reads them with another, and the mismatch only shows up
+  # as a missing binary several tasks later. Reproducing that needs an
+  # ambient pnpm that disagrees with the project's pin; asserting the
+  # invocation shape here costs nothing. Same reasoning as service.bats' "the
+  # nest driver decides allowBuilds before it installs anything".
+  run grep -c 'mise exec -- bash -c "\$ADAPTER_GENERATOR"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
+  assert_ok
+  [ "$output" -eq 1 ]
+
+  run grep -c 'mise exec -- bash -c "\$ADAPTER_POST_GENERATE"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
+  assert_ok
+  [ "$output" -eq 1 ]
+}
+
 @test "scaffold list reports broken adapters and continues" {
   run "${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters/scaffold" list
   [ "$status" -ne 0 ]
