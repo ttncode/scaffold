@@ -75,6 +75,25 @@ merge_lefthook_fragment() {
   rm -f "$rendered"
 }
 
+# verify_workspace_filter_name <dest> — only for an adapter shipping
+# Dockerfile.workspace, whose deps stage runs `pnpm --filter <role>
+# install`: a name create-next-app/@nestjs/cli choose by convention, not one
+# this toolbox enforces upstream. A filter matching no project does not fail
+# there — pnpm reports "No projects matched the filters" and exits 0 — so the
+# build proceeds with nothing installed and dies steps later on a COPY of a
+# node_modules that was never created, several layers from the real cause.
+# Skipped for the Laravel adapters: composer has no --filter to miss.
+verify_workspace_filter_name() {
+  local dest="$1"
+
+  [ -f "${ADAPTER_DIR}/Dockerfile.workspace" ] || return 0
+
+  local found
+  found="$(jq -r '.name' "${dest}/package.json")"
+  [ "$found" = "$ADAPTER_ROLE" ] \
+    || die "${dest}/package.json is named '${found}', not '${ADAPTER_ROLE}' — Dockerfile.workspace's 'pnpm --filter ${ADAPTER_ROLE}' would match nothing"
+}
+
 apply_adapter() {
   local name="$1" project="$2" rel="$3"
 
@@ -95,6 +114,8 @@ apply_adapter() {
   ( cd "$parent" && APP_DIR="$(basename "$dest")" \
       npm_config_frozen_lockfile=false \
       mise exec -- bash -c "$ADAPTER_GENERATOR" )
+
+  verify_workspace_filter_name "$dest"
 
   # everything the adapter ships except adapter.env (sourced) and
   # lefthook.fragment.yml (merged). dotglob so .env.example is not skipped.
