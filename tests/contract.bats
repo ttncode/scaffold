@@ -147,19 +147,26 @@ setup() {
 }
 
 @test "tests/service.bats runs in a lane" {
-  run grep -q 'tests/service.bats' "${SCAFFOLD_ROOT}/mise.toml"
-  assert_ok
+  # Scoped to test-unit's own `run = ` line, not the whole file: the name
+  # also greps clean out of a comment, or out of [tasks.test]'s "tests/"
+  # (which ci.yml never invokes) — passing for a suite that never actually
+  # runs is the exact failure this test was written against.
+  local run_line
+  run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  [[ "$run_line" == *"tests/service.bats"* ]]
 }
 
 @test "tests/wizard.bats runs in a lane" {
   # A suite in no lane is a suite that never runs: the service branch shipped
   # thirty tests into that state and nobody noticed until a review read
   # mise.toml against ci.yml.
-  run grep -q 'tests/wizard.bats' "${SCAFFOLD_ROOT}/mise.toml"
-  assert_ok
+  local run_line
+  run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  [[ "$run_line" == *"tests/wizard.bats"* ]]
 }
 
 @test "tests/wizard-integration.bats runs in a lane" {
-  run grep -q 'tests/wizard-integration.bats' "${SCAFFOLD_ROOT}/mise.toml"
-  assert_ok
+  local run_line
+  run_line="$(awk '/^\[tasks\."test-integration"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  [[ "$run_line" == *"tests/wizard-integration.bats"* ]]
 }
