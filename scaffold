@@ -481,7 +481,7 @@ cmd_wizard() {
 
   local name; name="$(tui_prompt_name)"
   local listing; listing="$(cmd_list)"
-  local footer="up/down to move, enter to select, esc to cancel"
+  local footer="up/down or type to move, enter to select, esc to cancel"
 
   local -a shape_options
   mapfile -t shape_options < <(wizard_shapes)

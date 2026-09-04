@@ -147,7 +147,7 @@ _tui_render() {
 tui_select() {
   local prompt="$1" footer="$2"; shift 2
   local -a options=("$@")
-  local cursor=0 key
+  local cursor=0 key i value
 
   while true; do
     _tui_render "$prompt" "$footer" "$cursor" "${options[@]}"
@@ -171,6 +171,21 @@ tui_select() {
         # shellcheck disable=SC2034 # read by the caller
         TUI_CHOICE="${options[$cursor]%%$'\t'*}"
         return 0
+        ;;
+      *)
+        # Type-to-jump: the walkthrough tells a first-time reader to answer
+        # "postgres", and typing that word used to be silently discarded
+        # keystroke by keystroke, Enter then accepting whatever was already
+        # highlighted — no error, nothing on screen. One keystroke moves the
+        # cursor to the first option starting with it, so typing does what
+        # the document already led the reader to expect.
+        for i in "${!options[@]}"; do
+          value="${options[$i]%%$'\t'*}"
+          if [[ "${value,,}" == "${key,,}"* ]]; then
+            cursor="$i"
+            break
+          fi
+        done
         ;;
     esac
   done

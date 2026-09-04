@@ -244,3 +244,31 @@ EOF
   grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' "$out" \
     || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
 }
+
+@test "typing an option's first letter selects it, not whatever Enter would default to" {
+  # tui_select used to read only arrows and Enter — every typed letter was
+  # silently discarded, so a first-time user who types the walkthrough's
+  # answer ("postgres") actually got whatever was already highlighted
+  # (mysql, the flags' own default) with no error and no sign anything went
+  # wrong. mysql sorts before postgres in the database menu, so reaching
+  # postgres here proves typing moved the cursor rather than Enter's default
+  # winning by coincidence.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local out="${BATS_TEST_TMPDIR}/session.log"
+  {
+    sleep 1; printf 'wizard-demo\n'
+    sleep 1; printf '\n'                               # shape: web+api (first option)
+    sleep 1; printf '\n'                               # web: nextjs (only option)
+    sleep 1; printf 'l\n'                              # api: laravel-api
+    sleep 1; printf 'p\n'                              # database: postgres
+    sleep 1; printf 'r\n'                              # cache: redis
+    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+  } | COLUMNS=90 LINES=45 script -qec \
+        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+      > "$out" 2>&1 || true
+
+  grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' "$out" \
+    || { echo "typing did not select the named options:"; cat "$out"; false; }
+}

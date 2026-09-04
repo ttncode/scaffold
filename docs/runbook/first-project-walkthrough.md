@@ -49,9 +49,12 @@ mise exec -- ./scaffold
 
 Run this in an actual terminal. Expect an interactive wizard: a name prompt,
 then shape (`web+api`, `app`, `api`, `web`), then one to four more screens
-depending on the shape. Answer `demo-app`, `web+api`, `nextjs`, `laravel-api`,
-`postgres`, `redis` — then `n` at "Generate this project?" to stop at the
-summary without generating anything. Expect the line above the prompt to read:
+depending on the shape. Type `demo-app` at the name prompt; at each menu
+after that, typing a letter jumps the highlight to the first option that
+starts with it — arrows work too, and either way Enter takes the highlighted
+option. Reach `web+api`, `nextjs`, `laravel-api`, `postgres`, `redis` that
+way, then `n` at "Generate this project?" to stop at the summary without
+generating anything. Expect the line above the prompt to read:
 
 ```
 scaffold new demo-app --web nextjs --api laravel-api --db postgres --cache redis
