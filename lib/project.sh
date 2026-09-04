@@ -131,12 +131,32 @@ init_project() {
 
 # set_image_context <project> <relative-path> — build.yml and release.yml
 # default to apps/api; rewrite both to the role's actual path when the
-# requested adapter builds a deployable image somewhere else.
+# requested adapter builds a deployable image somewhere else. Writes
+# dockerfile alongside context on the assumption the role stands alone
+# (context and Dockerfile in the same directory) — use_workspace_build_context
+# corrects context alone for the one shape where that assumption doesn't hold.
 set_image_context() {
   local project="$1" rel="$2" file
   for file in "${project}/.github/workflows/build.yml" \
               "${project}/.github/workflows/release.yml"; do
-    sed -i.bak "s|^      context: .*|      context: ${rel}|" "$file"
+    sed -i.bak \
+      -e "s|^      context: .*|      context: ${rel}|" \
+      -e "s|^      dockerfile: .*|      dockerfile: ${rel}/Dockerfile|" \
+      "$file"
+    rm -f "${file}.bak"
+  done
+}
+
+# use_workspace_build_context <project> — an all-typescript project's apps
+# are pnpm workspace members with no package.json/lockfile of their own
+# (enable_typescript_workspace, sync_workspace_lockfile); the Dockerfile
+# set_image_context already named needs the workspace root as its build
+# context instead, the same shape immich's own server/Dockerfile builds from.
+use_workspace_build_context() {
+  local project="$1" file
+  for file in "${project}/.github/workflows/build.yml" \
+              "${project}/.github/workflows/release.yml"; do
+    sed -i.bak "s|^      context: .*|      context: .|" "$file"
     rm -f "${file}.bak"
   done
 }

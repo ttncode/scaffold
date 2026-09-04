@@ -30,3 +30,4 @@ jobs:
     with:
       image: ghcr.io/you/@PROJECT_NAME@
       context: apps/api
+      dockerfile: apps/api/Dockerfile

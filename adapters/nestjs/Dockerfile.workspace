@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+
+# used instead of Dockerfile when every app in the project is typescript:
+# apps/api is then a pnpm workspace member with no manifests of its own —
+# see docs/PROVENANCE.md and immich's server/Dockerfile, which this follows.
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS build
+WORKDIR /app
+RUN corepack enable
+# pnpm-workspace.yaml carries the allowBuilds decisions ADR-0017 records —
+# without it in the build context, pnpm has nothing to check unrs-resolver's
+# postinstall build against and refuses non-interactively.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+RUN pnpm --filter api install --frozen-lockfile
+COPY . .
+WORKDIR /app/apps/api
+# @SERVICE_SETUP@
+RUN pnpm exec nest build
+WORKDIR /app
+# pruning at the workspace root, not from apps/api: most of its dependencies
+# are hoisted there, so a prune scoped to the app alone would leave dev
+# dependencies behind. Same TTY-abort as a relink (ADR-0017) — pruning a
+# shared node_modules needs the same non-interactive answer.
+RUN pnpm prune --prod --config.confirm-modules-purge=false
+
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+USER node
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget -qO- http://localhost:3001/health || exit 1
+CMD ["node", "apps/api/dist/main.js"]

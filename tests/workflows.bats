@@ -116,13 +116,22 @@ teardown() {
   [[ "$output" == *"someone-else/.github/"* ]]
 }
 
-@test "a web-only project builds and releases from apps/web" {
+@test "a web-only project builds and releases from the workspace root" {
   local web_project="${WORKDIR}/web-only"
   scaffold new "$web_project" --web nextjs
+  # a solo typescript adapter is still "every app is typescript" —
+  # enable_typescript_workspace joins it to the root pnpm workspace the same
+  # as any other all-typescript combination, so it needs the same workspace
+  # root context and apps/web/Dockerfile.workspace-turned-Dockerfile as the
+  # multi-app case, not the standalone shape apps/web alone would suggest.
   run yq '.jobs.build.with.context' "${web_project}/.github/workflows/build.yml"
-  [ "$output" = "apps/web" ]
+  [ "$output" = "." ]
+  run yq '.jobs.build.with.dockerfile' "${web_project}/.github/workflows/build.yml"
+  [ "$output" = "apps/web/Dockerfile" ]
   run yq '.jobs.release.with.context' "${web_project}/.github/workflows/release.yml"
-  [ "$output" = "apps/web" ]
+  [ "$output" = "." ]
+  run yq '.jobs.release.with.dockerfile' "${web_project}/.github/workflows/release.yml"
+  [ "$output" = "apps/web/Dockerfile" ]
 }
 
 @test "every reusable workflow pins its actions by sha" {

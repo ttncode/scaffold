@@ -1,0 +1,14 @@
+# only read when the build context is the project root — an all-typescript
+# project's apps/*/Dockerfile.workspace (see docs/PROVENANCE.md). node_modules
+# is copied from a pinned build stage; a host copy landing after it would
+# overwrite the pinned one with whatever the developer has locally.
+**/node_modules
+**/.next
+**/dist
+**/coverage
+
+# never belongs in an image
+**/.env
+**/.env.*
+!**/.env.example
+.git

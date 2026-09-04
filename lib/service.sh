@@ -115,23 +115,35 @@ assemble_example_env() {
 # every selected service's driver. Concatenated rather than substituted per
 # service, so `--db mongodb --cache redis` produces two blocks instead of one
 # overwriting the other.
+#
+# Runs against every Dockerfile the adapter shipped, not just one: a
+# typescript adapter ships a second, workspace-flavored Dockerfile
+# (Dockerfile.workspace) alongside the standalone one, and cmd_new decides
+# which of the two survives only after this has already run — both need the
+# anchor resolved now, or whichever one is kept later ships the literal
+# anchor comment.
 apply_service_setup() {
   local app="$1" block="$2"
-  local file="${app}/Dockerfile"
+  local file found=0
 
-  [ -f "$file" ] || return 0
-  grep -q '^# @SERVICE_SETUP@$' "$file" \
-    || die "no @SERVICE_SETUP@ anchor in ${file}"
+  for file in "${app}/Dockerfile" "${app}/Dockerfile.workspace"; do
+    [ -f "$file" ] || continue
+    found=1
+    grep -q '^# @SERVICE_SETUP@$' "$file" \
+      || die "no @SERVICE_SETUP@ anchor in ${file}"
 
-  local rendered; rendered="$(mktemp)"
-  # ENVIRON, not -v: awk's -v does C-style escape processing on the assigned
-  # value, so a literal backslash in the block (e.g. \t, \") is consumed
-  # instead of passed through. ENVIRON does none of that.
-  block="$block" awk '
-    /^# @SERVICE_SETUP@$/ { if (ENVIRON["block"] != "") printf "%s\n", ENVIRON["block"]; next }
-    { print }
-  ' "$file" > "$rendered"
-  mv "$rendered" "$file"
+    local rendered; rendered="$(mktemp)"
+    # ENVIRON, not -v: awk's -v does C-style escape processing on the assigned
+    # value, so a literal backslash in the block (e.g. \t, \") is consumed
+    # instead of passed through. ENVIRON does none of that.
+    block="$block" awk '
+      /^# @SERVICE_SETUP@$/ { if (ENVIRON["block"] != "") printf "%s\n", ENVIRON["block"]; next }
+      { print }
+    ' "$file" > "$rendered"
+    mv "$rendered" "$file"
+  done
+
+  [ "$found" -eq 1 ] || return 0
 }
 
 # write_env_lines <file> <line>...

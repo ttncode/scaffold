@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+
+# used instead of Dockerfile when every app in the project is typescript:
+# apps/web is then a pnpm workspace member with no manifests of its own —
+# see docs/PROVENANCE.md and immich's server/Dockerfile, which this follows.
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS deps
+WORKDIR /app
+RUN corepack enable
+# pnpm-workspace.yaml carries the allowBuilds decisions ADR-0017 records —
+# without it in the build context, pnpm has nothing to check unrs-resolver's
+# postinstall build against and refuses non-interactively.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+RUN pnpm --filter web install --frozen-lockfile
+
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS build
+WORKDIR /app
+RUN corepack enable
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY . .
+WORKDIR /app/apps/web
+# @SERVICE_SETUP@
+RUN pnpm exec next build
+
+FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+# next standalone output carries only the server files it actually needs
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+CMD ["node", "apps/web/server.js"]

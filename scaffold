@@ -255,6 +255,18 @@ cmd_new() {
     rm -f "${target}/docs/pnpm-workspace.yaml" "${target}/docs/pnpm-lock.yaml"
     sync_workspace_lockfile "$target"
     resolve_minimum_release_age "$target"
+
+    # Every requested role just lost its own package.json/lockfile to the
+    # workspace above — apply_adapter's standalone Dockerfile assumed it had
+    # one. Swap in the workspace-flavored Dockerfile each typescript adapter
+    # ships beside it, and point the image build at the workspace root, the
+    # only place those apps' manifests are reachable from now.
+    for entry in "${requested[@]}"; do
+      local role_dir; role_dir="${target}/$(role_path "${entry%%:*}")"
+      [ -f "${role_dir}/Dockerfile.workspace" ] \
+        && mv -f "${role_dir}/Dockerfile.workspace" "${role_dir}/Dockerfile"
+    done
+    use_workspace_build_context "$target"
   else
     rm -rf "${target}/packages-types"
 
@@ -285,6 +297,10 @@ cmd_new() {
     for generated in "${requested[@]}"; do
       adapter_is_typescript "${generated#*:}" \
         && sync_standalone_build_policy "${target}/$(role_path "${generated%%:*}")" "$target"
+      # the standalone Dockerfile above is the one this shape builds from;
+      # a typescript adapter's workspace-flavored sibling never applies here
+      # and would otherwise ship unused.
+      rm -f "${target}/$(role_path "${generated%%:*}")/Dockerfile.workspace"
       resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
     done
   fi
