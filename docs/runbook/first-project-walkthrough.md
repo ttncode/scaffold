@@ -142,9 +142,13 @@ this matters again once step 11 adds one.
 ## 7. Install the hooks and make a commit
 
 ```sh
-lefthook install
+mise exec -- lefthook install
 git checkout -b feat/health
 ```
+
+`lefthook` is pinned in the generated project's own `mise.toml`, not on your
+PATH — bare `lefthook install` works only if your shell profile already runs
+`mise activate`, which step 0's prerequisites do not ask for.
 
 Add a small feature with a test — for `laravel-api`, a `/health` route in
 `apps/api/routes/web.php` and a `HealthTest` beside the other feature tests.
