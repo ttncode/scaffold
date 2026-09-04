@@ -16,6 +16,8 @@ source "${SCAFFOLD_ROOT}/lib/lint.sh"
 source "${SCAFFOLD_ROOT}/lib/adapter.sh"
 # shellcheck source=lib/service.sh
 source "${SCAFFOLD_ROOT}/lib/service.sh"
+# shellcheck source=lib/wizard.sh
+source "${SCAFFOLD_ROOT}/lib/wizard.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 
