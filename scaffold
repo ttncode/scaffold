@@ -18,12 +18,15 @@ source "${SCAFFOLD_ROOT}/lib/adapter.sh"
 source "${SCAFFOLD_ROOT}/lib/service.sh"
 # shellcheck source=lib/wizard.sh
 source "${SCAFFOLD_ROOT}/lib/wizard.sh"
+# shellcheck source=lib/tui.sh
+source "${SCAFFOLD_ROOT}/lib/tui.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 
 usage() {
   cat <<'EOF'
 usage:
+  scaffold                    interactive wizard (needs a terminal)
   scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                       [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
@@ -456,6 +459,157 @@ cmd_add() {
   fi
 }
 
+# _wizard_prompt_for <kind> — the question text tui_select shows for one of
+# wizard_questions' kinds.
+_wizard_prompt_for() {
+  case "$1" in
+    web) printf 'Frontend' ;;
+    api) printf 'Backend' ;;
+    app) printf 'Fullstack framework' ;;
+    database) printf 'Database' ;;
+    cache) printf 'Cache' ;;
+    *) die "unknown question kind: ${1}" ;;
+  esac
+}
+
+# _wizard_order_options <kind> <listing> — wizard_options' rows for <kind>,
+# with cmd_new's own unset-flag default moved first. database and cache are
+# only ever asked where cmd_new would already default them (mysql once
+# there's a backend, none otherwise), so a plain Enter picks what the flags
+# would have picked unset, instead of whatever wizard_options happened to
+# list first.
+_wizard_order_options() {
+  local kind="$1" listing="$2" default="" line
+
+  case "$kind" in
+    database) default="mysql" ;;
+    cache) default="none" ;;
+  esac
+
+  if [ -z "$default" ]; then
+    wizard_options "$listing" "$kind"
+    return
+  fi
+
+  while IFS= read -r line; do
+    if [ "${line%%$'\t'*}" = "$default" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <<< "$(wizard_options "$listing" "$kind")"
+  while IFS= read -r line; do
+    if [ "${line%%$'\t'*}" != "$default" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <<< "$(wizard_options "$listing" "$kind")"
+  # the loop's own status is read's EOF failure, not this function's; without
+  # this the default branch always reports failure on an otherwise-fine run.
+  return 0
+}
+
+# _wizard_select_or_cancel <prompt> <footer> <option>... — tui_select, with
+# Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
+# design rules out back navigation; re-run is the only way out either way.
+_wizard_select_or_cancel() {
+  tui_select "$@" || exit 130
+}
+
+# _wizard_new_args <kind=value>... — cmd_new's argv, one token per line.
+# Kept separate from wizard_command's printed string (same mapping, sharing
+# it would mean building argv by re-parsing the string cmd_wizard already
+# showed the user) so the run cannot drift from what the summary displayed.
+_wizard_new_args() {
+  local pair kind value
+
+  for pair in "$@"; do
+    kind="${pair%%=*}"
+    value="${pair#*=}"
+    case "$kind" in
+      web|api|app)
+        if [ "$value" != none ]; then
+          printf -- '--%s\n%s\n' "$kind" "$value"
+        fi
+        ;;
+      database) printf -- '--db\n%s\n' "$value" ;;
+      cache) printf -- '--cache\n%s\n' "$value" ;;
+      *) die "unknown answer: ${pair}" ;;
+    esac
+  done
+}
+
+# cmd_wizard — the four-screen flow: name, shape, then whatever
+# wizard_questions(shape) asks. Ends on a summary and a confirm; SCAFFOLD_
+# WIZARD_DRY_RUN=1 stops it just before cmd_new would run, which is what lets
+# tests/wizard.bats drive the real screens through a pty without generating
+# anything.
+cmd_wizard() {
+  tui_begin
+
+  local name; name="$(tui_prompt_name)"
+  local listing; listing="$(cmd_list)"
+  local footer="up/down to move, enter to select, esc to cancel"
+
+  local -a shape_options=(
+    "web+api"$'\t'"separate frontend and backend, one repository"
+    "app"$'\t'"one application serving both pages and data"
+    "api"$'\t'"backend only"
+    "web"$'\t'"frontend only"
+  )
+  _wizard_select_or_cancel "What are you building?" "$footer" "${shape_options[@]}"
+  local shape="$TUI_CHOICE"
+
+  local -a answers=()
+  local -a kinds
+  mapfile -t kinds <<< "$(wizard_questions "$shape")"
+  local kind
+  for kind in "${kinds[@]}"; do
+    # A `while read <<< ...` here would share fd0 with tui_select's own
+    # terminal reads below it: a keystroke meant for the screen would consume
+    # a byte of the remaining question list instead. `for` over an array
+    # never touches fd0.
+    local -a options
+    mapfile -t options < <(_wizard_order_options "$kind" "$listing")
+    _wizard_select_or_cancel "$(_wizard_prompt_for "$kind")" "$footer" "${options[@]}"
+    answers+=("${kind}=${TUI_CHOICE}")
+  done
+
+  tui_end
+
+  log ""
+  log "Project: ${name} (${shape})"
+  local ans
+  for ans in "${answers[@]}"; do
+    log "  ${ans%%=*}: ${ans#*=}"
+  done
+  log ""
+  log "$(wizard_command "$name" "${answers[@]}")"
+
+  # A web+api project still builds one image: set_image_context records one
+  # context per project, whichever role was applied last. The flags made this
+  # shape awkward to reach; the wizard makes it the first option, so it is
+  # said here rather than discovered after the first release build.
+  if [ "$shape" = "web+api" ]; then
+    log ""
+    log "note: web and api still share one build image — whichever adapter is applied last wins the build context."
+  fi
+  log ""
+
+  printf '%b' "${BOLD}Generate this project? [y/N] ${RESET}" >&2
+  local reply=""
+  IFS= read -r reply || true
+  case "$reply" in
+    y|Y) ;;
+    *) return 0 ;;
+  esac
+
+  if [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ]; then
+    return 0
+  fi
+
+  local -a new_args
+  mapfile -t new_args < <(_wizard_new_args "${answers[@]}")
+  cmd_new "$name" "${new_args[@]}"
+}
+
 # The services this run selected, read by apply_adapter. A global rather than
 # another apply_adapter parameter: it is one value for the whole run, and
 # apply_adapter already takes three.
@@ -464,7 +618,14 @@ SCAFFOLD_SERVICES=()
 main() {
   require_tools
 
-  [ $# -gt 0 ] || { usage >&2; exit 1; }
+  # A terminal, and only a terminal: scaffold runs in scripts, in CI and in
+  # this repository's own tests, and a bare call that opened a menu there
+  # would hang all of them as a timeout rather than fail as an error.
+  if [ $# -eq 0 ]; then
+    [ -t 0 ] || { usage >&2; exit 1; }
+    cmd_wizard
+    return
+  fi
 
   local command="$1"; shift
   case "$command" in

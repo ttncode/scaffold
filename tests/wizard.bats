@@ -128,3 +128,27 @@ setup() {
     fi
   done
 }
+
+@test "the wizard reaches a command without generating anything" {
+  # Drives the real screens through a pty and asserts only on the command it
+  # prints. Frames are not asserted: this proves the loop reads keys, applies
+  # the answers and terminates, which is what the rendering layer can get
+  # wrong that the pure functions cannot.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local out="${BATS_TEST_TMPDIR}/session.log"
+  {
+    sleep 1; printf 'wizard-demo\n'
+    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'   # shape: app
+    sleep 1; printf '\n'                               # fullstack: laravel-inertia
+    sleep 1; printf '\n'                               # database: mysql
+    sleep 1; printf '\n'                               # cache: none
+    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+  } | COLUMNS=90 LINES=45 script -qec \
+        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+      > "$out" 2>&1 || true
+
+  grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' "$out" \
+    || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
+}

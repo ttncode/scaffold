@@ -151,3 +151,13 @@ setup() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"--web"* ]]
 }
+
+@test "scaffold with no arguments and no terminal still prints usage" {
+  # The guard the whole design rests on. scaffold runs in scripts, in CI and
+  # in this suite; a bare call that opened a menu would hang all of them, and
+  # the failure would look like a timeout rather than an error.
+  run bash -c "printf '' | '${SCAFFOLD_ROOT}/scaffold'"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"usage:"* ]]
+  [[ "$output" != *"What are you building"* ]]
+}

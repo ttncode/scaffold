@@ -37,6 +37,7 @@ tui_end() {
   # Drain it here rather than let it spill into whatever the caller reads or
   # prints next.
   local junk
+  # shellcheck disable=SC2034 # junk is the read target, not read back
   while read -rsn1 -t 0.001 junk 2>/dev/null; do :; done
   if [ -n "$_TUI_STTY_SAVED" ]; then
     stty "$_TUI_STTY_SAVED" 2>/dev/null || true
@@ -161,6 +162,7 @@ tui_select() {
         fi
         ;;
       "")
+        # shellcheck disable=SC2034 # read by the caller
         TUI_CHOICE="${options[$cursor]%%$'\t'*}"
         return 0
         ;;
