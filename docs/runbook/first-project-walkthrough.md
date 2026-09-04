@@ -11,7 +11,7 @@ written here is a finding, even when it still works.
 ## 0. Prerequisites
 
 `git` and `mise` installed. A GitHub account, and `gh auth login` completed.
-Docker only matters for step 9.
+Docker only matters for step 10.
 
 ## 1. Clone and install
 
@@ -32,10 +32,44 @@ mise exec -- ./scaffold list
 mise exec -- ./scaffold lint
 ```
 
-Expect: `list` prints four adapters with their tiers; `lint` prints nothing and
-exits 0. Anything else stops the walkthrough here.
+Expect: `list` prints eight rows now, not four — every adapter and every
+service, as name, second column, tier. The second column is the adapter's
+role (`api`, `app`, `web`) or the service's kind (`database`, `cache`); a
+service carries no tier, so its third column reads `-` — tiers (ADR-0012)
+measure verification cost for adapters, and a service's own manifest names
+no such thing (ADR-0019). `list --adapters` or `list --services` narrows to
+one half. `lint` still prints nothing and exits 0. Anything else stops the
+walkthrough here.
 
-## 3. Make it callable from anywhere
+## 3. Try the wizard
+
+```sh
+mise exec -- ./scaffold
+```
+
+Run this in an actual terminal. Expect an interactive wizard: a name prompt,
+then shape (`web+api`, `app`, `api`, `web`), then one to four more screens
+depending on the shape. Answer `demo-app`, `web+api`, `nextjs`, `laravel-api`,
+`postgres`, `redis` — then `n` at "Generate this project?" to stop at the
+summary without generating anything. Expect the line above the prompt to read:
+
+```
+scaffold new demo-app --web nextjs --api laravel-api --db postgres --cache redis
+```
+
+That is the command step 5 runs, argument order aside — reaching it by menu
+first is how a first-time user is meant to find it. See
+docs/tour/09-wizard.md for the question logic and its known limits.
+
+Piped, redirected, or run from a script — a closed stdin, not a terminal —
+`scaffold` with no arguments takes none of this and prints usage and exits 1,
+same as before:
+
+```sh
+printf '' | mise exec -- ./scaffold
+```
+
+## 4. Make it callable from anywhere
 
 Add the shell function from the README's Install section to your shell profile,
 open a new shell, then from a directory that is **not** the toolbox:
@@ -50,11 +84,11 @@ is not supplying mise's environment. If a later `scaffold new relative-name`
 lands inside the toolbox, the function used `mise exec -C` instead of
 `mise env -C`.
 
-## 4. Generate a project
+## 5. Generate a project
 
 ```sh
 cd ~/playground
-scaffold new demo-app --api laravel-api --web nextjs
+scaffold new demo-app --api laravel-api --web nextjs --db postgres --cache redis
 ```
 
 Expect: two generators run, then `created …/demo-app`. Expect a warning naming
@@ -64,12 +98,16 @@ Then read what it made before doing anything else:
 
 ```sh
 cd demo-app
-git log --oneline          # one commit, "chore: scaffold project"
-cat mise.toml              # config_roots: apps/web, apps/api, docs
-ls .github/workflows       # five call sites
+git log --oneline           # one commit, "chore: scaffold project"
+cat mise.toml               # config_roots: apps/web, apps/api, docs
+                             # [vars] database = "postgres", cache = "redis"
+ls .github/workflows        # five call sites
+grep -l database compose*.yaml    # all three: compose.yaml, .dev.yaml, .test.yaml
+cat example.env             # DB_PASSWORD and REDIS_PASSWORD, appended for the services chosen
+cat apps/api/.env.example   # DB_CONNECTION=pgsql and REDIS_* — the driver's own variables
 ```
 
-## 5. Run what CI will run, before pushing
+## 6. Run what CI will run, before pushing
 
 ```sh
 mise run //docs:ci-unit
@@ -92,7 +130,13 @@ mv /tmp/env-aside apps/api/.env
 Expect: still pass. A failure here is a real finding — it means a check depends
 on a file that is not committed, and CI will fail where you succeeded.
 
-## 6. Install the hooks and make a commit
+A `nestjs` app's `check` and `build` also depend on a `prisma` task now
+(`prisma generate` first, when the project has a database). Moving its `.env`
+aside the same way still passes — `prisma generate` only parses the schema,
+it does not need `DATABASE_URL` to resolve. Nothing here uses `nestjs` yet;
+this matters again once step 11 adds one.
+
+## 7. Install the hooks and make a commit
 
 ```sh
 lefthook install
@@ -117,7 +161,7 @@ git commit --allow-empty -m "added a health thing"
 
 Expect: rejected, naming the convention.
 
-## 7. Push and open a pull request
+## 8. Push and open a pull request
 
 ```sh
 gh repo create ttncode/demo-app --private --source=. --remote=origin --push
@@ -137,7 +181,7 @@ The `gh api` call is required, not optional: without it Release Please cannot
 open its pull request later, and the failure appears several steps away from
 this one.
 
-## 8. Merge, and let the release happen
+## 9. Merge, and let the release happen
 
 ```sh
 gh pr merge --squash --delete-branch
@@ -158,7 +202,7 @@ gh release list
 
 Expect: `v0.2.0`, and the image tagged `0.2.0`, `0.2`, `latest`, `sha-…`.
 
-## 9. Run what was built
+## 10. Run what was built
 
 ```sh
 docker pull ghcr.io/ttncode/demo-app:0.2.0
@@ -166,7 +210,7 @@ docker pull ghcr.io/ttncode/demo-app:0.2.0
 
 Expect: pulls, if the package is public or you are logged in to ghcr.
 
-## 10. Add a second application to the existing project
+## 11. Add a second application to the existing project
 
 ```sh
 cd ~/playground/demo-app
@@ -177,6 +221,13 @@ git status
 Expect: `apps/worker` exists, `mise.toml` gained a config root, `ci.yml`'s
 `roots:` gained an entry, and nothing else changed. Expect the changes to be
 left uncommitted for review.
+
+The new application is wired to the database and cache this project already
+recorded, not asked again: `apps/worker/.env.example` names a `DATABASE_URL`
+and `REDIS_URL` for the same services `mise.toml`'s `[vars]` already records,
+not whatever nestjs would default to on its own. `scaffold` cannot change a
+project's database after generation (ADR-0019) — reading it back on `add` is
+how a later application still ends up on the one already running.
 
 ## What counts as a finding
 
