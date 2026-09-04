@@ -150,3 +150,11 @@ setup() {
   run grep -q 'tests/service.bats' "${SCAFFOLD_ROOT}/mise.toml"
   assert_ok
 }
+
+@test "tests/wizard.bats runs in a lane" {
+  # A suite in no lane is a suite that never runs: the service branch shipped
+  # thirty tests into that state and nobody noticed until a review read
+  # mise.toml against ci.yml.
+  run grep -q 'tests/wizard.bats' "${SCAFFOLD_ROOT}/mise.toml"
+  assert_ok
+}

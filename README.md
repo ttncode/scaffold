@@ -42,12 +42,18 @@ toolbox instead of where the command was run.
 ## Usage
 
 ```sh
+scaffold                    # in a terminal: an interactive wizard
 scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                     [--db <service>] [--cache <service>]
 scaffold add <dir> --adapter <adapter>
 scaffold list
 scaffold lint
 ```
+
+Run with no arguments in a terminal, `scaffold` walks you to a complete
+`new` command instead of printing usage — see
+[09-wizard](docs/tour/09-wizard.md). Anywhere else — a script, CI, no
+terminal attached — it keeps exactly the behaviour below.
 
 `new` creates a project. `add` installs another application into one that
 already exists. `list` reports the adapters and their tiers. `lint` checks
@@ -94,7 +100,7 @@ with no production counterpart in a self-hosted stack.
 
 ## Documentation
 
-- [Tour](docs/tour/) — how the pieces fit, eight pages
+- [Tour](docs/tour/) — how the pieces fit, nine pages
 - [Decisions](docs/decisions/) — why they fit that way
 - [Runbooks](docs/runbook/) — what to do when something specific happens
 - [Provenance](docs/PROVENANCE.md) — what is copied from immich, and where it drifted
@@ -108,7 +114,7 @@ understand what CI does with it.
 
 Owning it for real, over the first week: the rest of the tour
 ([04-guardrails](docs/tour/04-guardrails.md) through
-[08-adapters](docs/tour/08-adapters.md)), plus ADR-0001, ADR-0003 and ADR-0011.
+[09-wizard](docs/tour/09-wizard.md)), plus ADR-0001, ADR-0003 and ADR-0011.
 
 `docs/runbook/` is not reading material — consult it when the situation that
 names it actually arises.

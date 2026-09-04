@@ -55,6 +55,10 @@ the result. It must ship `adapter.env`, `mise.toml`, `Dockerfile` and
 this by rejecting a writing flag in their `run` — see
 [ADR-0011](docs/decisions/0011-task-contract-names-follow-immich.md).
 
+Nothing needs doing for the wizard: it builds its questions from `scaffold
+list`, so a new adapter appears there as soon as `scaffold lint` passes —
+see [09-wizard](docs/tour/09-wizard.md).
+
 ## Adding a service
 
 A service is a directory under `services/`, not an adapter — see
