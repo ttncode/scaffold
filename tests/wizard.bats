@@ -99,3 +99,32 @@ setup() {
     [ "$reachable" -eq 1 ] || { echo "${name} is in scaffold list but no question offers it"; false; }
   done <<< "$LISTING"
 }
+
+@test "the name prompt enforces init_project's rule before anything is created" {
+  # init_project refuses a name it cannot substitute into sed and an image
+  # reference. Catching it at the prompt means the user retypes a word rather
+  # than reading a failure after four screens of answers.
+  source "${SCAFFOLD_ROOT}/lib/tui.sh"
+  run tui_name_is_usable "Demo Project"
+  [ "$status" -ne 0 ]
+  run tui_name_is_usable "demo-01"
+  assert_ok
+  run tui_name_is_usable "-leading"
+  [ "$status" -ne 0 ]
+}
+
+@test "tui_name_is_usable agrees with init_project's own rule" {
+  # Two copies of one rule (lib/tui.sh explains why) are only safe pinned
+  # together — otherwise the wizard could accept a name that scaffold new
+  # then refuses to generate.
+  source "${SCAFFOLD_ROOT}/lib/tui.sh"
+  local dir="${BATS_TEST_TMPDIR}/agree" name
+  for name in "Demo Project" "demo-01" "-leading"; do
+    run scaffold new "${dir}/${name}"
+    if tui_name_is_usable "$name"; then
+      [[ "$output" != *"project name"* ]]
+    else
+      [[ "$output" == *"project name"* ]]
+    fi
+  done
+}
