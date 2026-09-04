@@ -567,3 +567,22 @@ EOF
   assert_ok
   [ -z "$output" ]
 }
+
+@test "the nest driver decides allowBuilds before it installs anything" {
+  # pnpm refuses a package whose build script nobody has decided on, and on a
+  # runner — no TTY to prompt at — that refusal is ERR_PNPM_IGNORED_BUILDS
+  # rather than a warning. Ordered after the installs this passed every local
+  # run and failed on the first push to main, because a warm pnpm store hides
+  # it. Asserting the order here costs nothing; reproducing it costs a cold
+  # store and a full generation.
+  local file="${SCAFFOLD_ROOT}/services/shared/nest.sh"
+  local allow_builds first_add
+
+  allow_builds="$(grep -n 'allowBuilds.prisma' "$file" | head -1 | cut -d: -f1)"
+  first_add="$(grep -n '^  pnpm add' "$file" | head -1 | cut -d: -f1)"
+
+  [ -n "$allow_builds" ] || { echo "no allowBuilds line in ${file}"; false; }
+  [ -n "$first_add" ] || { echo "no pnpm add line in ${file}"; false; }
+  [ "$allow_builds" -lt "$first_add" ] \
+    || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
+}
