@@ -3,6 +3,8 @@
 setup() {
   load 'helpers/setup'
   source "${SCAFFOLD_ROOT}/lib/log.sh"
+  # wizard_order_options reads DEFAULT_DATABASE_SERVICE.
+  source "${SCAFFOLD_ROOT}/lib/contract.sh"
   source "${SCAFFOLD_ROOT}/lib/wizard.sh"
 
   # The real listing, so a new adapter or service shows up here without
@@ -72,6 +74,43 @@ setup() {
   run wizard_questions monolith
   [ "$status" -eq 1 ]
   [[ "$output" == *"unknown project shape: monolith"* ]]
+}
+
+@test "every shape wizard_shapes lists is accepted by wizard_questions" {
+  # wizard_shapes is the one place cmd_wizard's menu and wizard_questions'
+  # accepted shapes both read (see wizard_shapes' comment). A shape added to
+  # only one of them must fail here instead of reaching a user four screens
+  # into the wizard.
+  local shapes count=0
+  shapes="$(wizard_shapes | cut -f1)"
+
+  local shape
+  while IFS= read -r shape; do
+    run wizard_questions "$shape"
+    assert_ok
+    count=$((count + 1))
+  done <<< "$shapes"
+
+  [ "$count" -eq "$(wc -l <<< "$shapes")" ]
+}
+
+@test "the wizard's first-offered database agrees with scaffold new's own default" {
+  # cmd_new's unset --db default and wizard_order_options' menu ordering both
+  # read DEFAULT_DATABASE_SERVICE (lib/contract.sh) — proving they agree by
+  # comparing behavior, not by asserting each against a hardcoded string.
+  source "${SCAFFOLD_ROOT}/lib/service.sh"
+
+  local project="${BATS_TEST_TMPDIR}/db-default"
+  run scaffold new "$project" --api nestjs
+  assert_ok
+
+  local recorded
+  recorded="$(project_service "$project" database)"
+
+  local offered
+  offered="$(wizard_order_options database "$LISTING" | head -1 | cut -f1)"
+
+  [ "$offered" = "$recorded" ]
 }
 
 @test "wizard_command writes the flags the answers mean" {

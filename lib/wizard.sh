@@ -35,17 +35,67 @@ wizard_options() {
   esac
 }
 
+# wizard_order_options <kind> <listing> — wizard_options' rows for <kind>,
+# with cmd_new's own unset-flag default moved first. database and cache are
+# only ever asked where cmd_new would already default them (DEFAULT_DATABASE_
+# SERVICE once there's a backend, none otherwise), so a plain Enter picks
+# what the flags would have picked unset, instead of whatever wizard_options
+# happened to list first.
+wizard_order_options() {
+  local kind="$1" listing="$2" default="" line
+
+  case "$kind" in
+    database) default="$DEFAULT_DATABASE_SERVICE" ;;
+    cache) default="none" ;;
+  esac
+
+  if [ -z "$default" ]; then
+    wizard_options "$listing" "$kind"
+    return
+  fi
+
+  while IFS= read -r line; do
+    if [ "${line%%$'\t'*}" = "$default" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <<< "$(wizard_options "$listing" "$kind")"
+  while IFS= read -r line; do
+    if [ "${line%%$'\t'*}" != "$default" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <<< "$(wizard_options "$listing" "$kind")"
+  # the loop's own status is read's EOF failure, not this function's; without
+  # this the default branch always reports failure on an otherwise-fine run.
+  return 0
+}
+
+# wizard_shapes — the project shapes the wizard's first menu offers, one per
+# line as name<TAB>description. cmd_wizard builds its menu from this, and
+# wizard_questions accepts only what it lists — the single place either side
+# reads, so a shape added to one and not the other fails a test instead of
+# reaching a user four screens in.
+wizard_shapes() {
+  printf 'web+api\tseparate frontend and backend, one repository\n'
+  printf 'app\tone application serving both pages and data\n'
+  printf 'api\tbackend only\n'
+  printf 'web\tfrontend only\n'
+}
+
 # wizard_questions <shape>
 # The order the answers constrain each other in. `web` asks nothing about a
 # database because `scaffold new` refuses --db without an api or app adapter,
 # and a refusal the user can walk into is worse than one they cannot.
 wizard_questions() {
-  case "$1" in
+  local shape="$1"
+
+  wizard_shapes | cut -f1 | grep -qx "$shape" || die "unknown project shape: ${shape}"
+
+  case "$shape" in
     web+api) printf 'web\napi\ndatabase\ncache\n' ;;
     app) printf 'app\ndatabase\ncache\n' ;;
     api) printf 'api\ndatabase\ncache\n' ;;
     web) printf 'web\n' ;;
-    *) die "unknown project shape: ${1}" ;;
+    *) die "wizard_shapes lists ${shape} but wizard_questions has no case for it" ;;
   esac
 }
 

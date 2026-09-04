@@ -35,3 +35,9 @@ REQUIRED_SERVICE_VARS=(SERVICE_NAME SERVICE_KIND SERVICE_IMAGE)
 # no driver — stated once, about the role, rather than as a "not applicable"
 # entry repeated in every service.
 DRIVEN_ROLES=(api app)
+
+# The --db value cmd_new picks when a project has an api or app adapter and
+# --db was not given (docs/decisions/0020). The wizard's default ordering
+# reads this too, so a plain Enter can't drift from what an omitted flag
+# would have picked.
+DEFAULT_DATABASE_SERVICE=mysql

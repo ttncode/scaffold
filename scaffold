@@ -175,7 +175,7 @@ cmd_new() {
   done
 
   if [ -z "$database" ]; then
-    [ "$has_backend" -eq 1 ] && database="mysql" || database="none"
+    [ "$has_backend" -eq 1 ] && database="$DEFAULT_DATABASE_SERVICE" || database="none"
   fi
   [ -n "$cache" ] || cache="none"
 
@@ -472,40 +472,6 @@ _wizard_prompt_for() {
   esac
 }
 
-# _wizard_order_options <kind> <listing> — wizard_options' rows for <kind>,
-# with cmd_new's own unset-flag default moved first. database and cache are
-# only ever asked where cmd_new would already default them (mysql once
-# there's a backend, none otherwise), so a plain Enter picks what the flags
-# would have picked unset, instead of whatever wizard_options happened to
-# list first.
-_wizard_order_options() {
-  local kind="$1" listing="$2" default="" line
-
-  case "$kind" in
-    database) default="mysql" ;;
-    cache) default="none" ;;
-  esac
-
-  if [ -z "$default" ]; then
-    wizard_options "$listing" "$kind"
-    return
-  fi
-
-  while IFS= read -r line; do
-    if [ "${line%%$'\t'*}" = "$default" ]; then
-      printf '%s\n' "$line"
-    fi
-  done <<< "$(wizard_options "$listing" "$kind")"
-  while IFS= read -r line; do
-    if [ "${line%%$'\t'*}" != "$default" ]; then
-      printf '%s\n' "$line"
-    fi
-  done <<< "$(wizard_options "$listing" "$kind")"
-  # the loop's own status is read's EOF failure, not this function's; without
-  # this the default branch always reports failure on an otherwise-fine run.
-  return 0
-}
-
 # _wizard_select_or_cancel <prompt> <footer> <option>... — tui_select, with
 # Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
 # design rules out back navigation; re-run is the only way out either way.
@@ -536,11 +502,11 @@ _wizard_new_args() {
   done
 }
 
-# cmd_wizard — the four-screen flow: name, shape, then whatever
-# wizard_questions(shape) asks. Ends on a summary and a confirm; SCAFFOLD_
-# WIZARD_DRY_RUN=1 stops it just before cmd_new would run, which is what lets
-# tests/wizard.bats drive the real screens through a pty without generating
-# anything.
+# cmd_wizard — name, shape, then one to four more screens depending on the
+# shape, from wizard_questions(shape). Ends on a summary and a confirm;
+# SCAFFOLD_WIZARD_DRY_RUN=1 stops it just before cmd_new would run, which is
+# what lets tests/wizard.bats drive the real screens through a pty without
+# generating anything.
 cmd_wizard() {
   tui_begin
 
@@ -548,12 +514,8 @@ cmd_wizard() {
   local listing; listing="$(cmd_list)"
   local footer="up/down to move, enter to select, esc to cancel"
 
-  local -a shape_options=(
-    "web+api"$'\t'"separate frontend and backend, one repository"
-    "app"$'\t'"one application serving both pages and data"
-    "api"$'\t'"backend only"
-    "web"$'\t'"frontend only"
-  )
+  local -a shape_options
+  mapfile -t shape_options < <(wizard_shapes)
   _wizard_select_or_cancel "What are you building?" "$footer" "${shape_options[@]}"
   local shape="$TUI_CHOICE"
 
@@ -567,7 +529,7 @@ cmd_wizard() {
     # a byte of the remaining question list instead. `for` over an array
     # never touches fd0.
     local -a options
-    mapfile -t options < <(_wizard_order_options "$kind" "$listing")
+    mapfile -t options < <(wizard_order_options "$kind" "$listing")
     _wizard_select_or_cancel "$(_wizard_prompt_for "$kind")" "$footer" "${options[@]}"
     answers+=("${kind}=${TUI_CHOICE}")
   done
