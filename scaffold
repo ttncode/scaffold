@@ -263,6 +263,11 @@ cmd_new() {
     # trust a mise.toml above $target; `mise trust -C` does not cover that.
     pnpm_install "$target" "installing the project root's own tooling dependencies" \
       "$(dirname "$target")"
+    # pnpm_install above installed at full strength (minimum-release-age=0),
+    # so a violation among commitlint's own dependencies never surfaced —
+    # the loop below resolves each app's lockfile but never the root's, and
+    # the root's is the one the commit-msg hook installs from.
+    resolve_minimum_release_age "$target"
 
     # Each app here stands alone rather than joining a workspace, so each owns
     # a lockfile the policy will re-check forever. Same reason as cmd_add's

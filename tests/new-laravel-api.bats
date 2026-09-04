@@ -96,6 +96,19 @@ teardown() {
   assert_ok
 }
 
+@test "a mixed-language project's root lockfile can install after generation" {
+  scaffold new "$PROJECT" --api laravel-api --web nextjs
+  cd "$PROJECT"
+
+  # commitlint backs the commit-msg hook and installs from the project root,
+  # not from an app dir — the one place resolve_minimum_release_age used to
+  # skip in this branch, so a violation among commitlint's own dependencies
+  # (too fresh at generation time) surfaced only here, minutes later, on the
+  # first commit.
+  run mise exec -- pnpm exec commitlint --version
+  assert_ok
+}
+
 @test "two php apps each keep their own pint hook" {
   scaffold new "$PROJECT" --api laravel-api --app laravel-inertia
   # Both fragments define pre-commit.commands.pint, and yq's merge is key-wise,
