@@ -1,18 +1,25 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS assets
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY resources ./resources
-COPY vite.config.ts tsconfig.json ./
-RUN npm run build
-
 FROM composer:2.10.2@sha256:4d71c3c2109c61d5415544264b59ad4087e4c5b7244481723664138fd36d5040 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-interaction \
     --prefer-dist --optimize-autoloader
+
+# @laravel/vite-plugin-wayfinder shells out to `php artisan` during the vite
+# build itself, so this stage needs both php and node, and only one base can
+# be pinned by digest. Pin php: it decides whether artisan runs at all (the
+# app declares php: ^8.3), while node here only compiles assets and never
+# reaches the runtime image, which inherits nothing from this stage but
+# public/build.
+FROM php:8.3.21-fpm-alpine@sha256:d2170b0f8da574062b289566a05f25ab57173315a356c9f7519b5e444ae96dac AS assets
+RUN apk add --no-cache nodejs npm
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY --from=vendor /app/vendor ./vendor
+COPY . .
+RUN npm run build
 
 FROM php:8.3.21-fpm-alpine@sha256:d2170b0f8da574062b289566a05f25ab57173315a356c9f7519b5e444ae96dac AS runtime
 RUN docker-php-ext-install opcache
