@@ -102,7 +102,7 @@ Then read what it made before doing anything else:
 ```sh
 cd demo-app
 git log --oneline           # one commit, "chore: scaffold project"
-cat mise.toml               # config_roots: apps/web, apps/api, docs
+cat mise.toml               # [monorepo] config_roots = apps/web, apps/api, docs
                              # [vars] database = "postgres", cache = "redis"
 ls .github/workflows        # five call sites
 grep -l database compose*.yaml    # all three: compose.yaml, .dev.yaml, .test.yaml
@@ -132,6 +132,16 @@ mv /tmp/env-aside apps/api/.env
 
 Expect: still pass. A failure here is a real finding — it means a check depends
 on a file that is not committed, and CI will fail where you succeeded.
+
+Which files those are depends on the adapter, and this is the step where
+guessing costs you a red pull request. Move aside everything the app's
+`.gitignore` excludes that some task writes, not just the two named above.
+For `laravel-inertia` that is `apps/app/resources/js/actions`,
+`apps/app/resources/js/routes` and `apps/app/public/build` — the first two
+are written by the vite build's wayfinder plugin and compiled against by
+`types:check`, the third is the vite manifest, without which every test that
+renders an inertia page returns 500. Running the checks with those in place
+is not the same experiment as CI runs.
 
 A `nestjs` app's `check` and `build` also depend on a `prisma` task now
 (`prisma generate` first, when the project has a database). Moving its `.env`
@@ -200,12 +210,19 @@ gh pr create --fill
 gh pr checks --watch
 ```
 
+The first `gh pr checks --watch` usually exits 1 straight away with `no checks
+reported on the 'feat/health' branch`. Nothing is wrong: GitHub has not
+registered the check runs yet, and `--watch` does not wait for a first one to
+appear. Give it twenty seconds and issue it again.
+
 Expect: `CI / ci / ci (apps/api)` runs, because `apps/api` changed. Expect
 `CI / ci / changes` to skip roots that did not. Expect `commitlint` to run —
-it only ever runs on a pull request. Expect all seven checks green, including
-`security / codeql`, `security / gitleaks` and `security / zizmor` — on a
-private repository those three each need something the workflow grants them
-explicitly, so a failure there is a finding, not the normal state.
+it only ever runs on a pull request. Expect every check green, including `security / codeql`,
+`security / gitleaks` and `security / zizmor` — on a private repository those
+three each need something the workflow grants them explicitly, so a failure
+there is a finding, not the normal state. How many checks there are depends on
+the project: six named jobs plus one `ci (<root>)` for each config root the
+commit touched, so this project has seven and an api-only one has six.
 
 The `gh api` call is required, not optional: without it Release Please cannot
 open its pull request later, and the failure appears several steps away from
@@ -224,6 +241,13 @@ Expect: five workflows on `main`, all green. Expect Release Please to open
 If that pull request's checks sit at `Action required`, the repository has no
 `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`; a pull request opened with
 `GITHUB_TOKEN` starts no workflow. Merging it directly still releases.
+
+Those runs do not stay amber. Once the approval window passes, or once the
+squash merge deletes the head branch, they end as `failure`, and `gh run view`
+explains them with `This run likely failed because of a workflow file issue`.
+There is no workflow file issue. Expect to be left with three red runs in the
+history that the release did not depend on and that say nothing true about
+your project.
 
 ```sh
 gh pr merge <number> --squash
@@ -249,10 +273,17 @@ git status
 ```
 
 Expect: `apps/worker` exists, `mise.toml` gained a config root, `ci.yml`'s
-`roots:` gained an entry, and `lefthook.yml`, `pnpm-workspace.yaml` and
-`pnpm-lock.yaml` also changed — the new app's own hooks, `allowBuilds` and
-`minimumReleaseAgeExclude` entries, and dependencies. Expect the changes to
-be left uncommitted for review.
+`roots:` gained an entry, and `lefthook.yml` and `pnpm-lock.yaml` also
+changed. Expect the changes to be left uncommitted for review.
+
+Two of those are conditional, and a diff that does not show them is not a
+finding. `pnpm-workspace.yaml` changes only when the new app needs an
+`allowBuilds` or `minimumReleaseAgeExclude` entry the project does not
+already carry — adding a second `nestjs` app to a project that already has
+one leaves it untouched, because `apps/*` already matched and prisma was
+already decided. And `lefthook.yml` changes without gaining a hook: `nestjs`
+contributes none, since prettier in the common layer already covers
+typescript sources.
 
 The new application is wired to the database and cache this project already
 recorded, not asked again: `apps/worker/.env.example` names a `DATABASE_URL`
