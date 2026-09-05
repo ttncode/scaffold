@@ -8,7 +8,7 @@ services:
       # mongosh, not a tcp probe: the port is open well before the server will
       # accept a query, and a check that passes early is worse than none —
       # depends_on releases the application into a database that is not ready.
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5

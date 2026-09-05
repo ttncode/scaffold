@@ -6,7 +6,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-app}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-app}
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '--silent']
       interval: 10s
       timeout: 5s
       retries: 5
