@@ -251,20 +251,17 @@ sync_standalone_build_policy() {
     "$file" "${project}/pnpm-workspace.yaml"
 }
 
-# pnpm_install <dir> <what-for> [ceiling]
+# pnpm_install <dir> <what-for>
 # pnpm reports its failures on stdout, so silencing the install leaves a `die`
 # that names the step and proves nothing — a CI failure here was unreadable
 # until this kept the output. Shown only on failure; a successful install is
 # still quiet.
 pnpm_install() {
-  local dir="$1" what="$2" ceiling="${3:-}" log status=0
+  local dir="$1" what="$2" log status=0
   log="$(mktemp)"
 
   (
     cd "$dir"
-    # exported inside the subshell, not written as a `VAR=x cmd` prefix: the
-    # prefix has to be literal, and an expanded one is read as a command name.
-    [ -z "$ceiling" ] || export MISE_CEILING_PATHS="$ceiling"
     # --no-frozen-lockfile because pnpm turns frozen on by itself when CI=true,
     # and this install exists precisely to rewrite the lockfile a generator just
     # produced. Without it the step is a contradiction that only fails on a

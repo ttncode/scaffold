@@ -90,18 +90,20 @@ teardown() {
 @test "new does not trust a parent config it did not create" {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = [\n  "x",\n]\n' \
     > "${WORKDIR}/mise.toml"
-  # mise trusts every config it finds when CI is set, and unsetting CI here does
-  # not undo it: the parent mise process already started under it, so a child
-  # cannot get the untrusted state back. This test therefore cannot hold its own
-  # precondition on a runner. Say so and skip, rather than fail on an
-  # environment fact that says nothing about scaffold.
-  run mise trust --show -C "$WORKDIR"
-  [[ "$output" == *"${WORKDIR}: untrusted"* ]] \
-    || skip "environment pre-trusts configs (CI=${CI:-unset}); trust --show said: ${output}"
+  # No skip guard. There used to be one, for the true reason that `CI=true`
+  # makes mise trust every config it finds — but its only two outcomes were
+  # "skipped on a runner" and "failed everywhere else", so the property was
+  # never verified anywhere and the leak it guards against shipped. The state
+  # directory is the suite's own now (tests/helpers/setup), and CI is scrubbed
+  # from the run below, so the precondition holds in both environments.
+  run env -u CI -u MISE_YES -u GITHUB_ACTIONS mise trust --show -C "$WORKDIR"
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]] || {
+    echo "precondition failed; trust --show reported:"; echo "$output"; false
+  }
 
-  scaffold new "$PROJECT"
+  env -u CI -u MISE_YES -u GITHUB_ACTIONS scaffold new "$PROJECT"
 
-  run mise trust --show -C "$PROJECT"
+  run env -u CI -u MISE_YES -u GITHUB_ACTIONS mise trust --show -C "$PROJECT"
   [[ "$output" == *"${WORKDIR}: untrusted"* ]] \
     || { echo "trust --show reported:"; echo "$output"; false; }
   [[ "$output" == *"${PROJECT}: trusted"* ]]

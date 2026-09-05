@@ -18,6 +18,18 @@ if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
   git config --global user.email "tests@scaffold.invalid"
 fi
 
+# mise records every config it trusts under its state directory, so a suite
+# that generates projects in throwaway tmpdirs writes an entry per run into
+# the developer's real store and never removes it — it had grown past 7600
+# stale `tmp.*-demo` entries. Owned by the test, like GIT_CONFIG_GLOBAL above,
+# which also makes the trust behaviour itself observable: the real store is
+# pre-trusted on a runner, so a test asserting an untrusted parent could only
+# ever skip there.
+if [ -z "${MISE_STATE_DIR:-}" ]; then
+  MISE_STATE_DIR="${BATS_TEST_TMPDIR:-${BATS_SUITE_TMPDIR:-/tmp}}/mise-state"
+  export MISE_STATE_DIR
+fi
+
 # bats' `run` captures the output, so a bare `[ "$status" -eq 0 ]` reports the
 # line that failed and nothing about why.
 assert_ok() {
