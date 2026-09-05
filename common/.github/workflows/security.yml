@@ -15,6 +15,7 @@ jobs:
       contents: read
       security-events: write
       pull-requests: read
+      actions: read
     # A moving major tag, on purpose (ADR-0005): one fix reaches every project
     # at once, without a pull request into each. The third-party actions inside
     # are sha-pinned.
