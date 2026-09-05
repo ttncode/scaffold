@@ -258,13 +258,12 @@ cmd_new() {
 
     # Every requested role just lost its own package.json/lockfile to the
     # workspace above — apply_adapter's standalone Dockerfile assumed it had
-    # one. Swap in the workspace-flavored Dockerfile each typescript adapter
-    # ships beside it, and point the image build at the workspace root, the
-    # only place those apps' manifests are reachable from now.
+    # one. finalize_app_dockerfile swaps in the workspace-flavored Dockerfile
+    # each typescript adapter ships beside it; point the image build at the
+    # workspace root too, the only place those apps' manifests are reachable
+    # from now.
     for entry in "${requested[@]}"; do
-      local role_dir; role_dir="${target}/$(role_path "${entry%%:*}")"
-      [ -f "${role_dir}/Dockerfile.workspace" ] \
-        && mv -f "${role_dir}/Dockerfile.workspace" "${role_dir}/Dockerfile"
+      finalize_app_dockerfile "$target" "$(role_path "${entry%%:*}")"
     done
     use_workspace_build_context "$target"
   else
@@ -300,7 +299,7 @@ cmd_new() {
       # the standalone Dockerfile above is the one this shape builds from;
       # a typescript adapter's workspace-flavored sibling never applies here
       # and would otherwise ship unused.
-      rm -f "${target}/$(role_path "${generated%%:*}")/Dockerfile.workspace"
+      finalize_app_dockerfile "$target" "$(role_path "${generated%%:*}")"
       resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
     done
   fi
@@ -432,6 +431,14 @@ cmd_add() {
     && printf 'confirmModulesPurge: false\nfrozenLockfile: false\nminimumReleaseAge: 0\n' >> "$workspace_file"
 
   apply_adapter "$adapter" "$project" "$rel"
+
+  # apply_adapter lands both Dockerfile and Dockerfile.workspace for an
+  # adapter that ships one, same as cmd_new. This reads whether rel already
+  # falls inside pnpm-workspace.yaml's packages: globs — it does not
+  # recompute whether the project is all-typescript (docs/decisions/0018);
+  # that decision, and the workspace's own glob, are already settled by the
+  # time `scaffold add` runs.
+  finalize_app_dockerfile "$project" "$rel"
 
   # Both branches, and explicitly: the success path disarms the cleanup trap
   # below, so relying on it left these two lines in the caller's file forever

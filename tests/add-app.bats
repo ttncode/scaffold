@@ -85,3 +85,43 @@ teardown() {
   run grep -q 'provider = "mysql"' "${PROJECT}/apps/worker/prisma/schema.prisma"
   assert_ok
 }
+
+@test "add into an all-typescript project gives the added app the workspace Dockerfile" {
+  # $PROJECT (setup(): --api nestjs, no --web) is all-typescript, so apps/worker
+  # lands inside pnpm-workspace.yaml's apps/* glob with no lockfile of its own —
+  # the original defect: cmd_add kept the standalone Dockerfile regardless,
+  # whose `COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./` has nothing
+  # to copy from apps/worker's own, now-nonexistent manifests.
+  cd "$PROJECT"
+  run scaffold add apps/worker --adapter nestjs
+  assert_ok
+
+  [ -f "${PROJECT}/apps/worker/Dockerfile" ]
+  [ ! -f "${PROJECT}/apps/worker/Dockerfile.workspace" ]
+  [ ! -f "${PROJECT}/apps/worker/pnpm-lock.yaml" ]
+
+  # the line that actually distinguishes the two variants, not merely which
+  # file survives: the workspace Dockerfile copies the app's manifest from
+  # the project root's own path, not from its build context's root.
+  run grep -c 'COPY apps/worker/package.json' "${PROJECT}/apps/worker/Dockerfile"
+  [ "$output" = "1" ]
+}
+
+@test "add into a mixed-language project still gets the standalone Dockerfile" {
+  # a typescript app added beside a php one never joins the workspace
+  # (docs/decisions/0018) — it keeps its own lockfile, so it must keep the
+  # Dockerfile that expects one.
+  local mixed="${WORKDIR}/mixed"
+  scaffold new "$mixed" --api laravel-api
+
+  cd "$mixed"
+  run scaffold add apps/web --adapter nextjs
+  assert_ok
+
+  [ -f "${mixed}/apps/web/Dockerfile" ]
+  [ ! -f "${mixed}/apps/web/Dockerfile.workspace" ]
+  [ -f "${mixed}/apps/web/pnpm-lock.yaml" ]
+
+  run grep -c 'COPY package.json pnpm-lock.yaml pnpm-workspace.yaml' "${mixed}/apps/web/Dockerfile"
+  [ "$output" = "1" ]
+}

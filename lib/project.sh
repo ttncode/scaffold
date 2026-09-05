@@ -161,6 +161,47 @@ use_workspace_build_context() {
   done
 }
 
+# app_is_workspace_member <project> <rel> — true when rel falls inside
+# pnpm-workspace.yaml's packages: globs, i.e. rel resolves through the shared
+# root install rather than owning a package.json/lockfile of its own. This is
+# what actually decides which Dockerfile variant an app needs (finalize_app_
+# dockerfile) and what its build context has to be — not whether the command
+# generating it was `new` or `add`, and not whether every adapter requested
+# at `new` time happened to be typescript (cmd_new's all_typescript is just
+# how that project arrived at this same state).
+app_is_workspace_member() {
+  local project="$1" rel="$2"
+  local workspace_file="${project}/pnpm-workspace.yaml" glob
+
+  [ -f "$workspace_file" ] || return 1
+
+  while IFS= read -r glob; do
+    [ -n "$glob" ] || continue
+    # shellcheck disable=SC2254 # glob is a pattern by design, not a literal
+    case "$rel" in $glob) return 0 ;; esac
+  done < <(yq -r '.packages[]? // ""' "$workspace_file")
+
+  return 1
+}
+
+# finalize_app_dockerfile <project> <rel> — apply_adapter's flat copy lands
+# both Dockerfile and Dockerfile.workspace for any adapter that ships one
+# (nestjs, nextjs); exactly one may survive, whichever matches
+# app_is_workspace_member, since that's what the standalone Dockerfile's
+# assumption of its own lockfile actually depends on.
+finalize_app_dockerfile() {
+  local project="$1" rel="$2"
+  local dir="${project}/${rel}"
+
+  [ -f "${dir}/Dockerfile.workspace" ] || return 0
+
+  if app_is_workspace_member "$project" "$rel"; then
+    mv -f "${dir}/Dockerfile.workspace" "${dir}/Dockerfile"
+  else
+    rm -f "${dir}/Dockerfile.workspace"
+  fi
+}
+
 # enable_typescript_workspace <project>
 # only called when every application in the project is typescript; sharing
 # types across a language boundary is a different problem, solved by openapi.
