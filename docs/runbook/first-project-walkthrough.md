@@ -170,11 +170,31 @@ Expect: rejected, naming the convention.
 
 ## 8. Push and open a pull request
 
+Create the repository **from `main`**, not from the feature branch:
+
 ```sh
+git checkout main
 gh repo create ttncode/demo-app --private --source=. --remote=origin --push
+```
+
+`gh repo create --push` pushes whatever branch is checked out and makes it the
+repository's default. Run from the feature branch, that leaves `main` absent
+from the remote and a feature branch as the default — after which
+`gh pr create` refuses, saying the head branch is the same as the base branch,
+which does not say what to fix, and CI's `changes` job fails trying to fetch a
+`main` that is not there. Two red runs and a dead end, none of it about your
+code.
+
+Expect this step to take about ninety seconds. The push runs the pre-push
+hook, which runs the whole checklist — every config root's `ci-unit` and
+`build`. It looks like a hang and is not.
+
+```sh
 gh api -X PUT repos/ttncode/demo-app/actions/permissions/workflow \
   -f default_workflow_permissions=read \
   -F can_approve_pull_request_reviews=true
+
+git checkout feat/health
 git push -u origin feat/health
 gh pr create --fill
 gh pr checks --watch
@@ -182,7 +202,10 @@ gh pr checks --watch
 
 Expect: `CI / ci / ci (apps/api)` runs, because `apps/api` changed. Expect
 `CI / ci / changes` to skip roots that did not. Expect `commitlint` to run —
-it only ever runs on a pull request.
+it only ever runs on a pull request. Expect all seven checks green, including
+`security / codeql`, `security / gitleaks` and `security / zizmor` — on a
+private repository those three each need something the workflow grants them
+explicitly, so a failure there is a finding, not the normal state.
 
 The `gh api` call is required, not optional: without it Release Please cannot
 open its pull request later, and the failure appears several steps away from
