@@ -78,18 +78,19 @@ teardown() {
   [ ! -e "${PROJECT}/apps/worker" ]
 }
 
-# Dockerfile.workspace filters pnpm by role name (`pnpm --filter web`), which
-# only holds because create-next-app/@nestjs/cli happen to name the package
-# after the directory today. The "mismatched-name" fixture adapter ships a
-# Dockerfile.workspace and a generator that names its package.json something
-# else, standing in for a future generator version that would too.
-@test "add refuses an app whose package.json does not match its role" {
+# Dockerfile.workspace filters pnpm by the app's own directory name (`pnpm
+# --filter worker`), which only holds because create-next-app/@nestjs/cli
+# happen to name the package after the directory today. The "mismatched-name"
+# fixture adapter ships a Dockerfile.workspace and a generator that names its
+# package.json something else, standing in for a future generator version
+# that would too.
+@test "add refuses an app whose package.json does not match its directory" {
   scaffold new "$PROJECT"
   cd "$PROJECT"
   run "${SCAFFOLD_ROOT}/tests/fixtures/add-fixtures/scaffold" add apps/worker --adapter mismatched-name
   [ "$status" -eq 1 ]
   [[ "$output" == *"wrong-name"* ]]
-  [[ "$output" == *"web"* ]]
+  [[ "$output" == *"worker"* ]]
   [ ! -e "${PROJECT}/apps/worker" ]
 }
 

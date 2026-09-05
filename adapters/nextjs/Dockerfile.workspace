@@ -10,16 +10,16 @@ RUN corepack enable
 # without it in the build context, pnpm has nothing to check unrs-resolver's
 # postinstall build against and refuses non-interactively.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json apps/web/package.json
-RUN pnpm --filter web install --frozen-lockfile
+COPY apps/@APP_FILTER@/package.json apps/@APP_FILTER@/package.json
+RUN pnpm --filter @APP_FILTER@ install --frozen-lockfile
 
 FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS build
 WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/apps/@APP_FILTER@/node_modules ./apps/@APP_FILTER@/node_modules
 COPY . .
-WORKDIR /app/apps/web
+WORKDIR /app/apps/@APP_FILTER@
 # @SERVICE_SETUP@
 RUN pnpm exec next build
 
@@ -27,11 +27,11 @@ FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a6
 WORKDIR /app
 ENV NODE_ENV=production
 # next standalone output carries only the server files it actually needs
-COPY --from=build /app/apps/web/.next/standalone ./
-COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build /app/apps/web/public ./apps/web/public
+COPY --from=build /app/apps/@APP_FILTER@/.next/standalone ./
+COPY --from=build /app/apps/@APP_FILTER@/.next/static ./apps/@APP_FILTER@/.next/static
+COPY --from=build /app/apps/@APP_FILTER@/public ./apps/@APP_FILTER@/public
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "apps/@APP_FILTER@/server.js"]

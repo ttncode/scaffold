@@ -76,8 +76,9 @@ merge_lefthook_fragment() {
 }
 
 # verify_workspace_filter_name <dest> — only for an adapter shipping
-# Dockerfile.workspace, whose deps stage runs `pnpm --filter <role>
-# install`: a name create-next-app/@nestjs/cli choose by convention, not one
+# Dockerfile.workspace, whose deps stage runs `pnpm --filter <dest's own
+# directory name> install` (resolve_workspace_filter_name bakes that value
+# in below): a name create-next-app/@nestjs/cli choose by convention, not one
 # this toolbox enforces upstream. A filter matching no project does not fail
 # there — pnpm reports "No projects matched the filters" and exits 0 — so the
 # build proceeds with nothing installed and dies steps later on a COPY of a
@@ -88,10 +89,27 @@ verify_workspace_filter_name() {
 
   [ -f "${ADAPTER_DIR}/Dockerfile.workspace" ] || return 0
 
-  local found
+  local found expected
   found="$(jq -r '.name' "${dest}/package.json")"
-  [ "$found" = "$ADAPTER_ROLE" ] \
-    || die "${dest}/package.json is named '${found}', not '${ADAPTER_ROLE}' — Dockerfile.workspace's 'pnpm --filter ${ADAPTER_ROLE}' would match nothing"
+  expected="$(basename "$dest")"
+  [ "$found" = "$expected" ] \
+    || die "${dest}/package.json is named '${found}', not '${expected}' — Dockerfile.workspace's 'pnpm --filter ${expected}' would match nothing"
+}
+
+# resolve_workspace_filter_name <dest> — Dockerfile.workspace ships
+# @APP_FILTER@ where it needs the app's own directory name: `scaffold add`
+# can place an adapter at any path (apps/worker, not just apps/<role>), so
+# the filter can't be baked to the role at adapter-authoring time the way
+# role_path's apps/<role> can. verify_workspace_filter_name already proved
+# package.json carries this same value.
+resolve_workspace_filter_name() {
+  local dest="$1"
+  local file="${dest}/Dockerfile.workspace"
+
+  [ -f "$file" ] || return 0
+
+  sed -i.bak "s|@APP_FILTER@|$(basename "$dest")|g" "$file"
+  rm -f "${file}.bak"
 }
 
 apply_adapter() {
@@ -134,6 +152,8 @@ apply_adapter() {
 
   # the flat loop above skips directories
   [ -d "${ADAPTER_DIR}/docker" ] && cp -R "${ADAPTER_DIR}/docker" "${dest}/docker"
+
+  resolve_workspace_filter_name "$dest"
 
   if [ -n "${ADAPTER_POST_GENERATE:-}" ]; then
     # verify-deps off too: this runs between the generator and
