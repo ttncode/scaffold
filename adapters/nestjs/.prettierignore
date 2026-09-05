@@ -1,1 +1,6 @@
 pnpm-lock.yaml
+# `nest build` writes here, and format is `prettier --check .`. Within one
+# checklist run format precedes build, so the first run is clean and every
+# run after it fails on the previous run's output — a task list that poisons
+# itself. CI never saw it: a fresh checkout has no dist.
+dist

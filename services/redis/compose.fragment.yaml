@@ -1,8 +1,16 @@
 services:
   cache:
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-app}"]
+    # block style, and it has to be block *here*: yq's merge keeps the style of
+    # its first input, so the prod fragment's own command inherits whatever
+    # this one uses. As a flow sequence the assembled prod command runs past
+    # prettier's print width, and the project's pre-commit hook then rewrote
+    # the compose.yaml scaffold had just handed it.
+    command:
+      - redis-server
+      - --requirepass
+      - '${REDIS_PASSWORD:-app}'
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-app}", "ping"]
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-app}', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
