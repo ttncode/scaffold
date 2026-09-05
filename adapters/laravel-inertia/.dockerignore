@@ -9,3 +9,11 @@ node_modules
 .git
 storage/logs
 storage/framework/cache
+
+# laravel's own .gitignore excludes the generated manifests but keeps the
+# directory, and both halves matter here. `composer create-project` writes
+# them locally, and they name dev providers a --no-dev image does not install;
+# copied in, artisan cannot boot. Excluding the directory itself fails the
+# other way — laravel refuses to start without it. For laravel-inertia either
+# failure surfaces in vite's wayfinder plugin, several stages from the cause.
+bootstrap/cache/*.php
