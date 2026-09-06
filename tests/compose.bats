@@ -176,7 +176,13 @@ INNER_EOF
       [ -f "$file" ] || continue
       grep -q "HEALTHCHECK" "$file" \
         || { wrong="${wrong}${file}: no HEALTHCHECK"$'\n'; continue; }
-      grep -q "localhost:8080${path}" "$file" \
+      # localhost or 127.0.0.1: nextjs's HEALTHCHECK dials 127.0.0.1 because
+      # this image's resolver hands "localhost" the IPv6 ::1 first and the
+      # IPv4-only listener (forced by ENV HOSTNAME="0.0.0.0", the fix for
+      # standalone server.js otherwise binding to the container's own id)
+      # refuses it — see adapters/nextjs/Dockerfile. Either host still
+      # proves the adapter's declared path is the one actually probed.
+      grep -Eq "(localhost|127\.0\.0\.1):8080${path}" "$file" \
         || wrong="${wrong}${file}: does not probe ${path} on 8080"$'\n'
     done
   done

@@ -139,9 +139,21 @@ run_migrations() {
   # gated behind a profile, so that guard alone always skipped the migration
   # silently — measured: plain `config --services` prints only `app`, and
   # `--profile migrate config --services` prints `migrate app`.
-  docker compose --profile migrate config --services | grep -qx migrate || return 0
-  echo "running migrations..."
-  docker compose --profile migrate run --rm migrate
+  if docker compose --profile migrate config --services | grep -qx migrate; then
+    echo "running migrations..."
+    docker compose --profile migrate run --rm migrate
+    return
+  fi
+  # A database service with no migrate service beside it is not "nothing to
+  # migrate" — every database driver ships a migrate command, so this
+  # combination only happens if the service, its profile, or the command
+  # itself silently vanished. Returning 0 here is exactly the hole that let
+  # a stack go green with unapplied schema; a project with no database at
+  # all is the only case this falls through to.
+  if docker compose config --services | grep -qx database; then
+    echo "a database service exists but no migrate service was found — refusing to start with unapplied schema" >&2
+    return 1
+  fi
 }
 
 main() {

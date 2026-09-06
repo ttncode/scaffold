@@ -242,8 +242,9 @@ jobs:
     if: >-
       ${{ always() && github.event_name == 'schedule' &&
       (needs.smoke.result == 'failure' || needs.smoke-tier-b.result == 'failure' ||
+       needs.deploy.result == 'failure' || needs.deploy-tier-b.result == 'failure' ||
        needs.compose.result == 'failure' || needs.services.result == 'failure') }}
-    needs: [smoke, smoke-tier-b, compose, services]
+    needs: [smoke, smoke-tier-b, deploy, deploy-tier-b, compose, services]
     runs-on: ubuntu-latest
     permissions:
       issues: write

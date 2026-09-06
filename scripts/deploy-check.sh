@@ -41,22 +41,44 @@ export SCAFFOLD_ROOT
 load_adapter "$ADAPTER" || die "unknown adapter: ${ADAPTER}"
 
 ROLE="$ADAPTER_ROLE"
+
+# lib/lint.sh only checks the line is present, not that it names a route —
+# an empty path would otherwise probe "/", which nextjs happens to answer
+# 200 for reasons that have nothing to do with the adapter's real liveness.
+[ -n "$ADAPTER_LIVENESS_PATH" ] || die "${ADAPTER} declares an empty ADAPTER_LIVENESS_PATH"
 LIVENESS_PATH="$ADAPTER_LIVENESS_PATH"
-READINESS_PATH="${ADAPTER_READINESS_PATH:-}"
+
+# `${ADAPTER_READINESS_PATH:-}` alone can't tell "not declared" (skip, and
+# say so) from "declared empty" (a malformed adapter.env — lint only greps
+# for the line's presence, not a non-empty value): both collapse to "". The
+# `+x` test keeps them apart.
+if [ -n "${ADAPTER_READINESS_PATH+x}" ]; then
+  [ -n "$ADAPTER_READINESS_PATH" ] || die "${ADAPTER} declares an empty ADAPTER_READINESS_PATH"
+  READINESS_PATH="$ADAPTER_READINESS_PATH"
+else
+  READINESS_PATH=""
+fi
 
 TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
 IMAGE_TAG="deploy-check/${ADAPTER}:local"
 
+# Every generated project's compose.yaml is `name: app` (common/compose.yaml)
+# — without this, a local run reconciles against, and `down -v`s, any real
+# "app" project already running on this machine, database volumes included.
+COMPOSE_PROJECT_NAME="deploy-check-${ADAPTER}"
+export COMPOSE_PROJECT_NAME
+
 # A trap, not a trailing cleanup line: every die() below is a plain `exit 1`,
-# and only a trap runs on that path too.
+# and only a trap runs on that path too. INT/TERM too, so a cancelled CI job
+# or a Ctrl-C doesn't leave containers and a temp dir behind.
 cleanup() {
   if [ -f "${PROJECT_DIR}/compose.yaml" ]; then
     ( cd "$PROJECT_DIR" && docker compose down -v --remove-orphans ) || true
   fi
   rm -rf "$TMP_DIR"
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 log "generating ${ADAPTER} into ${PROJECT_DIR}..."
 new_args=("$PROJECT_DIR" "--${ROLE}" "$ADAPTER")
@@ -83,8 +105,21 @@ export IMAGE_TAG
 yq --inplace \
   '(.services[] | select(.image | test("CHANGEME")) | .image) = strenv(IMAGE_TAG)' \
   "${PROJECT_DIR}/compose.yaml" || die "could not rewrite compose.yaml's image"
-grep -Eq '^\s*image:.*CHANGEME' "${PROJECT_DIR}/compose.yaml" \
-  && die "compose.yaml still names the CHANGEME placeholder after rewriting it"
+
+# Asserting equality with the tag just built, not just "no CHANGEME left": if
+# common/compose.yaml ever ships a real registry reference instead of the
+# placeholder, the select("CHANGEME") above matches nothing, no CHANGEME
+# string remains either, and the stack would come up on a *pulled* image
+# while the one just built is discarded — a green run proving nothing.
+assert_image_is_built_tag() {
+  local service="$1" actual
+  actual="$(yq ".services.${service}.image" "${PROJECT_DIR}/compose.yaml")"
+  [ "$actual" = "$IMAGE_TAG" ] \
+    || die "compose.yaml's ${service} image is ${actual}, not the image just built (${IMAGE_TAG})"
+}
+assert_image_is_built_tag app
+yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1 \
+  && assert_image_is_built_tag migrate
 
 cp "${PROJECT_DIR}/example.env" "${PROJECT_DIR}/.env"
 
@@ -97,7 +132,13 @@ log "waiting for the app container to become healthy (up to ${HEALTH_TIMEOUT_SEC
 health=""
 elapsed=0
 while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
-  health="$(docker compose ps app --format json 2>/dev/null | jq -r '.Health // empty' || true)"
+  # `docker inspect` on the container itself, not `docker compose ps
+  # --format json`: that format's shape is compose-version-dependent — a
+  # version emitting an array instead of one object per line makes `jq -r
+  # '.Health'` error, which the `|| true` this needs anyway would swallow
+  # into a false "unknown", producing a full 120s red on an actually-healthy
+  # stack. `docker inspect` on one container id has one shape.
+  health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)" 2>/dev/null || true)"
   [ "$health" = "healthy" ] && break
   [ "$health" = "unhealthy" ] \
     && die "app container reported unhealthy — its HEALTHCHECK against ${LIVENESS_PATH} is failing (see: docker compose logs app)"
@@ -111,15 +152,27 @@ done
 # returns 200 against an empty database. Asserting the migration's own exit
 # code, separately, is what stops a deploy whose migration silently failed
 # from going green anyway.
+#
+# A missing migrate service used to just log a skip and exit 0 — which means
+# renaming the service, breaking `config` under the migrate profile, or a
+# driver returning an empty command all look identical to "this adapter has
+# no database" from here, and the check that exists to catch exactly that
+# regression turns itself off. ROLE and DB_SERVICE are already known, so
+# absence is only ever a skip when no database was actually requested.
 if docker compose --profile migrate config --services 2>/dev/null | grep -qx migrate; then
   log "running migrations..."
   docker compose --profile migrate run --rm migrate \
     || die "migrate service exited non-zero — schema was not applied"
+elif [ "$ROLE" != "web" ] && [ "$DB_SERVICE" != "none" ]; then
+  die "expected a migrate service for ${ADAPTER} (role=${ROLE}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
 else
   log "no migrate service for ${ADAPTER} — skipping migration"
 fi
 
-PORT="$(grep '^APP_PORT=' .env | cut -d= -f2)"
+# `|| true`: under pipefail, a .env with no APP_PORT line makes grep exit 1
+# and, unguarded, that kills the script here — silently, before the
+# `${PORT:-8080}` fallback below ever gets a chance to run.
+PORT="$(grep '^APP_PORT=' .env | cut -d= -f2 || true)"
 PORT="${PORT:-8080}"
 BASE_URL="http://localhost:${PORT}"
 
