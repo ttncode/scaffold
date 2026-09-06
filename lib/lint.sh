@@ -71,7 +71,7 @@ lint_adapters() {
 # any family that takes a driver has no driver in some service.
 lint_services() {
   local dir="$1" adapters="$2"
-  local service name file var family driver fn status=0
+  local service name file var family driver fn fault status=0
   local -a families=()
 
   # The families to require, read from the adapters themselves rather than
@@ -130,15 +130,29 @@ lint_services() {
       # A subshell, not the current one: sourcing eight drivers in sequence
       # here would let one family's LARAVEL_* parameters (services/shared/
       # laravel.sh reads them unqualified) leak into the next driver checked.
+      #
+      # SERVICE_DIR set the same way load_service sets it, before sourcing:
+      # every other call site that sources a driver (apply_service_drivers,
+      # via load_service; the compose-env test in service.bats, by hand) has
+      # it set first. A driver that reads it at sourcing time and finds it
+      # unbound would die under the inherited `set -u` before `declare -F`
+      # ever ran, and that death is not the same problem as a missing
+      # function — captured below instead of folded into that message.
       for fn in "${REQUIRED_DRIVER_FUNCTIONS[@]}"; do
-        (
+        if ! fault="$( {
+          # shellcheck disable=SC2034 # read by the driver, not by this loop
+          SERVICE_DIR="${service%/}"
           # shellcheck source=/dev/null # family varies, so the path isn't constant
           . "$driver"
           declare -F "$fn" >/dev/null
-        ) || {
-          printf '%s: %s driver does not define %s\n' "$name" "$family" "$fn"
+        } 2>&1 )"; then
+          if [ -n "$fault" ]; then
+            printf '%s: %s driver failed to source: %s\n' "$name" "$family" "$fault"
+          else
+            printf '%s: %s driver does not define %s\n' "$name" "$family" "$fn"
+          fi
           status=1
-        }
+        fi
       done
     done
   done
