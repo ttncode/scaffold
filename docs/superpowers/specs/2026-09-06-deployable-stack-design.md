@@ -267,8 +267,39 @@ that cannot be scaled or rolled back. `install.sh` is a human running one
 command on the target host, which ADR-0014 itself calls "the one deploy
 mechanism that exists today".
 
-`nestjs` has no `migrate` task and needs one. It must branch on the Prisma
-provider, measured on 2026-09-05:
+**The image has to be able to run it, and the Nest one cannot today.**
+`services/shared/nest.sh` installs the CLI as `pnpm add -D prisma@6`, and
+`adapters/nestjs/Dockerfile` runs `pnpm prune --prod` before the runtime stage
+copies `node_modules` — so the published Nest image carries `@prisma/client`
+and no `prisma` binary. It cannot migrate itself.
+
+The driver installs `prisma` as a regular dependency instead. That is what
+Prisma's own deployment guidance assumes when the migration runs from the
+image, and it is the smaller change: the alternative — a second image, or a
+compose service that mounts the source — introduces a build artifact the
+release does not publish, for a command run once per deploy. The cost is the
+CLI and its engines in the runtime image, and it is stated in the new decision record numbered 0021 rather
+than discovered later.
+
+The Laravel images need nothing: `php artisan` is already there.
+
+`install.sh` therefore runs the framework's own command, not a `mise` task —
+no image carries `mise`, and inventing one would be a mechanism built to make
+a sentence in this spec true. The driver writes the command into
+`compose.yaml` as a `migrate` service sharing the app's image and environment,
+under a compose profile so it never starts with the stack:
+
+```yaml
+  migrate:
+    profiles: [migrate]
+    image: ${APP_IMAGE}
+    command: [...the family's migration command...]
+```
+
+and `install.sh` runs `docker compose --profile migrate run --rm migrate`.
+
+`nestjs` has no `migrate` task and needs one for local use. It must branch on
+the Prisma provider, measured on 2026-09-05:
 
 ```
 $ pnpm exec prisma migrate deploy       # against mongodb
