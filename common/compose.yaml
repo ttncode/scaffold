@@ -25,4 +25,4 @@ services:
         required: false
     restart: always
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - '${APP_PORT:-8080}:8080'

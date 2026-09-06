@@ -1,0 +1,11 @@
+# The pre-commit hook runs `prettier --write` over every staged file matching
+# its glob, and `yaml` is in that glob. Left to itself prettier reformats
+# pnpm-lock.yaml — it grew by 2-4 KB the one time it happened — and rewrites
+# CHANGELOG.md's bullets from `*` to `-` on every release, fighting Release
+# Please for a file Release Please owns. Neither file is written by hand, so
+# neither is prettier's to format.
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+package-lock.json
+**/package-lock.json
+CHANGELOG.md

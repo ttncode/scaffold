@@ -141,6 +141,21 @@ cmd_new() {
     *) target="$(pwd)/${target}" ;;
   esac
   local name; name="$(basename "$target")"
+
+  # `mise exec` walks upward for config and trusts what it finds — persistently,
+  # in ~/.local/state/mise, and it loads the file it trusts, which means running
+  # any `_.source` or `{{ exec(...) }}` in that config's [env]. Generate a
+  # project inside a tree you did not write and someone else's mise.toml is
+  # executed and permanently trusted, with none of the asking mise exists to do.
+  # `mise trust -C` and `mise lock -C` do not walk; only `mise exec` does.
+  #
+  # Set once here rather than threaded through the one function somebody
+  # remembered: this run makes mise subprocesses from pnpm_install,
+  # resolve_minimum_release_age, sync_workspace_lockfile and every adapter
+  # generator, and the guard has to cover all of them or it covers nothing.
+  MISE_CEILING_PATHS="$(dirname "$target")"
+  export MISE_CEILING_PATHS
+
   local -a requested=()
   local database="" cache=""
 
@@ -279,10 +294,7 @@ cmd_new() {
     # backs lefthook's commit-msg hook, which must work in a php-only
     # project (docs/decisions/0007).
     #
-    # MISE_CEILING_PATHS because `mise exec` walks upward and would otherwise
-    # trust a mise.toml above $target; `mise trust -C` does not cover that.
-    pnpm_install "$target" "installing the project root's own tooling dependencies" \
-      "$(dirname "$target")"
+    pnpm_install "$target" "installing the project root's own tooling dependencies"
     # pnpm_install above installed at full strength (minimum-release-age=0),
     # so a violation among commitlint's own dependencies never surfaced —
     # the loop below resolves each app's lockfile but never the root's, and
@@ -367,6 +379,12 @@ cmd_add() {
   # like its sibling above.
   { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
     || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
+
+  # Same reason as cmd_new's: every mise subprocess this run makes would
+  # otherwise walk above the project and permanently trust — and execute —
+  # whatever mise.toml it found there.
+  MISE_CEILING_PATHS="$(dirname "$project")"
+  export MISE_CEILING_PATHS
 
   # Read back rather than asked for: an application added in month six is
   # wired to the database the project has had since month one, and a second

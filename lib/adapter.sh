@@ -67,7 +67,12 @@ merge_lefthook_fragment() {
   # cleaned up on both paths: under `set -e` a yq failure leaves immediately
   # and the file survives the run. Not a RETURN trap — that fires again in
   # callers, where $rendered is out of scope and the shell aborts.
-  if ! yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
+  # -P (block style) because yq propagates the *fragment's* style to the whole
+  # merged document, and an adapter contributing no hook ships `{}` — one flow
+  # mapping is enough to collapse all 26 lines of lefthook.yml onto a single
+  # line and replace every comment in it. The hooks still run; the file a
+  # human has to read and review does not survive.
+  if ! yq eval-all --inplace -P 'select(fileIndex==0) * select(fileIndex==1)' \
     "${project}/lefthook.yml" "$rendered"; then
     rm -f "$rendered"
     die "failed to merge the lefthook fragment for ${rel}"

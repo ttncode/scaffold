@@ -6,7 +6,7 @@ pre-commit:
   parallel: true
   commands:
     prettier:
-      glob: "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml,css}"
+      glob: '*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml,css}'
       run: mise exec -- pnpm exec prettier --write {staged_files}
       stage_fixed: true
     gitleaks:
