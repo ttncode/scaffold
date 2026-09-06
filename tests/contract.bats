@@ -100,6 +100,19 @@ setup() {
   [[ "$output" == *"sample: no driver for laravel"* ]]
 }
 
+@test "lint_services reports a driver that does not define a required function" {
+  # The missing-driver fixture above proves a family with no driver file
+  # fails; nothing proved the mirror case — a driver file that exists and
+  # sources cleanly but omits one of REQUIRED_DRIVER_FUNCTIONS. Deleting the
+  # whole `for fn` loop in lint_services left this suite green, which is the
+  # same "gate that cannot fail" shape task 1's own ruling already named.
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-driver-function" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: nest driver does not define service_driver_compose_migrate"* ]]
+}
+
 @test "lint_services reports a missing required file" {
   run lint_services \
     "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-file" \
