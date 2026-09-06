@@ -17,6 +17,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# `pris[m]a`, not `prisma`: a bracket glob that matches nothing copies
+# nothing instead of failing the build, which a bare `prisma` would do on a
+# --db none project that never ran the driver that creates this directory.
+# Needed for the migrate service (see services/shared/nest.sh) to find its
+# schema — schema.prisma is not itself an artifact `nest build` produces, so
+# nothing else in this image carries it forward from the build context.
+COPY --from=build /app/pris[m]a ./prisma
 USER node
 # 8080 because that is the container port common/compose.yaml publishes, and
 # nothing rewrites it — an adapter listening anywhere else publishes a dead

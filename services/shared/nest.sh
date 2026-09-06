@@ -137,13 +137,37 @@ service_driver_compose_env() {
 # `db push` instead. Chosen here, at generation time, from PRISMA_PROVIDER
 # rather than recorded separately, so it stays correct if the provider ever
 # changes.
+#
+# Not `pnpm exec`: measured against the built runtime image that `pnpm`
+# itself is not there — only the build stage runs `corepack enable`, and the
+# runtime stage copies node_modules/dist alone (`which pnpm` exits 1 in the
+# built image). prisma's own bin does survive `pnpm prune --prod` (it is a
+# regular dependency precisely so it would), but at one of two locations
+# depending on which Dockerfile shape wins, a decision made after this
+# driver runs: apps/<app>/node_modules/.bin for the typescript-workspace
+# shape (measured: apps/api/node_modules/.bin/prisma on a generated
+# nestjs+postgres project), node_modules/.bin at the container root for the
+# standalone shape. The command tries both rather than guessing which one a
+# given project will end up with, and `cd`s into whichever one matched
+# before running it: WORKDIR stays the container root either way, and
+# prisma resolves its schema from its own working directory
+# (`./prisma/schema.prisma`), which is nested under the app directory in
+# the workspace shape — measured with `Could not find Prisma Schema` before
+# this `cd` was added. adapters/nestjs/Dockerfile[.workspace] now copies
+# that `prisma/` directory into the runtime image alongside node_modules and
+# dist — nothing else in either Dockerfile carried it forward, since
+# schema.prisma is not an artifact `nest build` produces.
 service_driver_compose_migrate() {
+  local args
   case "$PRISMA_PROVIDER" in
-    mongodb)
-      printf 'command: ["pnpm", "exec", "prisma", "db", "push", "--skip-generate"]\n'
-      ;;
-    *)
-      printf 'command: ["pnpm", "exec", "prisma", "migrate", "deploy"]\n'
-      ;;
+    mongodb) args='db push --skip-generate' ;;
+    *) args='migrate deploy' ;;
   esac
+  # `$${d}`/`$$d`, not `${d}`/`$d`: compose interpolates `$var` in
+  # compose.yaml itself before the command ever reaches the container —
+  # measured with `docker compose config`, a single `$` here resolved to an
+  # unset variable and blanked the loop out entirely. `$$` is compose's own
+  # escape for a literal `$`. No quotes needed around `${d}...`/`$d`: every
+  # candidate is a fixed literal path, never one with a space to protect.
+  printf 'command: ["sh", "-c", "for d in apps/*/ ./; do [ -x $${d}node_modules/.bin/prisma ] && cd $$d && exec node_modules/.bin/prisma %s; done; echo prisma binary not found >&2; exit 1"]\n' "$args"
 }
