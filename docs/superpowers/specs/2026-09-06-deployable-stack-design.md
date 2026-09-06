@@ -256,15 +256,18 @@ boundary moves from "no application code" to "no application code except a
 readiness route the deploy gate requires", which is narrow, stated, and
 testable.
 
-A project generated with `--db none` ships no readiness route, and neither
-does `nextjs` in any shape: there is nothing for either to query, and a route
-that returns 200 without doing anything is the same worthless check in a
-different place. The gate curls readiness only when the image it built serves
-one — which is decided by the role that won `set_image_context`, not by
-whether the project has a database. A `--api laravel-api --web nextjs --db
-mysql` project builds the **nextjs** image, so its gate is liveness only, and
-the Laravel app beside it is generated and checked but never deployed. Section
-13 says why that is a limit worth naming.
+`nextjs` ships no readiness route in any shape — there is nothing for it to
+query, and a route that returns 200 without doing anything is the same
+worthless check in a different place. A driven adapter (api/app) ships one
+unconditionally, including with `--db none`: the probe's anchor is never
+spliced, so its `throw` survives and the route honestly reports 503. The gate
+curls readiness only when the adapter declares a path and the project was not
+generated with `--db none` — a driven adapter with no database would
+otherwise fail the gate against a route correctly reporting itself unready. A
+`--api laravel-api --web nextjs --db mysql` project builds the **nextjs**
+image, so its gate is liveness only, and the Laravel app beside it is
+generated and checked but never deployed. Section 13 says why that is a limit
+worth naming.
 
 ## 8. Migrations at install time
 

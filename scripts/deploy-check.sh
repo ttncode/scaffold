@@ -59,6 +59,12 @@ else
   READINESS_PATH=""
 fi
 
+# A driven adapter still declares a readiness path with --db none: the route
+# ships unconditionally and correctly reports 503 (nothing to connect to),
+# but a gate that curls it expecting 200 would fail a combination the spec
+# says is fine. Skipped the same way a non-driven role's absent path is.
+[ "$DB_SERVICE" = none ] && READINESS_PATH=""
+
 TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
 IMAGE_TAG="deploy-check/${ADAPTER}:local"
@@ -198,6 +204,8 @@ check_path liveness "$LIVENESS_PATH"
 
 if [ -n "$READINESS_PATH" ]; then
   check_path readiness "$READINESS_PATH"
+elif [ "$DB_SERVICE" = none ]; then
+  log "--db none — skipping readiness check"
 else
   log "${ADAPTER} declares no readiness path — skipping readiness check"
 fi
