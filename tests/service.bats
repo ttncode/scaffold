@@ -586,3 +586,30 @@ EOF
   [ "$allow_builds" -lt "$first_add" ] \
     || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
 }
+
+@test "a driver's compose environment interpolates rather than embedding a password" {
+  # The password must exist in exactly one place — .env — so compose composes
+  # the URL at `up` time. A literal baked here is the changeme-versus-app
+  # mismatch that made the dev stack unable to authenticate.
+  local bad=""
+  for driver in "${SCAFFOLD_ROOT}"/services/*/drivers/*.sh; do
+    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              SERVICE_DIR="$(dirname "$(dirname "$driver")")"
+              . "$driver"; service_driver_compose_env )"
+    [ -z "$block" ] && continue
+    grep -q '\${DB_PASSWORD' <<<"$block" || grep -q '\${REDIS_PASSWORD' <<<"$block" \
+      || bad="${bad}${driver}"$'\n'
+  done
+  [ -z "$bad" ] || { echo "embeds a literal password:"; echo "$bad"; false; }
+}
+
+@test "apply_service_compose_env merges into the app service" {
+  local project="${BATS_TEST_TMPDIR}/p"
+  mkdir -p "$project"
+  printf 'services:\n  app:\n    image: x\n' > "${project}/compose.yaml"
+  . "${SCAFFOLD_ROOT}/lib/service.sh"
+  apply_service_compose_env "$project" 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
+  run mise exec -- yq -r '.services.app.environment.DATABASE_URL' "${project}/compose.yaml"
+  [[ "$output" == 'postgresql://app@database:5432/app' ]] \
+    || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
+}

@@ -71,7 +71,7 @@ lint_adapters() {
 # any family that takes a driver has no driver in some service.
 lint_services() {
   local dir="$1" adapters="$2"
-  local service name file var family status=0
+  local service name file var family driver fn status=0
   local -a families=()
 
   # The families to require, read from the adapters themselves rather than
@@ -120,10 +120,26 @@ lint_services() {
     fi
 
     for family in "${families[@]}"; do
-      [ -f "${service}drivers/${family}.sh" ] || {
+      driver="${service}drivers/${family}.sh"
+      if [ ! -f "$driver" ]; then
         printf '%s: no driver for %s\n' "$name" "$family"
         status=1
-      }
+        continue
+      fi
+
+      # A subshell, not the current one: sourcing eight drivers in sequence
+      # here would let one family's LARAVEL_* parameters (services/shared/
+      # laravel.sh reads them unqualified) leak into the next driver checked.
+      for fn in "${REQUIRED_DRIVER_FUNCTIONS[@]}"; do
+        (
+          # shellcheck source=/dev/null # family varies, so the path isn't constant
+          . "$driver"
+          declare -F "$fn" >/dev/null
+        ) || {
+          printf '%s: %s driver does not define %s\n' "$name" "$family" "$fn"
+          status=1
+        }
+      done
     done
   done
 
