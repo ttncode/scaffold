@@ -14,9 +14,11 @@ services:
   app:
     # ghcr.io/CHANGEME/CHANGEME is a placeholder: scaffold generates this
     # project before it has a github repository, so it cannot know its own
-    # registry path. replace it once, by hand, after the repository exists
-    # and its first image has been published (see the scaffold toolbox's
-    # ADR-0014, not shipped here).
+    # registry path. install.sh re-downloads this file from the latest
+    # release on every run, so a hand-edit to a deployed copy is undone the
+    # next time it runs — fix it in this repository's own compose.yaml and
+    # cut a release instead (see the scaffold toolbox's
+    # docs/runbook/first-project-walkthrough.md step 10, not shipped here).
     image: ghcr.io/CHANGEME/CHANGEME:${IMAGE_TAG:-latest}
     env_file:
       # required: false so this validates before a .env exists; install.sh

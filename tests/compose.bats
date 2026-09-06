@@ -174,7 +174,7 @@ INNER_EOF
     path="$(grep '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" | cut -d'"' -f2)"
     for file in "${dir}"Dockerfile "${dir}"Dockerfile.workspace; do
       [ -f "$file" ] || continue
-      grep -q "HEALTHCHECK" "$file" \
+      grep -q '^HEALTHCHECK' "$file" \
         || { wrong="${wrong}${file}: no HEALTHCHECK"$'\n'; continue; }
       # localhost or 127.0.0.1: nextjs's HEALTHCHECK dials 127.0.0.1 because
       # this image's resolver hands "localhost" the IPv6 ::1 first and the

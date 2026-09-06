@@ -222,7 +222,7 @@ deploy gate curls both.
 | `laravel-api` | `/up` (shipped by Laravel since 11.x) | `/health/ready` |
 | `laravel-inertia` | `/up` | `/health/ready` |
 | `nestjs` | `/health/live` | `/health/ready` |
-| `nextjs` | `/` (the generated home page) | none — the `web` role takes no database driver |
+| `nextjs` | `/api/health/live` | none — the `web` role takes no database driver |
 
 **Two of the four are wrong today, in the same way.** `nestjs`'s Dockerfile
 probes `http://localhost:3001/health`, and no adapter ships a `/health` route
