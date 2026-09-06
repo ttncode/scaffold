@@ -10,7 +10,7 @@ REQUIRED_ADAPTER_FILES=(adapter.env mise.toml Dockerfile .env.example)
 # with `unbound variable` instead of failing at `scaffold lint`. ADAPTER_FAMILY
 # is the same story one step later: apply_service_drivers looks up
 # drivers/${family}.sh only once generation is already underway.
-REQUIRED_ADAPTER_VARS=(ADAPTER_NAME ADAPTER_ROLE ADAPTER_FAMILY ADAPTER_GENERATOR)
+REQUIRED_ADAPTER_VARS=(ADAPTER_NAME ADAPTER_ROLE ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_LIVENESS_PATH)
 
 READ_ONLY_TASKS=(format lint check)
 

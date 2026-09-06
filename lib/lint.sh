@@ -4,7 +4,7 @@
 # prints one line per problem and returns 1 when any adapter is incomplete.
 lint_adapters() {
   local dir="$1"
-  local adapter name file task task_body flag var status=0
+  local adapter name file task task_body flag var role status=0
 
   for adapter in "$dir"/*/; do
     [ -d "$adapter" ] || continue
@@ -24,6 +24,19 @@ lint_adapters() {
           status=1
         }
       done
+
+      # Conditional on the role rather than required outright: a web adapter has
+      # no connection to probe, and demanding a readiness path from it would only
+      # produce one that returns 200 without doing anything.
+      role="$(sed -n 's/^ADAPTER_ROLE="\(.*\)"$/\1/p' "${adapter}adapter.env")"
+      case " ${DRIVEN_ROLES[*]} " in
+        *" ${role} "*)
+          grep -Eq '^ADAPTER_READINESS_PATH=' "${adapter}adapter.env" || {
+            printf '%s: adapter.env does not set ADAPTER_READINESS_PATH (required for role %s)\n' "$name" "$role"
+            status=1
+          }
+          ;;
+      esac
     fi
 
     [ -f "${adapter}mise.toml" ] || continue

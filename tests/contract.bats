@@ -170,3 +170,26 @@ setup() {
   run_line="$(awk '/^\[tasks\."test-integration"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
   [[ "$run_line" == *"tests/wizard-integration.bats"* ]]
 }
+
+@test "every adapter declares a liveness path" {
+  local missing=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    grep -q '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" \
+      || missing="${missing}$(basename "$dir")"$'\n'
+  done
+  [ -z "$missing" ] || { echo "missing ADAPTER_LIVENESS_PATH:"; echo "$missing"; false; }
+}
+
+@test "an adapter whose role takes a driver declares a readiness path" {
+  # a web adapter opens no connection (DRIVEN_ROLES), so it has nothing to
+  # probe; anything else must, or the deploy gate has no way to prove the
+  # application actually reaches its database.
+  local missing=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    role="$(grep '^ADAPTER_ROLE=' "${dir}adapter.env" | cut -d'"' -f2)"
+    case " ${DRIVEN_ROLES[*]} " in *" ${role} "*) ;; *) continue ;; esac
+    grep -q '^ADAPTER_READINESS_PATH=' "${dir}adapter.env" \
+      || missing="${missing}$(basename "$dir")"$'\n'
+  done
+  [ -z "$missing" ] || { echo "missing ADAPTER_READINESS_PATH:"; echo "$missing"; false; }
+}

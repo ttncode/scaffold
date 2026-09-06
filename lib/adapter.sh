@@ -17,7 +17,8 @@ load_adapter() {
   ADAPTER_DIR="$dir"
   # every optional value, not just one: a stale ADAPTER_LANGUAGE or ROLE from
   # the previous load would otherwise be read as this adapter's own
-  unset -v ADAPTER_POST_GENERATE ADAPTER_LANGUAGE ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY
+  unset -v ADAPTER_POST_GENERATE ADAPTER_LANGUAGE ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY \
+    ADAPTER_LIVENESS_PATH ADAPTER_READINESS_PATH
   # shellcheck source=/dev/null
   # `|| return 1` so an unreadable adapter.env fails here, rather than letting
   # the default below become this function's last, always-successful command
