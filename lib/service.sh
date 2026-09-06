@@ -185,6 +185,66 @@ apply_service_compose_env() {
   rm -f "$fragment"
 }
 
+# apply_service_compose_service <project> <block>
+# Merges a complete `services:` fragment into compose.yaml. The counterpart to
+# apply_service_compose_env above for a driver that needs to add an entire
+# sibling service (the migrate runner below), not another line under the
+# app's own environment: apply_service_compose_env cannot be reused for this,
+# it hardcodes the services.app.environment path, and overloading it with a
+# second, unrelated merge target does not belong in the same function.
+apply_service_compose_service() {
+  local project="$1" block="$2"
+  local file="${project}/compose.yaml" fragment
+
+  [ -n "$block" ] || return 0
+  [ -f "$file" ] || die "no compose.yaml in ${project}"
+
+  fragment="$(mktemp)"
+  printf '%s\n' "$block" > "$fragment"
+
+  if ! yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
+    "$file" "$fragment"; then
+    rm -f "$fragment"
+    die "could not merge the service into ${file}"
+  fi
+  rm -f "$fragment"
+}
+
+# apply_service_compose_migrate <project> <env-block> <command>
+# Writes compose.yaml's migrate service, behind a profile so it never starts
+# with the stack (install.sh runs it explicitly, once, after the stack is
+# up). The image is read back off compose.yaml rather than hardcoded, so it
+# stays correct however the app's own image line is written; the environment
+# is the same block apply_service_compose_env just merged into app, since a
+# migration needs the same DB_CONNECTION/DATABASE_URL the application does,
+# not a second copy of that decision. An empty command (a project with no
+# database, or a cache-only driver) merges nothing — no migrate service is
+# not an error.
+apply_service_compose_migrate() {
+  local project="$1" env_block="$2" command="$3"
+  local file="${project}/compose.yaml" image block
+
+  [ -n "$command" ] || return 0
+  [ -f "$file" ] || die "no compose.yaml in ${project}"
+
+  image="$(yq '.services.app.image' "$file")" \
+    || die "could not read the app image out of ${file}"
+
+  block="$(
+    printf 'services:\n  migrate:\n'
+    printf '    image: %s\n' "$image"
+    printf '    env_file:\n      - path: .env\n        required: false\n'
+    printf '    profiles:\n      - migrate\n'
+    printf '    %s\n' "$command"
+    if [ -n "$env_block" ]; then
+      printf '    environment:\n'
+      printf '%s\n' "$env_block" | sed 's/^/      /'
+    fi
+  )"
+
+  apply_service_compose_service "$project" "$block"
+}
+
 # write_env_lines <file> <line>...
 # Sets each KEY=value, replacing the key if it is already there. A driver runs
 # against an .env.example the adapter shipped, so appending blindly would
@@ -238,7 +298,7 @@ write_env_lines() {
 # pnpm-workspace.yaml edit) cannot recover it from its own cwd.
 apply_service_drivers() {
   local app="$1" project="$2" family="$3"; shift 3
-  local service driver block="" env_block="" rendered
+  local service driver block="" env_block="" migrate_block="" rendered
 
   # web is the presentation tier and takes no driver — the caller decides
   # that from ADAPTER_ROLE, so reaching here with a family that has none is a
@@ -303,10 +363,18 @@ apply_service_drivers() {
     # shellcheck source=/dev/null # family varies, so the path isn't constant
     rendered="$( . "$driver"; service_driver_compose_env )"
     [ -n "$rendered" ] && env_block+="${rendered}"$'\n'
+
+    # Only a database driver prints a command here — a cache's returns
+    # nothing (see services/redis/drivers/*.sh) — so this stays empty for a
+    # cache-only project and carries the one migration command otherwise.
+    # shellcheck source=/dev/null # family varies, so the path isn't constant
+    rendered="$( . "$driver"; service_driver_compose_migrate )"
+    [ -n "$rendered" ] && migrate_block+="${rendered}"$'\n'
   done
 
   apply_service_setup "$app" "${block%$'\n'}"
   apply_service_compose_env "$project" "${env_block%$'\n'}"
+  apply_service_compose_migrate "$project" "${env_block%$'\n'}" "${migrate_block%$'\n'}"
 }
 
 # record_services <project> <database> <cache>

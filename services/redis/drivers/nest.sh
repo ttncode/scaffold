@@ -23,3 +23,9 @@ service_driver_dockerfile() {
 service_driver_compose_env() {
   printf 'REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@cache:6379}\n'
 }
+
+# a cache has no schema to migrate — printing nothing keeps the migrate
+# service absent from a project that selected only a cache.
+service_driver_compose_migrate() {
+  :
+}

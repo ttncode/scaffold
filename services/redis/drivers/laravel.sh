@@ -37,3 +37,9 @@ service_driver_compose_env() {
   printf 'REDIS_HOST: cache\n'
   printf 'REDIS_PASSWORD: ${REDIS_PASSWORD}\n'
 }
+
+# a cache has no schema to migrate — printing nothing keeps the migrate
+# service absent from a project that selected only a cache.
+service_driver_compose_migrate() {
+  :
+}

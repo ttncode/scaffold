@@ -31,9 +31,11 @@ REQUIRED_SERVICE_FILES=(
 
 REQUIRED_SERVICE_VARS=(SERVICE_NAME SERVICE_KIND SERVICE_IMAGE)
 
-# apply_service_drivers calls all three, so a driver shipping fewer fails at
-# generation rather than at lint.
-REQUIRED_DRIVER_FUNCTIONS=(service_driver_apply service_driver_dockerfile service_driver_compose_env)
+# apply_service_drivers calls all four, so a driver shipping fewer fails at
+# generation rather than at lint. service_driver_compose_migrate is the
+# fourth: every driver implements it, including a cache's, which has no
+# schema and prints nothing.
+REQUIRED_DRIVER_FUNCTIONS=(service_driver_apply service_driver_dockerfile service_driver_compose_env service_driver_compose_migrate)
 
 # The web tier is the presentation layer and opens no connection, so it takes
 # no driver — stated once, about the role, rather than as a "not applicable"

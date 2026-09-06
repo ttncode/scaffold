@@ -91,6 +91,12 @@ service_driver_compose_env() {
   printf 'APP_KEY: ${APP_KEY}\n'
 }
 
+# laravel-mongodb provides its own Schema grammar, so the same artisan command
+# the SQL connections use also migrates a mongodb-backed project.
+service_driver_compose_migrate() {
+  printf 'command: ["php", "artisan", "migrate", "--force"]\n'
+}
+
 # register_mongodb_connection <path/to/config/database.php>
 # laravel-mongodb needs a 'mongodb' entry in the connections array; the
 # Laravel skeleton ships none. Same insert-then-verify shape as

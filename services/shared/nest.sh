@@ -41,7 +41,12 @@ service_driver_apply() {
   # stays anyway: it names the failure at the point it happens instead of
   # leaving that to the caller's generic message.
   pnpm add @prisma/client@6 || return 1
-  pnpm add -D prisma@6 || return 1
+  # A regular dependency, not -D: `pnpm prune --prod` in the Dockerfile drops
+  # devDependencies, and the published image is what runs `migrate deploy` on
+  # deploy. The alternative — a second image, or a compose service mounting
+  # the source — introduces a build artifact the release does not publish, for
+  # a command run once. The engines cost image size; see decision record 0021.
+  pnpm add prisma@6 || return 1
   mkdir -p prisma || return 1
 
   # datasource and generator only. models describe the client's domain, which
@@ -125,4 +130,20 @@ service_driver_dockerfile() {
 # evaluated when DATABASE_URL is set.
 service_driver_compose_env() {
   printf 'DATABASE_URL: ${DATABASE_URL:-%s}\n' "$PRISMA_COMPOSE_URL"
+}
+
+# prisma's mongodb provider rejects `migrate deploy` outright — measured:
+# `The "mongodb" provider is not supported with this command.` — and takes
+# `db push` instead. Chosen here, at generation time, from PRISMA_PROVIDER
+# rather than recorded separately, so it stays correct if the provider ever
+# changes.
+service_driver_compose_migrate() {
+  case "$PRISMA_PROVIDER" in
+    mongodb)
+      printf 'command: ["pnpm", "exec", "prisma", "db", "push", "--skip-generate"]\n'
+      ;;
+    *)
+      printf 'command: ["pnpm", "exec", "prisma", "migrate", "deploy"]\n'
+      ;;
+  esac
 }

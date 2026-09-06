@@ -76,3 +76,10 @@ service_driver_compose_env() {
   printf '%s\n' "$LARAVEL_COMPOSE_ENV"
   printf 'APP_KEY: ${APP_KEY}\n'
 }
+
+# laravel's migration system is agnostic to which connection it runs
+# against — mysql, postgres and mongodb (via laravel-mongodb's own Schema
+# grammar) all migrate through the same artisan command.
+service_driver_compose_migrate() {
+  printf 'command: ["php", "artisan", "migrate", "--force"]\n'
+}

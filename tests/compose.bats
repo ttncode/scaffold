@@ -182,3 +182,17 @@ INNER_EOF
   done
   [ -z "$wrong" ] || { echo "$wrong"; false; }
 }
+
+@test "install.sh generates an APP_KEY laravel will accept" {
+  # generate_service_passwords' generic 24-character value is rejected with
+  # "Unsupported cipher or incorrect key length" — laravel needs base64: and
+  # exactly 32 bytes.
+  local env_file="${BATS_TEST_TMPDIR}/.env"
+  printf 'DB_PASSWORD=changeme\nAPP_KEY=changeme\n' > "$env_file"
+  . "${SCAFFOLD_ROOT}/common/install.sh"
+  run generate_service_passwords "$env_file"
+  assert_ok
+  run grep '^APP_KEY=' "$env_file"
+  [[ "$output" =~ ^APP_KEY=base64:[A-Za-z0-9+/]{43}=$ ]] \
+    || { echo "not a laravel key: ${output}"; false; }
+}
