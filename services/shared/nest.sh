@@ -90,25 +90,36 @@ EOF
   # the generated class lacks fails tsc's "sufficient overlap" check on the
   # cast — caught by generating this project with a real database and
   # running its check task, not by lint alone.
-  local method preamble probe
+  # The client is a field on HealthController, not a local inside ready():
+  # a controller is a Nest singleton by default, so one field lives for the
+  # whole process and every poll of /health/ready after the first reuses it.
+  # Constructing a PrismaClient per request and never closing it leaks one
+  # real database connection per poll — measured exhausting Postgres's
+  # max_connections well inside an hour at a 10s probe interval.
+  local method field preamble probe
   case "$PRISMA_PROVIDER" in
     mongodb)
       method='$runCommandRaw(command: object): Promise<unknown>'
-      probe='await client.$runCommandRaw({ ping: 1 });'
+      probe='await this.dbClient.$runCommandRaw({ ping: 1 });'
       ;;
     *)
       method='$queryRawUnsafe(query: string): Promise<unknown>'
-      probe="await client.\$queryRawUnsafe('SELECT 1');"
+      probe="await this.dbClient.\$queryRawUnsafe('SELECT 1');"
       ;;
   esac
-  preamble="const { PrismaClient } = (await import('@prisma/client')) as {\n        PrismaClient: new () => { ${method} };\n      };\n      const client = new PrismaClient();"
+  field="private dbClient?: { ${method} };"
+  sed -i.bak "s|// @DB_CLIENT@|${field}|" \
+    src/health/health.controller.ts || return 1
+
+  preamble="if (!this.dbClient) {\n        const { PrismaClient } = (await import('@prisma/client')) as {\n          PrismaClient: new () => { ${method} };\n        };\n        this.dbClient = new PrismaClient();\n      }"
   sed -i.bak "s|// @DB_PROBE@|${preamble}\n      ${probe}|" \
     src/health/health.controller.ts || return 1
   sed -i.bak "s|throw new Error('no database is configured for this project');|return { status: 'ok' };|" \
     src/health/health.controller.ts || return 1
   rm -f src/health/health.controller.ts.bak
 
-  grep -q "PrismaClient" src/health/health.controller.ts \
+  grep -q "dbClient" src/health/health.controller.ts \
+    && grep -q "PrismaClient" src/health/health.controller.ts \
     && grep -q "return { status: 'ok' };" src/health/health.controller.ts \
     || die "could not splice the database probe into src/health/health.controller.ts — has the anchor moved?"
 
