@@ -25,11 +25,11 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 USER node
-EXPOSE 3000
-# `/`, not `/api/health`: create-next-app generates no health route, so every
-# image built from here reported unhealthy from first boot until somebody
-# noticed and wrote one. An app that adds a real health endpoint should point
-# this at it.
+# 8080 because that is the container port common/compose.yaml publishes, and
+# nothing rewrites it — an adapter listening anywhere else publishes a dead
+# port. next's standalone server.js reads PORT itself.
+ENV PORT=8080
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+  CMD wget -qO- http://localhost:8080/api/health/live || exit 1
 CMD ["node", "server.js"]

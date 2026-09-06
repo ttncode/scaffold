@@ -18,7 +18,11 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 USER node
-EXPOSE 3001
+# 8080 because that is the container port common/compose.yaml publishes, and
+# nothing rewrites it — an adapter listening anywhere else publishes a dead
+# port. Nest reads PORT in main.ts's `app.listen(process.env.PORT ?? 3000)`.
+ENV PORT=8080
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -qO- http://localhost:3001/health || exit 1
+  CMD wget -qO- http://localhost:8080/health/live || exit 1
 CMD ["node", "dist/main.js"]

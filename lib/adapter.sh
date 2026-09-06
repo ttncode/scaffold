@@ -156,8 +156,15 @@ apply_adapter() {
   done
   [ "$had_dotglob" -eq 1 ] || shopt -u dotglob
 
-  # the flat loop above skips directories
-  [ -d "${ADAPTER_DIR}/docker" ] && cp -R "${ADAPTER_DIR}/docker" "${dest}/docker"
+  # Every directory the adapter ships, merged into the generated tree rather
+  # than replacing what is there: `src/` already exists after the generator
+  # ran, and `cp -R src dest/src` would nest it as dest/src/src.
+  local dir
+  for dir in "${ADAPTER_DIR}"/*/; do
+    [ -d "$dir" ] || continue
+    mkdir -p "${dest}/$(basename "$dir")"
+    cp -R "${dir}." "${dest}/$(basename "$dir")/"
+  done
 
   resolve_workspace_filter_name "$dest"
 

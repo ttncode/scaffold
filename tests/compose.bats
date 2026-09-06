@@ -158,3 +158,27 @@ INNER_EOF
       || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
   done
 }
+
+@test "every adapter Dockerfile serves the port compose publishes" {
+  # common/compose.yaml publishes ${APP_PORT:-8080}:8080 and nothing rewrites
+  # it, so an adapter exposing anything else publishes a dead port.
+  run bash -c "grep -L '^EXPOSE 8080\$' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile*"
+  [ -z "$output" ] || { echo "not exposing 8080:"; echo "$output"; false; }
+}
+
+@test "every adapter Dockerfile probes the liveness path its adapter declares" {
+  # nestjs probed /health for months while the generator produced only `/`.
+  # The Dockerfile's idea of the route and the adapter's must be one value.
+  local wrong=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    path="$(grep '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" | cut -d'"' -f2)"
+    for file in "${dir}"Dockerfile "${dir}"Dockerfile.workspace; do
+      [ -f "$file" ] || continue
+      grep -q "HEALTHCHECK" "$file" \
+        || { wrong="${wrong}${file}: no HEALTHCHECK"$'\n'; continue; }
+      grep -q "localhost:8080${path}" "$file" \
+        || wrong="${wrong}${file}: does not probe ${path} on 8080"$'\n'
+    done
+  done
+  [ -z "$wrong" ] || { echo "$wrong"; false; }
+}
