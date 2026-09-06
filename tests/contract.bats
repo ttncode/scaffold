@@ -141,6 +141,20 @@ setup() {
   [[ "$output" == *"adapter.env does not set ADAPTER_FAMILY"* ]]
 }
 
+@test "lint_adapters requires a readiness path for a role that takes a driver" {
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/no-readiness-path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: adapter.env does not set ADAPTER_READINESS_PATH"* ]]
+}
+
+@test "lint_adapters does not require a readiness path for a role that takes no driver" {
+  # a web adapter opens no connection, so demanding one here would fail every
+  # web adapter for a check it can never satisfy honestly.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/web-no-readiness-path"
+  assert_ok
+  [ -z "$output" ]
+}
+
 @test "scaffold lint covers the services that ship" {
   run scaffold lint
   assert_ok
