@@ -107,6 +107,73 @@ jobs:
           ADAPTER: ${{ matrix.adapter }}
         run: bats "tests/new-${ADAPTER}.bats"
 
+  deploy:
+    needs: discover
+    if: ${{ needs.discover.outputs.tier-a != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # a generation plus an image build plus a container start, per adapter.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: ${{ fromJson(needs.discover.outputs.tier-a) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - id: language
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
+          echo "value=${lang}" >> "$GITHUB_OUTPUT"
+      - if: steps.language.outputs.value == 'php'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: ./scripts/deploy-check.sh "$ADAPTER"
+
+  deploy-tier-b:
+    needs: discover
+    if: ${{ needs.discover.outputs.tier-b != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # same per-adapter cost as deploy (generation + image build + container
+    # start) — tier b's timeout is longer than tier a's elsewhere in this
+    # file because those jobs run more tests per adapter, not because this
+    # one does.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: ${{ fromJson(needs.discover.outputs.tier-b) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - id: language
+        env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
+          echo "value=${lang}" >> "$GITHUB_OUTPUT"
+      - if: steps.language.outputs.value == 'php'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+      - env:
+          ADAPTER: ${{ matrix.adapter }}
+        run: ./scripts/deploy-check.sh "$ADAPTER"
+
   compose:
     # expensive relative to the other checks here, so gated on the weekly
     # schedule (not the nightly tier-a-only one) or a manual run
