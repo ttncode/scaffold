@@ -587,18 +587,43 @@ EOF
     || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
 }
 
-@test "a driver's compose environment interpolates rather than embedding a password" {
+@test "a driver's compose environment never bakes a literal password" {
   # The password must exist in exactly one place — .env — so compose composes
   # the URL at `up` time. A literal baked here is the changeme-versus-app
   # mismatch that made the dev stack unable to authenticate.
+  #
+  # No skip for an empty block: an empty block has no literal password by
+  # construction, so the checks below already cover it without a special
+  # case — the previous `[ -z "$block" ] && continue` let a driver that
+  # regressed to emitting nothing pass unseen, for a reason unrelated to
+  # passwords.
+  #
+  # Asserts the absence of a literal, not the presence of an interpolation:
+  # a block could carry `${DB_PASSWORD}` somewhere else and a hardcoded
+  # value where the credential actually goes, and the old presence-only
+  # check could not tell the two apart.
   local bad=""
   for driver in "${SCAFFOLD_ROOT}"/services/*/drivers/*.sh; do
     block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
               SERVICE_DIR="$(dirname "$(dirname "$driver")")"
               . "$driver"; service_driver_compose_env )"
-    [ -z "$block" ] && continue
-    grep -q '\${DB_PASSWORD' <<<"$block" || grep -q '\${REDIS_PASSWORD' <<<"$block" \
-      || bad="${bad}${driver}"$'\n'
+
+    # A top-level *_PASSWORD key whose value is not exactly an interpolation.
+    while IFS= read -r line; do
+      case "$line" in
+        *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
+        *) bad="${bad}${driver} (${line})"$'\n' ;;
+      esac
+    done < <(grep -E '^[A-Za-z_]*_PASSWORD:' <<<"$block")
+
+    # A DSN's user:password@ slot whose password is not exactly an
+    # interpolation — the same shape, embedded in a URL instead of a key.
+    while IFS= read -r segment; do
+      case "$segment" in
+        :\$\{*_PASSWORD\}@) ;;
+        *) bad="${bad}${driver} (${segment})"$'\n' ;;
+      esac
+    done < <(grep -oE ':[^:@]*@' <<<"$block")
   done
   [ -z "$bad" ] || { echo "embeds a literal password:"; echo "$bad"; false; }
 }
