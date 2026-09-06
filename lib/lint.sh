@@ -4,7 +4,7 @@
 # prints one line per problem and returns 1 when any adapter is incomplete.
 lint_adapters() {
   local dir="$1"
-  local adapter name file task task_body flag var role status=0
+  local adapter name file task task_body flag var role value status=0
 
   for adapter in "$dir"/*/; do
     [ -d "$adapter" ] || continue
@@ -37,6 +37,26 @@ lint_adapters() {
           }
           ;;
       esac
+
+      # A path variable that merely exists is not a route: an empty value
+      # satisfies every check above, and downstream that same empty value
+      # collapses tests/compose.bats' HEALTHCHECK assertion and the deploy
+      # gate's readiness curl into matching any localhost probe on 8080 —
+      # exactly the Dockerfile-probing-nothing defect these exist to stop.
+      # Only checked when the variable is declared at all: an undeclared
+      # ADAPTER_READINESS_PATH on a non-driven role is handled above, not
+      # here.
+      for var in ADAPTER_LIVENESS_PATH ADAPTER_READINESS_PATH; do
+        grep -Eq "^${var}=" "${adapter}adapter.env" || continue
+        value="$(sed -n "s/^${var}=\"\(.*\)\"\$/\1/p" "${adapter}adapter.env")"
+        case "$value" in
+          /*) ;;
+          *)
+            printf '%s: adapter.env sets %s to "%s", not a path starting with /\n' "$name" "$var" "$value"
+            status=1
+            ;;
+        esac
+      done
     fi
 
     [ -f "${adapter}mise.toml" ] || continue

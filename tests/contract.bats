@@ -155,6 +155,17 @@ setup() {
   [ -z "$output" ]
 }
 
+@test "lint_adapters rejects a readiness path declared but left empty" {
+  # Both checks above only grep that the line is present, not that it holds
+  # a route: an empty value passed both, and downstream that same empty
+  # value collapses tests/compose.bats' HEALTHCHECK assertion and the deploy
+  # gate's readiness curl into matching any localhost probe on 8080 — the
+  # exact defect those checks exist to stop.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/empty-readiness-path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'sample: adapter.env sets ADAPTER_READINESS_PATH to "", not a path starting with /'* ]]
+}
+
 @test "scaffold lint covers the services that ship" {
   run scaffold lint
   assert_ok
