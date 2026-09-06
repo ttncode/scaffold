@@ -2,6 +2,7 @@
 
 Status: Accepted
 Date: 2026-08-27
+Superseded in part by 0021 (seams 1 and 4)
 
 ## Context
 
@@ -51,6 +52,20 @@ deploy target plugs into later without restructuring anything above it:
 7. **A `deploy` job gated on `vars.DEPLOY_TARGET`.** Also Task 10: the
    reusable release workflow will carry a `deploy` job that does nothing
    until a client sets that variable.
+
+**Update, 2026-09-06 (0021).** Seams 1 and 4 as written above are now
+false, and the record stays rather than being rewritten: seam 4's premise
+was that php-fpm speaks FastCGI and no HTTP check is possible, so no check
+ships; the Laravel adapters now serve HTTP through FrankenPHP, so a real
+`HEALTHCHECK` exists and ships. The reasoning that check-that-cannot-fail is
+worse than no check was correct then and stays correct — only the premise
+under it changed. Seam 1's claim ("a client's target only ever needs to
+know how to run one image") was already in tension with seam 4 admitting
+one of those images could not be usefully run at all without protocol-aware
+infrastructure a target would have to supply on its own; that tension now
+resolves in seam 1's favour, since every adapter speaks HTTP on the same
+port and a target genuinely only ever has to run one image. See 0021 for
+the working implementation.
 
 `common/deploy-adapters/` ships empty, with a `README.md` explaining why and
 pointing at this ADR. `install.sh` is the one deploy mechanism that exists

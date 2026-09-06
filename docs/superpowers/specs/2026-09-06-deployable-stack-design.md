@@ -75,7 +75,13 @@ and each currently failing:
      the port compose publishes.
    - its **readiness path** returns 200 — a request reaches the database
      through the application, proving the listener, the environment contract,
-     the compose network, the credentials and the schema in one call.
+     the compose network and the credentials in one call. **Correction**
+     (Task 6/8): it does not also prove the schema — the probe is `select 1`
+     (or a ping), which returns 200 against an empty database exactly as
+     readily as a migrated one, and for `nestjs` with `mongodb`, `db push`
+     records no migration state for anything to read back. The schema is
+     proven separately: gate 2 also requires the `migrate` service (section
+     8) to exit 0.
 
 Both paths are declared by the adapter (section 7), because they differ per
 framework and because two of them are wrong today.
@@ -232,10 +238,14 @@ adapters therefore need a real liveness path, not just a corrected probe.
 GET /health/ready  ->  200 when the query succeeds, 503 when it does not
 ```
 
-This is the only thing that proves the whole chain — listener, environment,
-compose network, credentials, schema — in a single call. A liveness path
-alone cannot: Laravel's `/up` never touches the database, so a project with a
-wrong `DATABASE_URL` passes it. That is precisely the check-that-cannot-fail
+This is the only thing that proves the listener, the environment contract,
+the compose network and the credentials in a single call — not the schema
+(**correction**, Task 6/8: the probe succeeds against an empty database as
+readily as a migrated one, and mongodb's `db push` leaves nothing to read
+back regardless; section 8's `migrate` service, required to exit 0, is what
+proves that instead). A liveness path alone cannot prove even that much:
+Laravel's `/up` never touches the database, so a project with a wrong
+`DATABASE_URL` passes it. That is precisely the check-that-cannot-fail
 ADR-0014 seam 4 warned about, and shipping one as the only gate would repeat
 the mistake this design exists to correct.
 
