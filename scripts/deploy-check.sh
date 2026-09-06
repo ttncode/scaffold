@@ -121,7 +121,16 @@ assert_image_is_built_tag app
 yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1 \
   && assert_image_is_built_tag migrate
 
+# common/install.sh's own generate_service_passwords, not a second copy of
+# the substitution: a gate that leaves every password at the literal
+# "changeme" runs a sequence no real deploy ever runs, and proves nothing
+# about the password loop, the APP_KEY branch, or anything downstream that
+# depends on either.
 cp "${PROJECT_DIR}/example.env" "${PROJECT_DIR}/.env"
+# shellcheck source=/dev/null # path is this toolbox's own common/install.sh
+source "${ROOT}/common/install.sh"
+generate_service_passwords "${PROJECT_DIR}/.env" \
+  || die "could not generate service passwords for ${ADAPTER}"
 
 cd "$PROJECT_DIR"
 

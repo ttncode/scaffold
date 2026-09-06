@@ -28,8 +28,14 @@ the existing `smoke` lane:**
    released stack's own start-up sequence against it, then: the **liveness
    path** returns 200 (the container serves HTTP on the port compose
    publishes), and the **readiness path** returns 200 where the adapter
-   declares one. `scripts/deploy-check.sh` is gate 2's implementation;
-   `common/install.sh` is the same sequence handed to a client.
+   declares one. `scripts/deploy-check.sh` is gate 2's implementation. It
+   builds the image locally and starts the stack directly rather than
+   running `common/install.sh` end to end — it does not download a
+   release, call `create_directory`, or check `check_image_configured` —
+   but it does call `install.sh`'s own `generate_service_passwords` on the
+   copied `.env`, so the password loop and the `APP_KEY` branch run under
+   the same substitution a client's install would perform, not against
+   every credential left at `changeme`.
 
 **The container port is fixed at 8080, not a variable.** Every adapter
 serves HTTP on container port 8080; `common/compose.yaml` publishes
