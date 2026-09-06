@@ -27,3 +27,13 @@ service_driver_apply() {
 service_driver_dockerfile() {
   :
 }
+
+# REDIS_PASSWORD already reaches the container via compose.yaml's env_file
+# (it is in the project's example.env, assembled from this service's own
+# env.fragment) — restated here, interpolated rather than baked, so the
+# service_driver_compose_env test that guards against a literal password can
+# see it the same way the URL-based drivers show theirs.
+service_driver_compose_env() {
+  printf 'REDIS_HOST: cache\n'
+  printf 'REDIS_PASSWORD: ${REDIS_PASSWORD}\n'
+}

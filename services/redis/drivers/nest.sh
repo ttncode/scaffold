@@ -15,3 +15,11 @@ service_driver_apply() {
 service_driver_dockerfile() {
   :
 }
+
+# Same override-then-compose shape as services/shared/nest.sh's DATABASE_URL:
+# an operator's own .env wins, otherwise compose builds the URL from the same
+# REDIS_PASSWORD the cache container reads, so the password lives in exactly
+# one place.
+service_driver_compose_env() {
+  printf 'REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@cache:6379}\n'
+}

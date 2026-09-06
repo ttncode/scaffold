@@ -613,3 +613,26 @@ EOF
   [[ "$output" == 'postgresql://app@database:5432/app' ]] \
     || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
 }
+
+@test "the laravel drivers name the connection selector laravel actually reads" {
+  # config/database.php is `env('DB_CONNECTION', 'sqlite')`. Without that
+  # variable laravel does not fail — it silently reads DB_DATABASE as a
+  # sqlite filename and never contacts the service at all.
+  for service in mysql postgres mongodb; do
+    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
+              service_driver_compose_env )"
+    grep -q '^DB_CONNECTION:' <<<"$block" \
+      || { echo "${service}/laravel.sh emits no DB_CONNECTION"; false; }
+  done
+}
+
+@test "the nest drivers name DATABASE_URL and let an operator override it" {
+  for service in mysql postgres mongodb; do
+    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
+              service_driver_compose_env )"
+    grep -q '^DATABASE_URL: \${DATABASE_URL:-' <<<"$block" \
+      || { echo "${service}/nest.sh does not allow an override"; false; }
+  done
+}

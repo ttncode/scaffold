@@ -8,5 +8,6 @@ PRISMA_PROVIDER="mongodb"
 # single-node container it changes nothing for `db push`, so treat it as
 # unproven for anything but transactional writes.
 PRISMA_URL="mongodb://app:app@localhost:27017/app?authSource=admin&directConnection=true"
+PRISMA_COMPOSE_URL='mongodb://${DB_USERNAME:-app}:${DB_PASSWORD}@database:27017/${DB_DATABASE:-app}?authSource=admin&directConnection=true'
 # shellcheck source=/dev/null
 . "${SCAFFOLD_ROOT}/services/shared/nest.sh"
