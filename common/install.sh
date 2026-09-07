@@ -65,6 +65,17 @@ fetch_release_asset() {
     "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest"
 }
 
+# jq is needed only to read a release's JSON, which only the token path does.
+# Checked separately from main's curl/docker checks so a public install never
+# learns about a dependency it does not use.
+require_private_tools() {
+  [ -n "${GITHUB_TOKEN:-}" ] || return 0
+  command -v jq >/dev/null || {
+    echo 'jq is required when GITHUB_TOKEN is set: installing from a private project reads the release json' >&2
+    return 1
+  }
+}
+
 create_directory() {
   if [[ -e $TargetDir ]]; then
     echo "found existing ${TargetDir}, will overwrite compose.yaml"
@@ -86,7 +97,7 @@ create_directory() {
 # holding a plaintext password.
 download_release_assets() {
   echo "downloading compose.yaml..."
-  curl -fsSL "${RepoUrl}/compose.yaml" -o ./compose.yaml || return 1
+  fetch_release_asset compose.yaml ./compose.yaml || return 1
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
@@ -107,7 +118,7 @@ download_release_assets() {
   # not run when one kills the shell.
   # shellcheck disable=SC2064 # expanding now is the point
   trap "rm -f $(printf '%q' "$tmp_env")" EXIT INT TERM HUP
-  if ! curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env"; then
+  if ! fetch_release_asset example.env "$tmp_env"; then
     trap - EXIT INT TERM HUP
     rm -f "$tmp_env"
     return 1
@@ -209,6 +220,7 @@ run_migrations() {
 main() {
   command -v curl >/dev/null || { echo 'curl is required'; return 1; }
   docker compose version >/dev/null 2>&1 || { echo 'docker compose is required'; return 1; }
+  require_private_tools || return 1
 
   create_directory || { echo 'could not create the target directory'; return 1; }
   download_release_assets || { echo 'could not download the release assets'; return 1; }

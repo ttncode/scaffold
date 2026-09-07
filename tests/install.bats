@@ -86,3 +86,20 @@ INNER_EOF
   [[ "$output" == *"releases/assets/42"* ]]
   [[ "$output" == *"application/octet-stream"* ]]
 }
+
+@test "require_private_tools requires jq only when a token is set" {
+  # jq lands on a client's production host, so the public path must not
+  # acquire a dependency it never needed.
+  run require_private_tools
+  assert_ok
+
+  # An exit-127 stub is still a match for `command -v jq`, and a
+  # non-executable one is skipped in favor of whatever real jq sits later in
+  # PATH — measured against this file's own dependency. Only replacing PATH
+  # outright, with no directory in it holding jq, makes the lookup fail the
+  # way a client host without jq installed actually would.
+  mkdir -p nojq
+  GITHUB_TOKEN=t0ken PATH="${PWD}/nojq" run require_private_tools
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"jq"* ]]
+}
