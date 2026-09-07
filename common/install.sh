@@ -15,6 +15,29 @@ set -o pipefail
 RepoUrl='https://github.com/CHANGEME/CHANGEME/releases/latest/download'
 TargetDir='./app'
 
+# The owner/repo pair, taken from RepoUrl so a project still edits one line.
+RepoSlug="${RepoUrl#https://github.com/}"
+RepoSlug="${RepoSlug%/releases/latest/download}"
+
+# release_asset_id <name> — reads a release's JSON on stdin.
+#
+# jq, not grep: measured against a real release, an asset's own id precedes
+# its name while the uploader's id follows it, so "find the name, take the
+# next id" returns the uploader's for every asset. That request does not
+# fail — it fetches a different valid object and writes it to the file the
+# caller asked for. Only the token path needs this, so jq stays off the
+# public path's dependency list.
+release_asset_id() {
+  local name="$1" id
+  id="$(jq -r --arg name "$name" \
+    'first(.assets[] | select(.name == $name) | .id) // empty')" || return 1
+  if [ -z "$id" ]; then
+    echo "the latest release has no asset named ${name}; the release may be incomplete" >&2
+    return 1
+  fi
+  printf '%s' "$id"
+}
+
 create_directory() {
   if [[ -e $TargetDir ]]; then
     echo "found existing ${TargetDir}, will overwrite compose.yaml"
