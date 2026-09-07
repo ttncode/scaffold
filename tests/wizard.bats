@@ -283,7 +283,7 @@ EOF
     > "$out" 2>&1 || true
 
   local seen
-  seen="$(grep -ac 'New project wizard' "$out" || true)"
+  seen="$(grep -ac 'Project generator' "$out" || true)"
   [ "$seen" -eq 1 ] || { echo "header appeared ${seen} times, expected 1:"; cat "$out"; false; }
 }
 
@@ -363,7 +363,7 @@ EOF
       > "$out" 2>&1 || true
 
   local count
-  count="$(grep -cF 'Interactively build a scaffold new command' "$out")"
+  count="$(grep -cF 'Pick a stack — CI, containers and a release path come wired' "$out")"
   [ "$count" -eq 1 ] \
     || { echo "expected the header to appear exactly once, got ${count}:"; cat "$out"; false; }
 }
@@ -416,16 +416,19 @@ EOF
 
   local wide narrow
   wide="$(COLUMNS=100 LINES=40 bash -c "stty cols 100 rows 40 2>/dev/null; ${script}" 2>&1)"
-  narrow="$(COLUMNS=64 LINES=40 bash -c "stty cols 64 rows 40 2>/dev/null; ${script}" 2>&1)"
+  # 68 columns leaves 65 inside the box: wide enough for every other row,
+  # one column short of the wordmark's 67. That is the only width where the
+  # drop is the wordmark's own and not a narrow terminal cutting everything.
+  narrow="$(COLUMNS=68 LINES=40 bash -c "stty cols 68 rows 40 2>/dev/null; ${script}" 2>&1)"
 
   grep -q '███████╗' <<<"$wide" \
     || { echo "no wordmark at 100 columns:"; echo "$wide"; false; }
   grep -q '…' <<<"$narrow" \
-    && { echo "the wordmark was ellipsised instead of dropped at 64 columns:"; echo "$narrow"; false; }
+    && { echo "the wordmark was ellipsised instead of dropped at 68 columns:"; echo "$narrow"; false; }
   grep -q '███████╗' <<<"$narrow" \
-    && { echo "the wordmark was drawn at 64 columns, where it does not fit:"; echo "$narrow"; false; }
+    && { echo "the wordmark was drawn at 68 columns, where it does not fit:"; echo "$narrow"; false; }
 
   # The rest of the header still has to be there in both.
-  grep -qF 'Interactively build a scaffold new command' <<<"$narrow" \
+  grep -qF 'Pick a stack — CI, containers and a release path come wired' <<<"$narrow" \
     || { echo "the narrow header lost more than the wordmark:"; echo "$narrow"; false; }
 }
