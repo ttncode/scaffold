@@ -287,15 +287,23 @@ gh release list
 Expect: a `fix:` commit moves the patch version, so this cuts `v0.2.1` —
 the release `install.sh` downloads from once it names the right repository.
 
+This project is private (step 8's `--private`), so `install.sh` needs one
+more thing: a personal access token scoped `repo` and `read:packages`, and
+`jq` on the host to parse the release JSON only the token path reads. A
+private release's browser download URL returns 404 even with a token
+attached, so `install.sh` switches to the GitHub API endpoint instead of
+only adding a header — an operator who tries the old URL with a token and
+still sees 404 would otherwise conclude the token is wrong.
+
 ```sh
-./install.sh
+GITHUB_TOKEN=ghp_... bash install.sh
 curl -fsS http://localhost:8080/api/health/live
 ```
 
 Expect: `install.sh` downloads `compose.yaml` and `example.env` from
-`v0.2.1`, generates passwords, starts the stack, runs the migration task,
-and prints `the application is running on http://localhost:8080`. The curl
-returns `200`.
+`v0.2.1` through that API endpoint, generates passwords, signs in to
+`ghcr.io`, starts the stack, runs the migration task, and prints `the
+application is running on http://localhost:8080`. The curl returns `200`.
 
 There is no readiness path to curl for this project: `--web nextjs` is the
 role that won the image (the last one on the command line, back in step 5),

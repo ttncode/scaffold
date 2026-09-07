@@ -15,6 +15,74 @@ set -o pipefail
 RepoUrl='https://github.com/CHANGEME/CHANGEME/releases/latest/download'
 TargetDir='./app'
 
+# The owner/repo pair, taken from RepoUrl so a project still edits one line.
+RepoSlug="${RepoUrl#https://github.com/}"
+RepoSlug="${RepoSlug%/releases/latest/download}"
+
+# release_asset_id <name> — reads a release's JSON on stdin.
+#
+# jq, not grep: measured against a real release, an asset's own id precedes
+# its name while the uploader's id follows it, so "find the name, take the
+# next id" returns the uploader's for every asset. That request does not
+# fail — it fetches a different valid object and writes it to the file the
+# caller asked for. Only the token path needs this, so jq stays off the
+# public path's dependency list.
+release_asset_id() {
+  local name="$1" id
+  id="$(jq -r --arg name "$name" \
+    'first(.assets[] | select(.name == $name) | .id) // empty')" || return 1
+  if [ -z "$id" ]; then
+    echo "the latest release has no asset named ${name}; the release may be incomplete" >&2
+    return 1
+  fi
+  printf '%s' "$id"
+}
+
+# fetch_release_asset <name> <dest>
+#
+# Two endpoints, because a private release is not reachable from the public
+# one: measured against a real private repository, the browser URL returns
+# 404 both anonymously and with a Bearer token, while the API asset endpoint
+# returns 200. So a token alone does not fix the public URL — the URL is what
+# has to change.
+fetch_release_asset() {
+  local name="$1" dest="$2" id
+
+  if [ -z "${GITHUB_TOKEN:-}" ]; then
+    curl -fsSL "${RepoUrl}/${name}" -o "$dest" && return 0
+    # A private release answers 404 to an anonymous request, which reads as
+    # "no such release" rather than "you are not signed in".
+    echo "could not download ${name}; if this project is private, set GITHUB_TOKEN to a token with repo and read:packages" >&2
+    return 1
+  fi
+
+  id="$(curl -fsSL \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H 'Accept: application/vnd.github+json' \
+      "https://api.github.com/repos/${RepoSlug}/releases/latest" \
+    | release_asset_id "$name")" || return 1
+
+  curl -fsSL \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H 'Accept: application/octet-stream' \
+    "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest" && return 0
+  # A token given but rejected by this endpoint is the token's problem, not
+  # its absence — this message must not repeat the no-token hint above.
+  echo "could not download ${name} with the token given; it needs repo and read:packages" >&2
+  return 1
+}
+
+# jq is needed only to read a release's JSON, which only the token path does.
+# Checked separately from main's curl/docker checks so a public install never
+# learns about a dependency it does not use.
+require_private_tools() {
+  [ -n "${GITHUB_TOKEN:-}" ] || return 0
+  command -v jq >/dev/null || {
+    echo 'jq is required when GITHUB_TOKEN is set: installing from a private project reads the release json' >&2
+    return 1
+  }
+}
+
 create_directory() {
   if [[ -e $TargetDir ]]; then
     echo "found existing ${TargetDir}, will overwrite compose.yaml"
@@ -36,7 +104,7 @@ create_directory() {
 # holding a plaintext password.
 download_release_assets() {
   echo "downloading compose.yaml..."
-  curl -fsSL "${RepoUrl}/compose.yaml" -o ./compose.yaml || return 1
+  fetch_release_asset compose.yaml ./compose.yaml || return 1
 
   if [[ -f .env ]]; then
     echo "found existing .env, leaving it alone"
@@ -57,7 +125,7 @@ download_release_assets() {
   # not run when one kills the shell.
   # shellcheck disable=SC2064 # expanding now is the point
   trap "rm -f $(printf '%q' "$tmp_env")" EXIT INT TERM HUP
-  if ! curl -fsSL "${RepoUrl}/example.env" -o "$tmp_env"; then
+  if ! fetch_release_asset example.env "$tmp_env"; then
     trap - EXIT INT TERM HUP
     rm -f "$tmp_env"
     return 1
@@ -125,6 +193,22 @@ check_image_configured() {
 }
 
 start_stack() {
+  # A package's ghcr visibility is separate from its repository's, and a
+  # private package refuses an anonymous pull with `unauthorized` — measured
+  # 2026-09-07. The username is not checked for a token login; RepoSlug's
+  # owner just makes a failure name something the operator recognises.
+  #
+  # --password-stdin, not an argument: an argument would put the token in
+  # this process's argv, visible to every other user on the host through the
+  # process list — the same exposure generate_service_passwords already
+  # carries for sed's argv, and this must not add a second instance of it.
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "${GITHUB_TOKEN}" \
+      | docker login ghcr.io -u "${RepoSlug%%/*}" --password-stdin >/dev/null || {
+        echo 'could not sign in to ghcr.io; the token needs read:packages' >&2
+        return 1
+      }
+  fi
   docker compose up --remove-orphans -d || return 1
 }
 
@@ -159,6 +243,7 @@ run_migrations() {
 main() {
   command -v curl >/dev/null || { echo 'curl is required'; return 1; }
   docker compose version >/dev/null 2>&1 || { echo 'docker compose is required'; return 1; }
+  require_private_tools || return 1
 
   create_directory || { echo 'could not create the target directory'; return 1; }
   download_release_assets || { echo 'could not download the release assets'; return 1; }
