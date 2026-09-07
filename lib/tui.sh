@@ -72,20 +72,46 @@ tui_header() {
   local cols width; cols="$(tput cols 2>/dev/null || echo 80)"
   width=$(( cols - 1 ))
 
-  # Blank row, two-space indent, one hint per line, blank row, then a blank
-  # line under the box: banner.sh's own layout, followed exactly rather than
-  # approximated, because the two are meant to be recognisably one family.
-  _tui_header_edge '╭' '╮' 'scaffold' "$width"
+  # Blank row, the wordmark, two-space indent, one hint per line, blank row,
+  # then a blank line under the box: banner.sh's own layout, followed exactly
+  # rather than approximated, because the two are meant to be recognisably
+  # one family.
+  _tui_header_edge '╭' '╮' 'Scaffold' "$width"
   _tui_header_row '' '' "$width"
-  _tui_header_row '' '  Interactively build a scaffold new command.' "$width"
+  if (( width - 2 >= _TUI_LOGO_WIDTH )); then
+    local line
+    for line in "${_TUI_LOGO[@]}"; do
+      _tui_header_row bold "$line" "$width"
+    done
+    _tui_header_row '' '' "$width"
+  fi
+  _tui_header_row '' '  Interactively build a scaffold new command' "$width"
   _tui_header_row '' '' "$width"
   _tui_header_row dim '  Up/down or type a letter to move' "$width"
   _tui_header_row dim '  Press Enter to select' "$width"
   _tui_header_row dim '  Press Esc to cancel' "$width"
   _tui_header_row '' '' "$width"
-  _tui_header_edge '╰' '╯' 'new project wizard' "$width"
+  _tui_header_edge '╰' '╯' 'New project wizard' "$width"
   echo
 }
+
+# The wordmark, in menu.sh's font: ANSI Shadow with its duplicated fourth row
+# and its trailing shadow row dropped, which is the same four-row compression
+# menu.sh applies to DOTFILE. Written out rather than generated — figlet
+# does not ship this font, and a client machine has no figlet at all.
+#
+# _TUI_LOGO_WIDTH is checked before the rows are drawn because this wordmark
+# is wider than DOTFILE's. banner.sh guarantees DOTFILE fits its own minimum
+# width; nothing guarantees that here, and _tui_fit would otherwise hand back
+# four separate ellipsised fragments, which reads as damage rather than as a
+# logo. Below the threshold the box simply carries no wordmark.
+_TUI_LOGO=(
+  '  ███████╗ ██████╗ █████╗ ███████╗███████╗ ██████╗ ██╗     ██████╗ '
+  '  ██╔════╝██╔════╝██╔══██╗██╔════╝██╔════╝██╔═══██╗██║     ██╔══██╗'
+  '  ███████╗██║     ███████║█████╗  █████╗  ██║   ██║██║     ██║  ██║'
+  '  ███████║╚██████╗██║  ██║██║     ██║     ╚██████╔╝███████╗██████╔╝'
+)
+_TUI_LOGO_WIDTH=${#_TUI_LOGO[0]}
 
 # _tui_header_edge <left-corner> <right-corner> <label> <width> — banner.sh's
 # _banner_edge, cut down to the one shape tui_header needs: a label centred
@@ -117,6 +143,7 @@ _tui_header_row() {
   local pad; printf -v pad '%*s' "$(( inner - ${#text} ))" ''
   local styled="$text"
   [ "$style" = dim ] && styled="${DIM}${text}${RESET}"
+  [ "$style" = bold ] && styled="${BOLD}${text}${RESET}"
 
   echo -e "${BOLD}${GREEN}│${RESET}${styled}${pad}${BOLD}${GREEN}│${RESET}"
 }
@@ -150,6 +177,11 @@ tui_prompt_name() {
     tui_name_is_usable "$name" && break
     printf '%b\n' "${RED}  ${PROJECT_NAME_RULE}: ${name}${RESET}" >&2
   done
+
+  # A blank line between the name and the questions that follow it, so the
+  # answered-question list below reads as its own block rather than as a
+  # continuation of the field the user just typed in.
+  printf '\n' >&2
 
   tput civis >&2 2>/dev/null || true
   printf '%s\n' "$name"
@@ -324,7 +356,7 @@ tui_select() {
         # straight underneath it instead of onto a screen it has to clear.
         printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
         tput ed 2>/dev/null || true
-        echo -e "${GREEN}✔${RESET} ${prompt}  ${TUI_CHOICE}"
+        echo -e "${GREEN}✔${RESET}  ${prompt}  ${TUI_CHOICE}"
         return 0
         ;;
       *)
