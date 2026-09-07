@@ -69,6 +69,18 @@ TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
 IMAGE_TAG="deploy-check/${ADAPTER}:local"
 
+# A runner has no git identity either, and `scaffold new` commits what it
+# creates — tests/helpers/setup.bash gives bats the same thing, but this
+# script runs outside bats and never picked it up. Owned by this run rather
+# than written into a real global config; skipped when one is already set,
+# so a developer with a real identity keeps theirs.
+if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
+  GIT_CONFIG_GLOBAL="${TMP_DIR}/gitconfig"
+  export GIT_CONFIG_GLOBAL
+  git config --global user.name "deploy-check"
+  git config --global user.email "deploy-check@scaffold.invalid"
+fi
+
 # Every generated project's compose.yaml is `name: app` (common/compose.yaml)
 # — without this, a local run reconciles against, and `down -v`s, any real
 # "app" project already running on this machine, database volumes included.
