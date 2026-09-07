@@ -90,7 +90,14 @@ INNER_EOF
 @test "require_private_tools requires jq only when a token is set" {
   # jq lands on a client's production host, so the public path must not
   # acquire a dependency it never needed.
-  run require_private_tools
+  #
+  # PATH is replaced with a directory holding no jq for both halves, not left
+  # unmodified for this one: jq is always present on this project's own PATH,
+  # so an unmodified PATH would stay green here even if the GITHUB_TOKEN gate
+  # were deleted outright. Only a PATH where `command -v jq` would genuinely
+  # fail proves the no-token case returns before that lookup ever runs.
+  mkdir -p nojq
+  PATH="${PWD}/nojq" run require_private_tools
   assert_ok
 
   # An exit-127 stub is still a match for `command -v jq`, and a
@@ -98,8 +105,31 @@ INNER_EOF
   # PATH — measured against this file's own dependency. Only replacing PATH
   # outright, with no directory in it holding jq, makes the lookup fail the
   # way a client host without jq installed actually would.
-  mkdir -p nojq
   GITHUB_TOKEN=t0ken PATH="${PWD}/nojq" run require_private_tools
   [ "$status" -ne 0 ]
   [[ "$output" == *"jq"* ]]
+}
+
+@test "start_stack logs in to ghcr only when a token is set" {
+  # A package's ghcr visibility is separate from its repository's — a
+  # private package refuses an anonymous pull with `unauthorized`, measured
+  # 2026-09-07. A public client pulling a public image must never be asked
+  # to authenticate, so the no-token half here must see no login at all.
+  mkdir -p stub3
+  cat > stub3/docker <<'INNER_EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${DOCKER_LOG}"
+INNER_EOF
+  chmod +x stub3/docker
+
+  DOCKER_LOG="${PWD}/d1.log" PATH="${PWD}/stub3:${PATH}" run start_stack
+  assert_ok
+  run cat d1.log
+  [[ "$output" != *"login"* ]]
+
+  DOCKER_LOG="${PWD}/d2.log" GITHUB_TOKEN=t0ken PATH="${PWD}/stub3:${PATH}" run start_stack
+  assert_ok
+  run cat d2.log
+  [[ "$output" == *"login ghcr.io"* ]]
+  [[ "$output" == *"--password-stdin"* ]]
 }

@@ -186,6 +186,22 @@ check_image_configured() {
 }
 
 start_stack() {
+  # A package's ghcr visibility is separate from its repository's, and a
+  # private package refuses an anonymous pull with `unauthorized` — measured
+  # 2026-09-07. The username is not checked for a token login; RepoSlug's
+  # owner just makes a failure name something the operator recognises.
+  #
+  # --password-stdin, not an argument: an argument would put the token in
+  # this process's argv, visible to every other user on the host through the
+  # process list — the same exposure generate_service_passwords already
+  # carries for sed's argv, and this must not add a second instance of it.
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "${GITHUB_TOKEN}" \
+      | docker login ghcr.io -u "${RepoSlug%%/*}" --password-stdin >/dev/null || {
+        echo 'could not sign in to ghcr.io; the token needs read:packages' >&2
+        return 1
+      }
+  fi
   docker compose up --remove-orphans -d || return 1
 }
 
