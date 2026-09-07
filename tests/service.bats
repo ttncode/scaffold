@@ -587,6 +587,35 @@ EOF
     || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
 }
 
+# Shared by the two tests below, so a regression in the check itself fails
+# both: a copy of this logic kept only in the fixture test could no-op right
+# alongside a broken check while still reporting green on its own.
+_password_literal_report() {
+  local driver="$1" block bad=""
+  block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+            SERVICE_DIR="$(dirname "$(dirname "$driver")")"
+            . "$driver"; service_driver_compose_env )"
+
+  # A top-level *_PASSWORD key whose value is not exactly an interpolation.
+  while IFS= read -r line; do
+    case "$line" in
+      *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
+      *) bad="${bad}${driver} (${line})"$'\n' ;;
+    esac
+  done < <(grep -E '^[A-Za-z_]*_PASSWORD:' <<<"$block")
+
+  # A DSN's user:password@ slot whose password is not exactly an
+  # interpolation — the same shape, embedded in a URL instead of a key.
+  while IFS= read -r segment; do
+    case "$segment" in
+      :\$\{*_PASSWORD\}@) ;;
+      *) bad="${bad}${driver} (${segment})"$'\n' ;;
+    esac
+  done < <(grep -oE ':[^:@]*@' <<<"$block")
+
+  printf '%s' "$bad"
+}
+
 @test "a driver's compose environment never bakes a literal password" {
   # The password must exist in exactly one place — .env — so compose composes
   # the URL at `up` time. A literal baked here is the changeme-versus-app
@@ -602,28 +631,23 @@ EOF
   # check could not tell the two apart.
   local bad=""
   for driver in "${SCAFFOLD_ROOT}"/services/*/drivers/*.sh; do
-    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
-              SERVICE_DIR="$(dirname "$(dirname "$driver")")"
-              . "$driver"; service_driver_compose_env )"
-
-    # A top-level *_PASSWORD key whose value is not exactly an interpolation.
-    while IFS= read -r line; do
-      case "$line" in
-        *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
-        *) bad="${bad}${driver} (${line})"$'\n' ;;
-      esac
-    done < <(grep -E '^[A-Za-z_]*_PASSWORD:' <<<"$block")
-
-    # A DSN's user:password@ slot whose password is not exactly an
-    # interpolation — the same shape, embedded in a URL instead of a key.
-    while IFS= read -r segment; do
-      case "$segment" in
-        :\$\{*_PASSWORD\}@) ;;
-        *) bad="${bad}${driver} (${segment})"$'\n' ;;
-      esac
-    done < <(grep -oE ':[^:@]*@' <<<"$block")
+    bad="${bad}$(_password_literal_report "$driver")"
   done
   [ -z "$bad" ] || { echo "embeds a literal password:"; echo "$bad"; false; }
+}
+
+@test "the literal-password check reports a driver that bakes one in" {
+  # The test above only proves the check accepts what ships today — deleting
+  # its loops leaves that test green too, which is the same "gate that
+  # cannot fail" shape the missing-driver-function fixture exists to rule
+  # out for the driver-function loop. This drives the identical check
+  # against a fixture driver that hardcodes a password, so a regression to
+  # "matches nothing" fails here even while every real driver still passes.
+  local driver="${SCAFFOLD_ROOT}/tests/fixtures/lint-services/literal-password/sample/drivers/laravel.sh"
+  local bad
+  bad="$(_password_literal_report "$driver")"
+  [[ "$bad" == *"DB_PASSWORD: hunter2"* ]] \
+    || { echo "expected a literal password to be reported, got:"; echo "$bad"; false; }
 }
 
 @test "apply_service_compose_env merges into the app service" {
