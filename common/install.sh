@@ -49,8 +49,11 @@ fetch_release_asset() {
   local name="$1" dest="$2" id
 
   if [ -z "${GITHUB_TOKEN:-}" ]; then
-    curl -fsSL "${RepoUrl}/${name}" -o "$dest"
-    return
+    curl -fsSL "${RepoUrl}/${name}" -o "$dest" && return 0
+    # A private release answers 404 to an anonymous request, which reads as
+    # "no such release" rather than "you are not signed in".
+    echo "could not download ${name}; if this project is private, set GITHUB_TOKEN to a token with repo and read:packages" >&2
+    return 1
   fi
 
   id="$(curl -fsSL \
@@ -62,7 +65,11 @@ fetch_release_asset() {
   curl -fsSL \
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
     -H 'Accept: application/octet-stream' \
-    "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest"
+    "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest" && return 0
+  # A token given but rejected by this endpoint is the token's problem, not
+  # its absence — this message must not repeat the no-token hint above.
+  echo "could not download ${name} with the token given; it needs repo and read:packages" >&2
+  return 1
 }
 
 # jq is needed only to read a release's JSON, which only the token path does.

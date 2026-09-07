@@ -132,4 +132,45 @@ INNER_EOF
   run cat d2.log
   [[ "$output" == *"login ghcr.io"* ]]
   [[ "$output" == *"--password-stdin"* ]]
+  # --password-stdin alone does not prove the token stayed off argv — an
+  # implementation could keep that flag decoratively and still pass the token
+  # as an argument beside it. Only checking the token's own value is absent
+  # catches that.
+  [[ "$output" != *"t0ken"* ]]
+}
+
+@test "fetch_release_asset with no token names GITHUB_TOKEN on failure" {
+  # Without this the operator sees only curl's `(22) ... 404`, which reads as
+  # "no such release" rather than "you are not signed in" — see the comment
+  # on fetch_release_asset for the private-repository measurement behind it.
+  mkdir -p stub4
+  cat > stub4/curl <<'INNER_EOF'
+#!/usr/bin/env bash
+exit 22
+INNER_EOF
+  chmod +x stub4/curl
+  PATH="${PWD}/stub4:${PATH}" run fetch_release_asset compose.yaml ./out
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"GITHUB_TOKEN"* ]]
+  [[ "$output" == *"read:packages"* ]]
+}
+
+@test "fetch_release_asset with a token blames the token on failure, not its absence" {
+  # A supplied token is the problem here, not a missing one — the no-token
+  # hint above must not also appear, or an operator who already set
+  # GITHUB_TOKEN is told to do what they already did.
+  mkdir -p stub5
+  cat > stub5/curl <<'INNER_EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *releases/latest*) printf '{"assets":[{"id":42,"name":"compose.yaml"}]}' ;;
+  *) exit 22 ;;
+esac
+INNER_EOF
+  chmod +x stub5/curl
+  GITHUB_TOKEN=t0ken PATH="${PWD}/stub5:${PATH}" run fetch_release_asset compose.yaml ./out
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"with the token given"* ]]
+  [[ "$output" == *"read:packages"* ]]
+  [[ "$output" != *"if this project is private"* ]]
 }
