@@ -65,7 +65,7 @@ tui_end() {
 tui_header() {
   local term_lines; term_lines="$(tput lines 2>/dev/null || echo 24)"
   if (( term_lines < 23 )); then
-    echo -e "${BOLD}${GREEN}scaffold — new project wizard${RESET}"
+    echo -e "${BOLD}${GREEN}scaffold — project generator${RESET}"
     return
   fi
 
@@ -85,13 +85,13 @@ tui_header() {
     done
     _tui_header_row '' '' "$width"
   fi
-  _tui_header_row '' '  Interactively build a scaffold new command' "$width"
+  _tui_header_row '' '  Pick a stack — CI, containers and a release path come wired' "$width"
   _tui_header_row '' '' "$width"
   _tui_header_row dim '  Up/down or type a letter to move' "$width"
   _tui_header_row dim '  Press Enter to select' "$width"
   _tui_header_row dim '  Press Esc to cancel' "$width"
   _tui_header_row '' '' "$width"
-  _tui_header_edge '╰' '╯' 'New project wizard' "$width"
+  _tui_header_edge '╰' '╯' 'Project generator' "$width"
   echo
 }
 
