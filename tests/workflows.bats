@@ -94,19 +94,19 @@ teardown() {
   [[ "$output" == *"${account}/.github/"* ]]
 }
 
-@test "new refuses early when git has no identity to commit with" {
+@test "new succeeds with no ambient git identity, like a CI runner" {
   local no_ident="${WORKDIR}/no-ident"
   # Both are needed to hide the identity: helpers/setup.bash exports a
   # GIT_CONFIG_GLOBAL holding one, and git reads that in preference to HOME.
-  # The owner is supplied so this test fails on the identity and nothing else.
+  # The owner is supplied so this test can't fail on owner detection instead.
   rm -f "${BATS_TEST_TMPDIR}/.gitconfig"
   run env HOME="$BATS_TEST_TMPDIR" GIT_CONFIG_GLOBAL=/dev/null SCAFFOLD_GITHUB_OWNER=someone \
     scaffold new "$no_ident" --api nestjs
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"user.name"* ]]
-  # early means before the generator runs, not after a cleanup
-  [[ "$output" != *"removed incomplete project"* ]]
-  [ ! -e "$no_ident" ]
+  assert_ok
+  # the finalize commit carries its own identity rather than the caller's —
+  # this is what makes the line above pass with no identity anywhere in reach
+  run git -C "$no_ident" log -1 --format='%an <%ae>'
+  [ "$output" = "scaffold <scaffold@scaffold.invalid>" ]
 }
 
 @test "an explicit SCAFFOLD_GITHUB_OWNER beats what gh reports" {
