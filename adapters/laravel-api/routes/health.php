@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health/ready', function () {
     try {
         // @DB_PROBE@
-        throw new \RuntimeException('no database is configured for this project');
-    } catch (\Throwable $e) {
+        throw new RuntimeException('no database is configured for this project');
+    } catch (Throwable $e) {
         return response()->json(['status' => 'unavailable', 'reason' => $e->getMessage()], 503);
     }
 });

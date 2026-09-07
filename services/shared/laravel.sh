@@ -50,9 +50,21 @@ service_driver_apply() {
   # always returns first. The throw is replaced in place instead, so a
   # --db none project keeps it — unreachable in no project this driver ever
   # touches.
-  sed -i.bak 's|// @DB_PROBE@|\\Illuminate\\Support\\Facades\\DB::connection()->select(\x27select 1\x27);|' \
+  #
+  # The probe is spliced in as a short class name with its own `use` added
+  # here, not the FQCN a --db none project ships: pint's
+  # fully_qualified_strict_types rejects an inline FQCN once the file already
+  # has imports, and a --db none project never runs this substitution (or
+  # carries an import it would leave unused).
+  sed -i.bak 's|use Illuminate\\Support\\Facades\\Route;|use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Route;|' \
     routes/health.php || return 1
-  sed -i.bak "s|throw new \\\\RuntimeException('no database is configured for this project');|return response()->json(['status' => 'ok']);|" \
+  sed -i.bak 's|// @DB_PROBE@|DB::connection()->select(\x27select 1\x27);|' \
+    routes/health.php || return 1
+  # Matched with its leading indentation so the replacement's `\n` opens a
+  # bare blank line rather than one trailing the throw statement's own
+  # indentation — pint's blank_line_before_statement wants a blank line
+  # between the probe call above and this return.
+  sed -i.bak "s|        throw new RuntimeException('no database is configured for this project');|\\n        return response()->json(['status' => 'ok']);|" \
     routes/health.php || return 1
   rm -f routes/health.php.bak
 
