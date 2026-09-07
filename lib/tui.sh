@@ -72,11 +72,19 @@ tui_header() {
   local cols width; cols="$(tput cols 2>/dev/null || echo 80)"
   width=$(( cols - 1 ))
 
+  # Blank row, two-space indent, one hint per line, blank row, then a blank
+  # line under the box: banner.sh's own layout, followed exactly rather than
+  # approximated, because the two are meant to be recognisably one family.
   _tui_header_edge '╭' '╮' 'scaffold' "$width"
-  _tui_header_row '' 'Interactively build a scaffold new command.' "$width"
   _tui_header_row '' '' "$width"
-  _tui_header_row dim 'up/down or type to move, enter to select, esc to cancel' "$width"
+  _tui_header_row '' '  Interactively build a scaffold new command.' "$width"
+  _tui_header_row '' '' "$width"
+  _tui_header_row dim '  Up/down or type a letter to move' "$width"
+  _tui_header_row dim '  Press Enter to select' "$width"
+  _tui_header_row dim '  Press Esc to cancel' "$width"
+  _tui_header_row '' '' "$width"
   _tui_header_edge '╰' '╯' 'new project wizard' "$width"
+  echo
 }
 
 # _tui_header_edge <left-corner> <right-corner> <label> <width> — banner.sh's
@@ -121,14 +129,14 @@ tui_name_is_usable() {
 }
 
 # tui_prompt_name — reads a project name, re-asking until it satisfies
-# tui_name_is_usable. Manages its own echo state rather than relying on
-# tui_begin's, because a name is typed and has to be seen, unlike a menu
-# selection. Same for the cursor: tui_begin hides it for the menu screens,
-# but a name is typed, so this screen needs a caret.
+# tui_name_is_usable.
+#
+# Echo stays off, as tui_begin left it: _tui_read_line prints each character
+# itself, so letting the tty echo as well would show every keystroke twice.
+# The cursor is turned back on, though — tui_begin hides it for the menu
+# screens, and a typed field needs a caret to type against.
 tui_prompt_name() {
-  local name saved
-  saved="$(stty -g 2>/dev/null || true)"
-  stty echo 2>/dev/null || true
+  local name
   # cmd_wizard reads this function back with `name="$(tui_prompt_name)"`,
   # capturing everything written to stdout — so tput's escape sequences go to
   # stderr, the same fd the rest of this prompt already writes to, or they'd
@@ -137,16 +145,75 @@ tui_prompt_name() {
 
   while true; do
     printf '%b' "${BOLD}? Project name: ${RESET}" >&2
-    # EOF (Ctrl-D) leaves $name empty and would otherwise re-prompt forever;
-    # exit the way Esc does elsewhere and let the EXIT trap restore the tty.
-    IFS= read -r name || { printf '\n' >&2; exit 130; }
+    _tui_read_line || { printf '\n' >&2; exit 130; }
+    name="$REPLY"
     tui_name_is_usable "$name" && break
     printf '%b\n' "${RED}  ${PROJECT_NAME_RULE}: ${name}${RESET}" >&2
   done
 
-  [ -n "$saved" ] && stty "$saved" 2>/dev/null
   tput civis >&2 2>/dev/null || true
   printf '%s\n' "$name"
+}
+
+# _tui_read_line — one line of input into REPLY, byte by byte.
+#
+# `read -r` cannot see Esc: the tty hands it a whole line, and Esc is just a
+# byte inside it. The header promises "Press Esc to cancel" and every other
+# screen honours that, so the one screen that ignored it was the first one a
+# user meets. Reading a byte at a time is what makes Esc reachable here.
+#
+# The cost, stated because it is real: this is not readline. Ctrl-W, Ctrl-U
+# and the left/right arrows do nothing, and Backspace is handled below
+# because nothing else would. A project name is short enough to retype; a
+# promise the first screen breaks is not something a user retypes their way
+# out of.
+#
+# Returns 1 on Esc or EOF, so the caller treats both the way it already
+# treated Ctrl-D.
+_tui_read_line() {
+  local key
+  REPLY=""
+  while true; do
+    IFS= read -rsn1 key || return 1
+    case "$key" in
+      "")
+        printf '\n' >&2
+        return 0
+        ;;
+      $'\x04')
+        # Ctrl-D. Reading a byte at a time means the tty never turns it into
+        # EOF the way a line-mode `read` would — it arrives as a plain 0x04,
+        # which the printable filter below would silently discard, leaving
+        # the prompt spinning. tests/wizard.bats has asserted this exit since
+        # before the byte-at-a-time read existed, and caught it immediately.
+        return 1
+        ;;
+      $'\x1b')
+        # An escape sequence (an arrow key) arrives as Esc plus more bytes.
+        # Draining them distinguishes a real Esc, which arrives alone, from
+        # an arrow — the same 50ms window and the same reason as tui_select.
+        if read -rsn2 -t 0.05 key; then
+          continue
+        fi
+        return 1
+        ;;
+      $'\x7f'|$'\b')
+        [ -n "$REPLY" ] || continue
+        REPLY="${REPLY%?}"
+        # Back up, overwrite with a space, back up again: the terminal has
+        # already echoed the character being removed.
+        printf '\b \b' >&2
+        ;;
+      *)
+        # Printable only. A stray control byte would otherwise be echoed and
+        # land in the name, where project_name_is_usable would reject it with
+        # a message about a character the user cannot see.
+        case "$key" in
+          [[:print:]]) REPLY+="$key"; printf '%s' "$key" >&2 ;;
+        esac
+        ;;
+    esac
+  done
 }
 
 # _tui_fit <text> <limit> — sets REPLY rather than echoing, so it can run once

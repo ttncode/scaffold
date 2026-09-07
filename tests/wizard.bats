@@ -221,6 +221,72 @@ EOF
   [ "$status" -eq 130 ]
 }
 
+@test "Esc at the name prompt cancels, like every other screen" {
+  # The header says "Press Esc to cancel" above every screen including this
+  # one, and `read -r` could not see Esc — the tty hands it a whole line, and
+  # Esc is one byte inside it. So the first screen a user meets was the one
+  # that ignored the key it advertised. Driven under a pty because the
+  # behaviour is the terminal's, not the function's.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local driver="${BATS_TEST_TMPDIR}/drive-esc.sh"
+  cat > "$driver" <<EOF
+#!/usr/bin/env bash
+source "${SCAFFOLD_ROOT}/lib/log.sh"
+source "${SCAFFOLD_ROOT}/lib/project.sh"
+source "${SCAFFOLD_ROOT}/lib/tui.sh"
+tui_prompt_name >/dev/null
+EOF
+
+  local out="${BATS_TEST_TMPDIR}/esc.log" status=0
+  { sleep 1; printf '\033'; sleep 1; } \
+    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || status=$?
+
+  [ "$status" -ne 124 ] || { echo "Esc did not cancel; the prompt spun until timeout:"; cat "$out"; false; }
+  [ "$status" -eq 130 ]
+}
+
+@test "backspace at the name prompt removes one character" {
+  # _tui_read_line echoes each key itself, so it owns backspace too — nothing
+  # else would handle it, and a name field that cannot be corrected is worse
+  # than one that cannot be cancelled.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local driver="${BATS_TEST_TMPDIR}/drive-bs.sh"
+  cat > "$driver" <<EOF
+#!/usr/bin/env bash
+source "${SCAFFOLD_ROOT}/lib/log.sh"
+source "${SCAFFOLD_ROOT}/lib/project.sh"
+source "${SCAFFOLD_ROOT}/lib/tui.sh"
+tui_prompt_name
+EOF
+
+  local out="${BATS_TEST_TMPDIR}/bs.log"
+  { sleep 1; printf 'demoX\177\n'; sleep 1; } \
+    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || true
+
+  # The name is written to stdout; the prompt and its echo go to stderr, and
+  # script merges both, so match the value rather than the whole stream.
+  grep -q 'demo' "$out" || { echo "no name in the output:"; cat "$out"; false; }
+  grep -qv 'demoX' "$out" || { echo "backspace did not remove the X:"; cat "$out"; false; }
+}
+
+@test "the header is printed once, not once per screen" {
+  # The whole point of the inline style: the header stays put and questions
+  # scroll under it. A reintroduced `clear` or a per-screen reprint would
+  # show it more than once, and nothing else in the suite would notice.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local out="${BATS_TEST_TMPDIR}/header.log"
+  { sleep 1; printf 'demo-app\n'; sleep 1; printf '\n'; sleep 1; printf '\033'; sleep 1; } \
+    | timeout 25 script -qec "cd '${SCAFFOLD_ROOT}' && mise exec -- ./scaffold" /dev/null \
+    > "$out" 2>&1 || true
+
+  local seen
+  seen="$(grep -ac 'new project wizard' "$out" || true)"
+  [ "$seen" -eq 1 ] || { echo "header appeared ${seen} times, expected 1:"; cat "$out"; false; }
+}
+
 @test "the wizard reaches a command without generating anything" {
   # Drives the real screens through a pty and asserts only on the command it
   # prints. Frames are not asserted: this proves the loop reads keys, applies
