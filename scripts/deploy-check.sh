@@ -69,16 +69,35 @@ TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
 IMAGE_TAG="deploy-check/${ADAPTER}:local"
 
-# A runner has no git identity either, and `scaffold new` commits what it
-# creates — tests/helpers/setup.bash gives bats the same thing, but this
-# script runs outside bats and never picked it up. Owned by this run rather
-# than written into a real global config; skipped when one is already set,
-# so a developer with a real identity keeps theirs.
+# `scaffold new` needs an identity, an account, and a trust store that a
+# runner has none of on its own — tests/helpers/setup.bash hands bats all
+# three for exactly this reason, but this script runs outside bats and
+# never picked any of them up. Each is owned by this run rather than
+# written into real state, and skipped when the caller already supplied
+# one, so a developer with a real identity, account, or trust store keeps
+# theirs.
+
+# scaffold new commits what it creates, and git refuses without an identity.
 if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
   GIT_CONFIG_GLOBAL="${TMP_DIR}/gitconfig"
   export GIT_CONFIG_GLOBAL
   git config --global user.name "deploy-check"
   git config --global user.email "deploy-check@scaffold.invalid"
+fi
+
+# resolve_github_owner (lib/project.sh) substitutes this for the generated
+# workflows' placeholder `you/` account, and falls back to `gh auth login`
+# or git's github.user before giving up — a runner has none of the three.
+export SCAFFOLD_GITHUB_OWNER="${SCAFFOLD_GITHUB_OWNER:-deploy-check}"
+
+# mise records every config it trusts (`mise trust`, below) under its state
+# directory keyed by path; a throwaway project dir trusted here has no
+# reason to outlive this run, and a repeated local run would otherwise grow
+# the developer's real store the way tests/helpers/setup.bash found bats
+# had — past 7600 stale entries.
+if [ -z "${MISE_STATE_DIR:-}" ]; then
+  MISE_STATE_DIR="${TMP_DIR}/mise-state"
+  export MISE_STATE_DIR
 fi
 
 # Every generated project's compose.yaml is `name: app` (common/compose.yaml)
