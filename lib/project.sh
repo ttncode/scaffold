@@ -35,20 +35,6 @@ resolve_github_owner() {
   printf '%s' "$owner"
 }
 
-# require_git_identity — finalize_project ends in a commit, and git refuses to
-# make one without user.name and user.email. Checked before anything is
-# generated: without it the failure lands after the generator has run, in git's
-# words rather than scaffold's. Kept out of require_tools because that checks
-# for commands on PATH, and out of the shared path because only `new` commits —
-# `list`, `lint` and `add` do not.
-require_git_identity() {
-  local field
-  for field in user.name user.email; do
-    [ -n "$(git config --get "$field" || true)" ] \
-      || die "git has no ${field} to commit the new project with — set it with 'git config --global ${field} \"<value>\"'"
-  done
-}
-
 # PROJECT_NAME_RULE — what a usable project name has to satisfy, in the
 # user's terms. Shared by init_project's die() and the wizard's prompt
 # (lib/tui.sh) so a rejected name gets the same sentence either way.
@@ -425,5 +411,16 @@ finalize_project() {
   sync_ci_roots "$project"
   lock_toolchains "$project"
   git -C "$project" add -A
-  git -C "$project" commit --quiet -m "chore: scaffold project"
+  # GIT_AUTHOR_*/GIT_COMMITTER_* rather than relying on the caller's git
+  # config: this commit is boilerplate ("chore: scaffold project"), not
+  # authored by a person, so it has no business depending on an ambient
+  # identity that a developer machine has and a CI runner does not — every
+  # caller outside the test suite (deploy-check.sh, the adapters workflow)
+  # had to work around that gap on its own, repeatedly. `-c user.name=`
+  # alone isn't enough: these env vars outrank `-c` config in git's own
+  # precedence, so a caller that happens to export one (as this sandbox's
+  # shell does) would otherwise still leak through.
+  GIT_AUTHOR_NAME="scaffold" GIT_AUTHOR_EMAIL="scaffold@scaffold.invalid" \
+    GIT_COMMITTER_NAME="scaffold" GIT_COMMITTER_EMAIL="scaffold@scaffold.invalid" \
+    git -C "$project" commit --quiet -m "chore: scaffold project"
 }

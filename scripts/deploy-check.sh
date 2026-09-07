@@ -69,21 +69,14 @@ TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
 IMAGE_TAG="deploy-check/${ADAPTER}:local"
 
-# `scaffold new` needs an identity, an account, and a trust store that a
-# runner has none of on its own — tests/helpers/setup.bash hands bats all
-# three for exactly this reason, but this script runs outside bats and
-# never picked any of them up. Each is owned by this run rather than
-# written into real state, and skipped when the caller already supplied
-# one, so a developer with a real identity, account, or trust store keeps
-# theirs.
-
-# scaffold new commits what it creates, and git refuses without an identity.
-if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
-  GIT_CONFIG_GLOBAL="${TMP_DIR}/gitconfig"
-  export GIT_CONFIG_GLOBAL
-  git config --global user.name "deploy-check"
-  git config --global user.email "deploy-check@scaffold.invalid"
-fi
+# `scaffold new` needs an account and a trust store that a runner has
+# neither of on its own — tests/helpers/setup.bash hands bats both for
+# exactly this reason, but this script runs outside bats and never picked
+# them up. Each is owned by this run rather than written into real state,
+# and skipped when the caller already supplied one, so a developer with a
+# real account or trust store keeps theirs. (Identity used to belong to
+# this list too — finalize_project's commit now carries its own, so nothing
+# here needs a git identity to run.)
 
 # resolve_github_owner (lib/project.sh) substitutes this for the generated
 # workflows' placeholder `you/` account, and falls back to `gh auth login`
