@@ -38,6 +38,33 @@ release_asset_id() {
   printf '%s' "$id"
 }
 
+# fetch_release_asset <name> <dest>
+#
+# Two endpoints, because a private release is not reachable from the public
+# one: measured against a real private repository, the browser URL returns
+# 404 both anonymously and with a Bearer token, while the API asset endpoint
+# returns 200. So a token alone does not fix the public URL — the URL is what
+# has to change.
+fetch_release_asset() {
+  local name="$1" dest="$2" id
+
+  if [ -z "${GITHUB_TOKEN:-}" ]; then
+    curl -fsSL "${RepoUrl}/${name}" -o "$dest"
+    return
+  fi
+
+  id="$(curl -fsSL \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H 'Accept: application/vnd.github+json' \
+      "https://api.github.com/repos/${RepoSlug}/releases/latest" \
+    | release_asset_id "$name")" || return 1
+
+  curl -fsSL \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H 'Accept: application/octet-stream' \
+    "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest"
+}
+
 create_directory() {
   if [[ -e $TargetDir ]]; then
     echo "found existing ${TargetDir}, will overwrite compose.yaml"

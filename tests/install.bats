@@ -47,3 +47,42 @@ INNER_EOF
   [ "$status" -ne 0 ]
   [[ "$output" == *"compose.yaml"* ]]
 }
+
+@test "fetch_release_asset uses the browser URL when no token is set" {
+  # The public path must not change: no API call, no jq, no token. Asserting
+  # api.github.com is absent, not just that the browser URL is present, is
+  # what would catch a fetch that called both and quietly required a token
+  # for every public client.
+  mkdir -p stub
+  cat > stub/curl <<'INNER_EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CURL_LOG}"
+INNER_EOF
+  chmod +x stub/curl
+  CURL_LOG="${PWD}/curl.log" PATH="${PWD}/stub:${PATH}" \
+    run fetch_release_asset compose.yaml ./out
+  assert_ok
+  run cat curl.log
+  [[ "$output" == *"releases/latest/download/compose.yaml"* ]]
+  [[ "$output" != *"api.github.com"* ]]
+}
+
+@test "fetch_release_asset uses the api asset endpoint when a token is set" {
+  # A Bearer token on the browser URL returns 404 for a private repository —
+  # measured 2026-09-07 — so the endpoint has to change, not just the headers.
+  mkdir -p stub2
+  cat > stub2/curl <<'INNER_EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CURL_LOG}"
+case "$*" in
+  *releases/latest*) printf '{"assets":[{"id":42,"name":"compose.yaml"}]}' ;;
+esac
+INNER_EOF
+  chmod +x stub2/curl
+  CURL_LOG="${PWD}/curl2.log" GITHUB_TOKEN=t0ken PATH="${PWD}/stub2:${PATH}" \
+    run fetch_release_asset compose.yaml ./out
+  assert_ok
+  run cat curl2.log
+  [[ "$output" == *"releases/assets/42"* ]]
+  [[ "$output" == *"application/octet-stream"* ]]
+}
