@@ -100,6 +100,19 @@ setup() {
   [[ "$output" == *"sample: no driver for laravel"* ]]
 }
 
+@test "lint_services reports a driver that does not define a required function" {
+  # The missing-driver fixture above proves a family with no driver file
+  # fails; nothing proved the mirror case — a driver file that exists and
+  # sources cleanly but omits one of REQUIRED_DRIVER_FUNCTIONS. Deleting the
+  # whole `for fn` loop in lint_services left this suite green, which is the
+  # same "gate that cannot fail" shape task 1's own ruling already named.
+  run lint_services \
+    "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-driver-function" \
+    "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: nest driver does not define service_driver_compose_migrate"* ]]
+}
+
 @test "lint_services reports a missing required file" {
   run lint_services \
     "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-file" \
@@ -141,6 +154,31 @@ setup() {
   [[ "$output" == *"adapter.env does not set ADAPTER_FAMILY"* ]]
 }
 
+@test "lint_adapters requires a readiness path for a role that takes a driver" {
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/no-readiness-path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sample: adapter.env does not set ADAPTER_READINESS_PATH"* ]]
+}
+
+@test "lint_adapters does not require a readiness path for a role that takes no driver" {
+  # a web adapter opens no connection, so demanding one here would fail every
+  # web adapter for a check it can never satisfy honestly.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/web-no-readiness-path"
+  assert_ok
+  [ -z "$output" ]
+}
+
+@test "lint_adapters rejects a readiness path declared but left empty" {
+  # Both checks above only grep that the line is present, not that it holds
+  # a route: an empty value passed both, and downstream that same empty
+  # value collapses tests/compose.bats' HEALTHCHECK assertion and the deploy
+  # gate's readiness curl into matching any localhost probe on 8080 — the
+  # exact defect those checks exist to stop.
+  run lint_adapters "${SCAFFOLD_ROOT}/tests/fixtures/lint/empty-readiness-path"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'sample: adapter.env sets ADAPTER_READINESS_PATH to "", not a path starting with /'* ]]
+}
+
 @test "scaffold lint covers the services that ship" {
   run scaffold lint
   assert_ok
@@ -169,4 +207,27 @@ setup() {
   local run_line
   run_line="$(awk '/^\[tasks\."test-integration"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
   [[ "$run_line" == *"tests/wizard-integration.bats"* ]]
+}
+
+@test "every adapter declares a liveness path" {
+  local missing=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    grep -q '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" \
+      || missing="${missing}$(basename "$dir")"$'\n'
+  done
+  [ -z "$missing" ] || { echo "missing ADAPTER_LIVENESS_PATH:"; echo "$missing"; false; }
+}
+
+@test "an adapter whose role takes a driver declares a readiness path" {
+  # a web adapter opens no connection (DRIVEN_ROLES), so it has nothing to
+  # probe; anything else must, or the deploy gate has no way to prove the
+  # application actually reaches its database.
+  local missing=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    role="$(grep '^ADAPTER_ROLE=' "${dir}adapter.env" | cut -d'"' -f2)"
+    case " ${DRIVEN_ROLES[*]} " in *" ${role} "*) ;; *) continue ;; esac
+    grep -q '^ADAPTER_READINESS_PATH=' "${dir}adapter.env" \
+      || missing="${missing}$(basename "$dir")"$'\n'
+  done
+  [ -z "$missing" ] || { echo "missing ADAPTER_READINESS_PATH:"; echo "$missing"; false; }
 }

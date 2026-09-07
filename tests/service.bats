@@ -586,3 +586,108 @@ EOF
   [ "$allow_builds" -lt "$first_add" ] \
     || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
 }
+
+# Shared by the two tests below, so a regression in the check itself fails
+# both: a copy of this logic kept only in the fixture test could no-op right
+# alongside a broken check while still reporting green on its own.
+_password_literal_report() {
+  local driver="$1" block bad=""
+  block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+            SERVICE_DIR="$(dirname "$(dirname "$driver")")"
+            . "$driver"; service_driver_compose_env )"
+
+  # A *_PASSWORD key whose value is not exactly an interpolation. Anchored
+  # with optional leading whitespace, not a bare ^, so an indented key still
+  # gets selected for the case check below.
+  #
+  # Only *_PASSWORD, deliberately: PGPASSWORD, DB_PASS, and APP_KEY's own
+  # base64 secret would also slip past this, but a name blacklist is never
+  # complete, and the services/*/drivers/*.sh files are the only writers of
+  # this block and already go through review — widen the blacklist here and
+  # the next unlisted name just becomes the new hole.
+  while IFS= read -r line; do
+    case "$line" in
+      *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
+      *) bad="${bad}${driver} (${line})"$'\n' ;;
+    esac
+  done < <(grep -E '^[[:space:]]*[A-Za-z_]*_PASSWORD:' <<<"$block")
+
+  # A DSN's user:password@ slot whose password is not exactly an
+  # interpolation — the same shape, embedded in a URL instead of a key.
+  while IFS= read -r segment; do
+    case "$segment" in
+      :\$\{*_PASSWORD\}@) ;;
+      *) bad="${bad}${driver} (${segment})"$'\n' ;;
+    esac
+  done < <(grep -oE ':[^:@]*@' <<<"$block")
+
+  printf '%s' "$bad"
+}
+
+@test "a driver's compose environment never bakes a literal password" {
+  # The password must exist in exactly one place — .env — so compose composes
+  # the URL at `up` time. A literal baked here is the changeme-versus-app
+  # mismatch that made the dev stack unable to authenticate.
+  #
+  # No skip for an empty block: an empty block matches neither grep below,
+  # so this loop already treats "emits nothing" as "nothing to flag" without
+  # a special case for it.
+  #
+  # Asserts the absence of a literal, not the presence of an interpolation:
+  # a block could carry `${DB_PASSWORD}` somewhere else and a hardcoded
+  # value where the credential actually goes, and the old presence-only
+  # check could not tell the two apart.
+  local bad=""
+  for driver in "${SCAFFOLD_ROOT}"/services/*/drivers/*.sh; do
+    bad="${bad}$(_password_literal_report "$driver")"
+  done
+  [ -z "$bad" ] || { echo "embeds a literal password:"; echo "$bad"; false; }
+}
+
+@test "the literal-password check reports a driver that bakes one in" {
+  # The test above only proves the check accepts what ships today — deleting
+  # its loops leaves that test green too, which is the same "gate that
+  # cannot fail" shape the missing-driver-function fixture exists to rule
+  # out for the driver-function loop. This drives the identical check
+  # against a fixture driver that hardcodes a password, so a regression to
+  # "matches nothing" fails here even while every real driver still passes.
+  local driver="${SCAFFOLD_ROOT}/tests/fixtures/lint-services/literal-password/sample/drivers/laravel.sh"
+  local bad
+  bad="$(_password_literal_report "$driver")"
+  [[ "$bad" == *"DB_PASSWORD: hunter2"* ]] \
+    || { echo "expected a literal password to be reported, got:"; echo "$bad"; false; }
+}
+
+@test "apply_service_compose_env merges into the app service" {
+  local project="${BATS_TEST_TMPDIR}/p"
+  mkdir -p "$project"
+  printf 'services:\n  app:\n    image: x\n' > "${project}/compose.yaml"
+  . "${SCAFFOLD_ROOT}/lib/service.sh"
+  apply_service_compose_env "$project" 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
+  run mise exec -- yq -r '.services.app.environment.DATABASE_URL' "${project}/compose.yaml"
+  [[ "$output" == 'postgresql://app@database:5432/app' ]] \
+    || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
+}
+
+@test "the laravel drivers name the connection selector laravel actually reads" {
+  # config/database.php is `env('DB_CONNECTION', 'sqlite')`. Without that
+  # variable laravel does not fail — it silently reads DB_DATABASE as a
+  # sqlite filename and never contacts the service at all.
+  for service in mysql postgres mongodb; do
+    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
+              service_driver_compose_env )"
+    grep -q '^DB_CONNECTION:' <<<"$block" \
+      || { echo "${service}/laravel.sh emits no DB_CONNECTION"; false; }
+  done
+}
+
+@test "the nest drivers name DATABASE_URL and let an operator override it" {
+  for service in mysql postgres mongodb; do
+    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
+              service_driver_compose_env )"
+    grep -q '^DATABASE_URL: \${DATABASE_URL:-' <<<"$block" \
+      || { echo "${service}/nest.sh does not allow an override"; false; }
+  done
+}

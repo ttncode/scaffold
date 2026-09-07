@@ -22,6 +22,20 @@ run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
 # prisma, and this does nothing; a real prisma failure still fails.
 run = "if [ -f prisma/schema.prisma ]; then pnpm exec prisma generate; fi"
 
+[tasks.migrate]
+# prisma's mongodb provider rejects `migrate deploy` outright — measured:
+# `The "mongodb" provider is not supported with this command.` — and takes
+# `db push` instead. Branching on the schema rather than on a recorded value
+# keeps this true for a project whose provider changes.
+run = """
+if ! [ -f prisma/schema.prisma ]; then exit 0; fi
+if grep -q 'provider *= *"mongodb"' prisma/schema.prisma; then
+  pnpm exec prisma db push --skip-generate
+else
+  pnpm exec prisma migrate deploy
+fi
+"""
+
 [tasks.check]
 run = [{ task = ":prisma" }, "pnpm exec tsc --noEmit"]
 

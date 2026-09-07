@@ -21,23 +21,35 @@ COPY --from=vendor /app/vendor ./vendor
 COPY . .
 RUN npm run build
 
-FROM php:8.3.21-fpm-alpine@sha256:d2170b0f8da574062b289566a05f25ab57173315a356c9f7519b5e444ae96dac AS runtime
+# FrankenPHP, because php-fpm speaks FastCGI and this stack has no web server
+# in front of it: nothing served HTTP at all, and compose published a dead
+# port. Documented as a first-class server in laravel.com/docs/13.x/deployment,
+# part of the PHP Foundation since May 2025, and what Laravel Cloud runs.
+# Alpine specifically: services/mongodb/drivers/laravel.sh emits `apk add`.
+FROM dunglas/frankenphp:1.12.7-php8.3-alpine@sha256:049b8d8356efceb93c91ed42866de890534310bcef4ad4dde902029e4a0d20c3 AS runtime
 RUN docker-php-ext-install opcache
 # @SERVICE_SETUP@
 WORKDIR /var/www
 COPY --from=vendor /app/vendor ./vendor
-COPY --from=assets /app/public/build ./public/build
 COPY . .
+COPY --from=assets /app/public/build ./public/build
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+# :8080 is how frankenphp listens on an unprivileged port and declines to
+# provision TLS, which belongs to whatever proxy this lands behind.
+ENV SERVER_NAME=:8080
+# Caddy writes here and will not start if it may not. The app tree needs the
+# same: COPY runs as root, the server runs as www-data, and the first request
+# that compiles a blade view or writes a log fails without this.
+ENV XDG_CONFIG_HOME=/config XDG_DATA_HOME=/data
+RUN mkdir -p /config /data \
+ && chown -R www-data:www-data /config /data \
+      /var/www/storage /var/www/bootstrap/cache
 USER www-data
-EXPOSE 9000
-# php-fpm speaks fastcgi on this port, not http, so the http probes the
-# sibling adapters (nextjs, nestjs) use do not transplant here. the obvious
-# alternative, `php -r 'exit(0);'`, only proves the php cli starts — it can
-# never fail while the container is actually broken, which is worse than no
-# check at all: an orchestrator with no HEALTHCHECK knows it does not know,
-# one with an always-green check believes it does. a real check needs
-# php-fpm's ping.path probed with cgi-fcgi, which costs a pool config file
-# and a package this image does not otherwise need; add both together if
-# this is ever deployed behind something that polls container health.
-CMD ["php-fpm"]
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget -qO- http://localhost:8080/up || exit 1
+# CMD replaces the base image's default args entirely rather than extending
+# them, and those args are what point frankenphp at the Caddyfile that
+# defines the :8080 site block; without them it starts only the admin API on
+# 127.0.0.1:2019 and nothing ever listens on 8080.
+CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--adapter", "caddyfile"]

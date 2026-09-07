@@ -93,8 +93,19 @@ download_release_assets() {
 generate_service_passwords() {
   local file="$1" name password
   while IFS= read -r name; do
-    password="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
-    sed -i.bak "s/^${name}=changeme\$/${name}=${password}/" "$file"
+    # APP_KEY is not a password: laravel decrypts with it and rejects anything
+    # that is not base64: plus exactly 32 bytes. Handled inside this loop
+    # rather than beside it so example.env keeps one placeholder, and the
+    # existing-.env guard that greps for a remaining `=changeme` still covers
+    # it.
+    if [ "$name" = APP_KEY ]; then
+      password="base64:$(head -c 32 /dev/urandom | base64)"
+    else
+      password="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
+    fi
+    # `|`, not `/`: a base64 value can itself contain `/`, which would end
+    # sed's s/// early and leave the line unmatched instead of substituted.
+    sed -i.bak "s|^${name}=changeme\$|${name}=${password}|" "$file"
     rm -f "${file}.bak"
     grep -qF "${name}=${password}" "$file" || {
       echo "could not set ${name} in ${file}; refusing to start with an unconfirmed password"
@@ -114,10 +125,35 @@ check_image_configured() {
 }
 
 start_stack() {
-  local port
   docker compose up --remove-orphans -d || return 1
-  port="$(grep '^APP_PORT=' .env | cut -d= -f2)"
-  echo "the application is running on http://localhost:${port:-8080}"
+}
+
+# ADR-0014 seam 5 forbids migrations from an *entrypoint* — a container that
+# migrates every time it starts cannot be scaled or rolled back. This is a
+# human running one command on the target host, which is what that ADR calls
+# the one deploy mechanism that exists today. A project with no database
+# ships no migrate service, and `--profile` on a service that is not there
+# is not an error.
+run_migrations() {
+  # `docker compose config --services` (no --profile) never lists a service
+  # gated behind a profile, so that guard alone always skipped the migration
+  # silently — measured: plain `config --services` prints only `app`, and
+  # `--profile migrate config --services` prints `migrate app`.
+  if docker compose --profile migrate config --services | grep -qx migrate; then
+    echo "running migrations..."
+    docker compose --profile migrate run --rm migrate
+    return
+  fi
+  # A database service with no migrate service beside it is not "nothing to
+  # migrate" — every database driver ships a migrate command, so this
+  # combination only happens if the service, its profile, or the command
+  # itself silently vanished. Returning 0 here is exactly the hole that let
+  # a stack go green with unapplied schema; a project with no database at
+  # all is the only case this falls through to.
+  if docker compose config --services | grep -qx database; then
+    echo "a database service exists but no migrate service was found — refusing to start with unapplied schema" >&2
+    return 1
+  fi
 }
 
 main() {
@@ -128,6 +164,11 @@ main() {
   download_release_assets || { echo 'could not download the release assets'; return 1; }
   check_image_configured || return 1
   start_stack || { echo 'could not start the stack; check the output above'; return 1; }
+  run_migrations || { echo 'could not run migrations; check the output above'; return 1; }
+
+  local port
+  port="$(grep '^APP_PORT=' .env | cut -d= -f2)"
+  echo "the application is running on http://localhost:${port:-8080}"
 }
 
 # sourced by the toolbox's tests to exercise one function at a time; running

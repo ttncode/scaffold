@@ -25,11 +25,26 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 USER node
-EXPOSE 3000
-# `/`, not `/api/health`: create-next-app generates no health route, so every
-# image built from here reported unhealthy from first boot until somebody
-# noticed and wrote one. An app that adds a real health endpoint should point
-# this at it.
+# 8080 because that is the container port common/compose.yaml publishes, and
+# nothing rewrites it — an adapter listening anywhere else publishes a dead
+# port. next's standalone server.js reads PORT itself.
+ENV PORT=8080
+# Docker sets HOSTNAME to the container's own id for every container, and
+# the standalone server.js binds to `process.env.HOSTNAME || '0.0.0.0'` — so
+# without this, it listens on that id-derived address, not 0.0.0.0. Traffic
+# from outside (compose's published port) still reaches it, since that's
+# routed to the container's real interface regardless; the HEALTHCHECK below
+# runs inside the container and dials localhost, which nothing is listening
+# on, so it fails forever while the app answers everyone else. Measured with
+# `docker run`: `ss -tlnp` showed the server bound to the bridge IP, and
+# HEALTHCHECK logged "connection refused" on every attempt, until this line.
+ENV HOSTNAME="0.0.0.0"
+EXPOSE 8080
+# 127.0.0.1, not localhost: "0.0.0.0" above is an IPv4-only bind, but this
+# image's resolver hands wget the ::1 (IPv6) address for "localhost" first,
+# and busybox wget does not fall back to the IPv4 result — measured, this
+# still failed with "connection refused" after the HOSTNAME fix alone, even
+# though the server was listening and answering every other caller.
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+  CMD wget -qO- http://127.0.0.1:8080/api/health/live || exit 1
 CMD ["node", "server.js"]

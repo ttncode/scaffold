@@ -27,3 +27,18 @@ service_driver_apply() {
 service_driver_dockerfile() {
   :
 }
+
+# REDIS_PASSWORD already reaches the container via compose.yaml's env_file
+# (it is in the project's example.env, assembled from this service's own
+# env.fragment) — restating it here would only be redundant, the same
+# reasoning that already dropped DB_PASSWORD from the mysql and postgres
+# laravel drivers.
+service_driver_compose_env() {
+  printf 'REDIS_HOST: cache\n'
+}
+
+# a cache has no schema to migrate — printing nothing keeps the migrate
+# service absent from a project that selected only a cache.
+service_driver_compose_migrate() {
+  :
+}

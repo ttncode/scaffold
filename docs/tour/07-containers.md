@@ -24,16 +24,22 @@ and `tests/service.bats` fails a fragment that pins its own.
 ## Read this
 
 - `adapters/laravel-api/Dockerfile` — vendor stage (`composer install`)
-  separate from the runtime stage, and the comment explaining why it ships
-  with no `HEALTHCHECK` at all: it used to run `php -r 'exit(0);'`, which
-  only proved the PHP binary starts, not that php-fpm is serving requests,
-  and never failed a review or CI because it could not fail *at all*. It
-  was removed outright rather than kept — a check that can never fail is
-  worse than no check: an orchestrator with none at least knows it doesn't
-  know a container's state; one with an always-green check believes it
-  does, and routes real traffic to a dead container on that false
-  confidence.
-- `adapters/nestjs/Dockerfile` — a real HTTP `HEALTHCHECK`, for contrast.
+  separate from the FrankenPHP runtime stage, and the comment explaining
+  why FrankenPHP replaced php-fpm: php-fpm speaks FastCGI, this stack has
+  no reverse proxy in front of it, and the check that used to ship here —
+  `php -r 'exit(0);'` — only proved the PHP binary starts, never failed a
+  review or CI because it could not fail *at all*, and was removed outright
+  rather than kept. That argument still holds: a check that can never fail
+  is worse than no check — an orchestrator with none at least knows it
+  doesn't know a container's state; one with an always-green check believes
+  it does, and routes real traffic to a dead container on that false
+  confidence. What changed is the premise underneath it, not the argument
+  (ADR-0014, ADR-0021): FrankenPHP serves real HTTP, so
+  `HEALTHCHECK … CMD wget -qO- http://localhost:8080/up` is a check that can
+  actually fail.
+- `adapters/nestjs/Dockerfile` — the same shape, for contrast: its
+  `HEALTHCHECK` probes `/health/live`, the route
+  `adapters/nestjs/src/health/health.controller.ts` ships.
 - `lib/service.sh`'s `assemble_compose` — the merge described above, and
   `service_compose_key` for why a fragment must publish under `database` or
   `cache`, not its own service name: `depends_on` names the key, not
@@ -54,20 +60,28 @@ and `tests/service.bats` fails a fragment that pins its own.
 
 ## Delete test
 
-Delete the `HEALTHCHECK` line from `adapters/nestjs/Dockerfile` (or
-`nextjs`'s) and nothing here notices: no test in `tests/` asserts a
-Dockerfile has one, `mise run checklist` stays green, and
-`docker compose up` in `common/compose.yaml` doesn't gate on it either —
-only a selected service's own health is wired to `app`'s `depends_on`, and
-only for that service. The consequence only shows up once a client's own
-deploy target (one of
-ADR-0014's seams) actually polls container health before routing traffic:
-a slow-starting container gets real requests before it's ready, and
-nothing in this repository would have pointed at a missing
-`HEALTHCHECK` as the reason. If you're adding one to a new adapter,
-delete-test it the other direction first: stop the process the check is
-supposed to detect, and confirm the check actually goes unhealthy — the
-laravel lesson above is what happens when nobody does.
+Delete the `HEALTHCHECK` line from `adapters/nestjs/Dockerfile` (or any
+other adapter's) and something notices now: `tests/compose.bats` asserts
+every adapter Dockerfile has `EXPOSE 8080`, a `HEALTHCHECK`, and that the
+`HEALTHCHECK` probes the exact path the adapter's own `adapter.env`
+declares. Point it at a path nothing serves instead of deleting it, and the
+same assertion still catches it — that is the `nestjs` defect ADR-0021
+records: it probed `/health`, which no adapter has ever served, for as long
+as this repository existed, and nothing here noticed until this test was
+written to compare the two values.
+
+What that test still cannot catch: whether the process behind the probe
+ever answers for real. It reads Dockerfile text; it never builds an image
+or starts a container. ADR-0021 records two defects invisible to every
+static check in this repository, found only once something actually ran
+the image — FrankenPHP's `CMD` silently dropping the base image's default
+arguments (nothing listened on 8080 while `EXPOSE`/`HEALTHCHECK` both still
+read correctly), and `nextjs` binding to an address its own `HEALTHCHECK`
+could never dial. Only `scripts/deploy-check.sh`, the deploy gate, starts a
+container, which is what closes that gap. If you're adding a `HEALTHCHECK`
+to a new adapter, delete-test it the way that gate does: stop the process
+the check is supposed to detect, and confirm the check actually goes
+unhealthy — the laravel lesson above is what happens when nobody does.
 
 ## Try it
 

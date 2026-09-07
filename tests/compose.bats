@@ -158,3 +158,47 @@ INNER_EOF
       || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
   done
 }
+
+@test "every adapter Dockerfile serves the port compose publishes" {
+  # common/compose.yaml publishes ${APP_PORT:-8080}:8080 and nothing rewrites
+  # it, so an adapter exposing anything else publishes a dead port.
+  run bash -c "grep -L '^EXPOSE 8080\$' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile*"
+  [ -z "$output" ] || { echo "not exposing 8080:"; echo "$output"; false; }
+}
+
+@test "every adapter Dockerfile probes the liveness path its adapter declares" {
+  # nestjs probed /health for months while the generator produced only `/`.
+  # The Dockerfile's idea of the route and the adapter's must be one value.
+  local wrong=""
+  for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    path="$(grep '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" | cut -d'"' -f2)"
+    for file in "${dir}"Dockerfile "${dir}"Dockerfile.workspace; do
+      [ -f "$file" ] || continue
+      grep -q '^HEALTHCHECK' "$file" \
+        || { wrong="${wrong}${file}: no HEALTHCHECK"$'\n'; continue; }
+      # localhost or 127.0.0.1: nextjs's HEALTHCHECK dials 127.0.0.1 because
+      # this image's resolver hands "localhost" the IPv6 ::1 first and the
+      # IPv4-only listener (forced by ENV HOSTNAME="0.0.0.0", the fix for
+      # standalone server.js otherwise binding to the container's own id)
+      # refuses it — see adapters/nextjs/Dockerfile. Either host still
+      # proves the adapter's declared path is the one actually probed.
+      grep -Eq "(localhost|127\.0\.0\.1):8080${path}" "$file" \
+        || wrong="${wrong}${file}: does not probe ${path} on 8080"$'\n'
+    done
+  done
+  [ -z "$wrong" ] || { echo "$wrong"; false; }
+}
+
+@test "install.sh generates an APP_KEY laravel will accept" {
+  # generate_service_passwords' generic 24-character value is rejected with
+  # "Unsupported cipher or incorrect key length" — laravel needs base64: and
+  # exactly 32 bytes.
+  local env_file="${BATS_TEST_TMPDIR}/.env"
+  printf 'DB_PASSWORD=changeme\nAPP_KEY=changeme\n' > "$env_file"
+  . "${SCAFFOLD_ROOT}/common/install.sh"
+  run generate_service_passwords "$env_file"
+  assert_ok
+  run grep '^APP_KEY=' "$env_file"
+  [[ "$output" =~ ^APP_KEY=base64:[A-Za-z0-9+/]{43}=$ ]] \
+    || { echo "not a laravel key: ${output}"; false; }
+}

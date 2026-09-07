@@ -256,13 +256,59 @@ gh release list
 
 Expect: `v0.2.0`, and the image tagged `0.2.0`, `0.2`, `latest`, `sha-…`.
 
-## 10. Run what was built
+## 10. Run it
 
 ```sh
-docker pull ghcr.io/ttncode/demo-app:0.2.0
+git checkout main
+git pull
+./install.sh
 ```
 
-Expect: pulls, if the package is public or you are logged in to ghcr.
+Expect: it fails immediately, printing `could not download the release
+assets`. `install.sh`'s `RepoUrl` still names the CHANGEME/CHANGEME
+placeholder GitHub org and repo — `scaffold new` could not have filled that
+in: no repository existed yet to read a path from. This is the first point
+the one-time edit ADR-0014 describes can happen, now that step 9's release
+has given both `RepoUrl` and `compose.yaml`'s image line something real to
+name.
+
+```sh
+sed -i "s#github.com/CHANGEME/CHANGEME#github.com/ttncode/demo-app#" install.sh
+sed -i "s#ghcr.io/CHANGEME/CHANGEME#ghcr.io/ttncode/demo-app#" compose.yaml
+git checkout -b fix/point-at-published-image
+git commit -am "fix: point install.sh and compose.yaml at the published image"
+git push -u origin fix/point-at-published-image
+gh pr create --fill
+gh pr checks --watch
+gh pr merge --squash --delete-branch
+gh release list
+```
+
+Expect: a `fix:` commit moves the patch version, so this cuts `v0.2.1` —
+the release `install.sh` downloads from once it names the right repository.
+
+```sh
+./install.sh
+curl -fsS http://localhost:8080/api/health/live
+```
+
+Expect: `install.sh` downloads `compose.yaml` and `example.env` from
+`v0.2.1`, generates passwords, starts the stack, runs the migration task,
+and prints `the application is running on http://localhost:8080`. The curl
+returns `200`.
+
+There is no readiness path to curl for this project: `--web nextjs` is the
+role that won the image (the last one on the command line, back in step 5),
+and `nextjs` ships no readiness route — the `web` role takes no database
+driver, so there is nothing for one to query. A project whose deployed
+image is `laravel-api` or `nestjs` additionally has
+`curl -fsS http://localhost:8080/health/ready` return `200`. See ADR-0021
+for both routes, and for why a project that requests more than one role
+still deploys only one image.
+
+```sh
+docker compose -f app/compose.yaml down -v
+```
 
 ## 11. Add a second application to the existing project
 

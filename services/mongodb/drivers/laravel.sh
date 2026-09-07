@@ -31,17 +31,82 @@ service_driver_apply() {
     || return 1
 
   register_mongodb_connection config/database.php
+
+  # APP_KEY has no service to come from — it is per-family, not per-service —
+  # so no env.fragment can carry it, and the project's example.env (assembled
+  # from those fragments, before this runs) never sees it any other way.
+  # Without a value here, compose.yaml's `APP_KEY: ${APP_KEY}` interpolates to
+  # empty and laravel refuses to boot.
+  write_env_lines "${SCAFFOLD_PROJECT_ROOT}/example.env" "APP_KEY=changeme" || return 1
+
+  # mongodb has no SQL to run a `select 1` against — a ping command is the
+  # provider-agnostic equivalent laravel-mongodb actually exposes.
+  #
+  # Two separate substitutions, not one: splicing the probe in above the
+  # shipped `throw` would leave that throw as dead code below a path that
+  # always returns first. The throw is replaced in place instead, so a
+  # --db none project keeps it — unreachable in no project this driver ever
+  # touches.
+  #
+  # The probe is spliced in as a short class name with its own `use` added
+  # here, not the FQCN a --db none project ships: pint's
+  # fully_qualified_strict_types rejects an inline FQCN once the file already
+  # has imports, and a --db none project never runs this substitution (or
+  # carries an import it would leave unused).
+  sed -i.bak 's|use Illuminate\\Support\\Facades\\Route;|use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Route;|' \
+    routes/health.php || return 1
+  sed -i.bak 's|// @DB_PROBE@|DB::connection(\x27mongodb\x27)->getMongoDB()->command([\x27ping\x27 => 1]);|' \
+    routes/health.php || return 1
+  # Matched with its leading indentation so the replacement's `\n` opens a
+  # bare blank line rather than one trailing the throw statement's own
+  # indentation — pint's blank_line_before_statement wants a blank line
+  # between the probe call above and this return.
+  sed -i.bak "s|        throw new RuntimeException('no database is configured for this project');|\\n        return response()->json(['status' => 'ok']);|" \
+    routes/health.php || return 1
+  rm -f routes/health.php.bak
+
+  grep -q "DB::connection('mongodb')->getMongoDB()->command" routes/health.php \
+    && grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php \
+    || die "could not splice the database probe into routes/health.php — has the anchor moved?"
 }
 
 service_driver_dockerfile() {
   # pecl, not apk: the mongodb extension is not in alpine's repositories, so
   # it is built here — which is why this block installs the build
   # dependencies and nothing else does.
+  #
+  # Pinned to 1.21.0, matching platform.ext-mongodb above: an unpinned
+  # `pecl install mongodb` resolves whatever is latest at build time, and
+  # 2.x is not that — mongodb/mongodb's BSONArray/BSONDocument model classes
+  # declare bsonSerialize() against the 1.x extension's signature, and the
+  # 2.x extension changed it, so any code path that loads those classes (a
+  # bare `new MongoDB\Client(...)`, no Laravel involved) is a PHP fatal
+  # error, not an exception this project's own try/catch can see. Measured
+  # by generating this project with mongodb and hitting /health/ready on a
+  # running container: 500 before this pin, 200 after.
   printf '%s\n' \
     'RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS openssl-dev \' \
-    ' && pecl install mongodb \' \
+    ' && pecl install mongodb-1.21.0 \' \
     ' && docker-php-ext-enable mongodb \' \
     ' && apk del .build-deps'
+}
+
+# DB_CONNECTION first and always: config/database.php defaults to sqlite, so
+# its absence is not an error, it is a silent wrong answer. DB_USERNAME and
+# DB_PASSWORD reach the container through compose.yaml's env_file already
+# (they are in the project's example.env, assembled from this service's own
+# env.fragment) — DB_URI still needs assembling here because laravel-mongodb
+# reads one DSN string, not decomposed host/port credentials.
+service_driver_compose_env() {
+  printf 'DB_CONNECTION: mongodb\n'
+  printf 'DB_URI: ${DB_URI:-mongodb://${DB_USERNAME:-app}:${DB_PASSWORD}@database:27017/${DB_DATABASE:-app}?authSource=admin}\n'
+  printf 'APP_KEY: ${APP_KEY}\n'
+}
+
+# laravel-mongodb provides its own Schema grammar, so the same artisan command
+# the SQL connections use also migrates a mongodb-backed project.
+service_driver_compose_migrate() {
+  printf 'command: ["php", "artisan", "migrate", "--force"]\n'
 }
 
 # register_mongodb_connection <path/to/config/database.php>

@@ -17,3 +17,9 @@ storage/framework/cache
 # other way — laravel refuses to start without it. For laravel-inertia either
 # failure surfaces in vite's wayfinder plugin, several stages from the cause.
 bootstrap/cache/*.php
+
+# vite writes this and .gitignore excludes it, but a build context is not a
+# git tree: without this line a developer who has run `npm run build` ships
+# their host copy over the one the assets stage just built. Same shape as the
+# bootstrap/cache manifests two lines up.
+public/build
