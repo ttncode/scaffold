@@ -72,6 +72,19 @@ pointing at this ADR. `install.sh` is the one deploy mechanism that exists
 today: a human runs it, by hand, on the target host, after cloning nothing
 more than the two files a release publishes (`compose.yaml`, `example.env`).
 
+**Update, 2026-09-07.** "The one deploy mechanism that exists today" held
+only for a public project. Measured against a real private repository, a
+release asset's browser download URL 404s even with a Bearer token — the
+token is ignored on that endpoint, not merely absent — and a private ghcr
+package refuses an anonymous pull with `unauthorized`, independently of the
+repository's own visibility: two failures, not one, so a token with only
+`repo` or only `read:packages` fixes one and not the other. `install.sh` now
+takes `GITHUB_TOKEN`, reading the release through the API asset endpoint
+that does honor it and signing in to `ghcr.io` before pulling; unset, every
+line behaves exactly as it did before this note. See
+docs/runbook/first-project-walkthrough.md step 10 for what an operator of a
+private project needs.
+
 Two choices `install.sh` makes, decided here because nothing upstream
 constrains them:
 
