@@ -557,11 +557,12 @@ cmd_wizard() {
   # Each question already collapsed into its own "✔ question  answer" line
   # above, so restating them here would just say it all a second time — only
   # the command line is new information.
-  # Indented and bold, the way a runbook sets a command apart from the prose
-  # around it. No `$` prefix: this line exists to be copied, and a prompt
-  # character copies along with it.
+  # The header's own bold green, so the line reads as a command rather than
+  # as another sentence in the transcript. Flush left and with no `$` prefix:
+  # this line exists to be copied, and both an indent and a prompt character
+  # copy along with it.
   log ""
-  printf '%b\n' "  ${BOLD}$(wizard_command "$name" "${answers[@]}")${RESET}" >&2
+  printf '%b\n' "${BOLD}${GREEN}$(wizard_command "$name" "${answers[@]}")${RESET}" >&2
 
   # A web+api project still builds one image: set_image_context records one
   # context per project, whichever role was applied last. The flags made this
