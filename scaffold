@@ -557,8 +557,11 @@ cmd_wizard() {
   # Each question already collapsed into its own "✔ question  answer" line
   # above, so restating them here would just say it all a second time — only
   # the command line is new information.
+  # Indented and bold, the way a runbook sets a command apart from the prose
+  # around it. No `$` prefix: this line exists to be copied, and a prompt
+  # character copies along with it.
   log ""
-  log "$(wizard_command "$name" "${answers[@]}")"
+  printf '%b\n' "  ${BOLD}$(wizard_command "$name" "${answers[@]}")${RESET}" >&2
 
   # A web+api project still builds one image: set_image_context records one
   # context per project, whichever role was applied last. The flags made this
@@ -566,7 +569,7 @@ cmd_wizard() {
   # said here rather than discovered after the first release build.
   if [ "$shape" = "web+api" ]; then
     log ""
-    log "note: web and api still share one build image — whichever adapter is applied last wins the build context."
+    log "Note: web and api still share one build image — whichever adapter is applied last wins the build context."
   fi
   log ""
 

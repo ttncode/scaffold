@@ -283,7 +283,7 @@ EOF
     > "$out" 2>&1 || true
 
   local seen
-  seen="$(grep -ac 'new project wizard' "$out" || true)"
+  seen="$(grep -ac 'New project wizard' "$out" || true)"
   [ "$seen" -eq 1 ] || { echo "header appeared ${seen} times, expected 1:"; cat "$out"; false; }
 }
 
@@ -363,7 +363,7 @@ EOF
       > "$out" 2>&1 || true
 
   local count
-  count="$(grep -c 'Interactively build a scaffold new command.' "$out")"
+  count="$(grep -cF 'Interactively build a scaffold new command' "$out")"
   [ "$count" -eq 1 ] \
     || { echo "expected the header to appear exactly once, got ${count}:"; cat "$out"; false; }
 }
@@ -399,7 +399,33 @@ EOF
     || { echo "the answered question's option row is still on screen:"; echo "$pane"; false; }
 
   local collapsed
-  collapsed="$(grep -c '✔ What are you building?  web+api' <<< "$pane")"
+  collapsed="$(grep -c '✔  What are you building?  web+api' <<< "$pane")"
   [ "$collapsed" -eq 1 ] \
     || { echo "expected exactly one collapsed line, got ${collapsed}:"; echo "$pane"; false; }
+}
+
+@test "the header carries the wordmark, and drops it when it will not fit" {
+  # The wordmark is wider than the box's own minimum width, so it is the one
+  # header row that can be asked to draw in a space it does not fit. _tui_fit
+  # would hand back four ellipsised fragments, which reads as damage rather
+  # than as a logo; below the threshold the row is not drawn at all.
+  #
+  # Both halves are asserted because only the pair is a contract: a header
+  # that never draws the wordmark would pass the narrow case on its own.
+  local script="source '${SCAFFOLD_ROOT}/lib/tui.sh'; tui_header"
+
+  local wide narrow
+  wide="$(COLUMNS=100 LINES=40 bash -c "stty cols 100 rows 40 2>/dev/null; ${script}" 2>&1)"
+  narrow="$(COLUMNS=64 LINES=40 bash -c "stty cols 64 rows 40 2>/dev/null; ${script}" 2>&1)"
+
+  grep -q '███████╗' <<<"$wide" \
+    || { echo "no wordmark at 100 columns:"; echo "$wide"; false; }
+  grep -q '…' <<<"$narrow" \
+    && { echo "the wordmark was ellipsised instead of dropped at 64 columns:"; echo "$narrow"; false; }
+  grep -q '███████╗' <<<"$narrow" \
+    && { echo "the wordmark was drawn at 64 columns, where it does not fit:"; echo "$narrow"; false; }
+
+  # The rest of the header still has to be there in both.
+  grep -qF 'Interactively build a scaffold new command' <<<"$narrow" \
+    || { echo "the narrow header lost more than the wordmark:"; echo "$narrow"; false; }
 }
