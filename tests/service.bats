@@ -592,11 +592,9 @@ EOF
   # the URL at `up` time. A literal baked here is the changeme-versus-app
   # mismatch that made the dev stack unable to authenticate.
   #
-  # No skip for an empty block: an empty block has no literal password by
-  # construction, so the checks below already cover it without a special
-  # case — the previous `[ -z "$block" ] && continue` let a driver that
-  # regressed to emitting nothing pass unseen, for a reason unrelated to
-  # passwords.
+  # No skip for an empty block: an empty block matches neither grep below,
+  # so this loop already treats "emits nothing" as "nothing to flag" without
+  # a special case for it.
   #
   # Asserts the absence of a literal, not the presence of an interpolation:
   # a block could carry `${DB_PASSWORD}` somewhere else and a hardcoded

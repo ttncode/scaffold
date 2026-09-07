@@ -35,7 +35,14 @@ the existing `smoke` lane:**
    but it does call `install.sh`'s own `generate_service_passwords` on the
    copied `.env`, so the password loop and the `APP_KEY` branch run under
    the same substitution a client's install would perform, not against
-   every credential left at `changeme`.
+   every credential left at `changeme`. It also does not call
+   `install.sh`'s `run_migrations`: the gate carries its own second
+   implementation (`scripts/deploy-check.sh`'s own migrate block), and the
+   two have already drifted — `install.sh` falls back to checking for a
+   `database` service when no `migrate` service is found, the gate falls
+   back to the adapter's own `ROLE`/`DB_SERVICE`. Unifying them is deferred
+   until a real-project run has exercised `install.sh` against a published
+   release.
 
 **The container port is fixed at 8080, not a variable.** Every adapter
 serves HTTP on container port 8080; `common/compose.yaml` publishes
