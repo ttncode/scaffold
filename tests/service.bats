@@ -596,13 +596,21 @@ _password_literal_report() {
             SERVICE_DIR="$(dirname "$(dirname "$driver")")"
             . "$driver"; service_driver_compose_env )"
 
-  # A top-level *_PASSWORD key whose value is not exactly an interpolation.
+  # A *_PASSWORD key whose value is not exactly an interpolation. Anchored
+  # with optional leading whitespace, not a bare ^, so an indented key still
+  # gets selected for the case check below.
+  #
+  # Only *_PASSWORD, deliberately: PGPASSWORD, DB_PASS, and APP_KEY's own
+  # base64 secret would also slip past this, but a name blacklist is never
+  # complete, and the services/*/drivers/*.sh files are the only writers of
+  # this block and already go through review — widen the blacklist here and
+  # the next unlisted name just becomes the new hole.
   while IFS= read -r line; do
     case "$line" in
       *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
       *) bad="${bad}${driver} (${line})"$'\n' ;;
     esac
-  done < <(grep -E '^[A-Za-z_]*_PASSWORD:' <<<"$block")
+  done < <(grep -E '^[[:space:]]*[A-Za-z_]*_PASSWORD:' <<<"$block")
 
   # A DSN's user:password@ slot whose password is not exactly an
   # interpolation — the same shape, embedded in a URL instead of a key.
