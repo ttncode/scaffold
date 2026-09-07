@@ -514,7 +514,7 @@ cmd_add() {
   fi
 }
 
-# _wizard_select_or_cancel <prompt> <footer> <option>... — tui_select, with
+# _wizard_select_or_cancel <prompt> <option>... — tui_select, with
 # Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
 # design rules out back navigation; re-run is the only way out either way.
 _wizard_select_or_cancel() {
@@ -531,11 +531,10 @@ cmd_wizard() {
 
   local name; name="$(tui_prompt_name)"
   local listing; listing="$(cmd_list)"
-  local footer="up/down or type to move, enter to select, esc to cancel"
 
   local -a shape_options
   mapfile -t shape_options < <(wizard_shapes)
-  _wizard_select_or_cancel "What are you building?" "$footer" "${shape_options[@]}"
+  _wizard_select_or_cancel "What are you building?" "${shape_options[@]}"
   local shape="$TUI_CHOICE"
 
   local -a answers=()
@@ -549,18 +548,15 @@ cmd_wizard() {
     # never touches fd0.
     local -a options
     mapfile -t options < <(wizard_order_options "$kind" "$listing")
-    _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "$footer" "${options[@]}"
+    _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "${options[@]}"
     answers+=("${kind}=${TUI_CHOICE}")
   done
 
   tui_end
 
-  log ""
-  log "Project: ${name} (${shape})"
-  local ans
-  for ans in "${answers[@]}"; do
-    log "  ${ans%%=*}: ${ans#*=}"
-  done
+  # Each question already collapsed into its own "✔ question  answer" line
+  # above, so restating them here would just say it all a second time — only
+  # the command line is new information.
   log ""
   log "$(wizard_command "$name" "${answers[@]}")"
 
