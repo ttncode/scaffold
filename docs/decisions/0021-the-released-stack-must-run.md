@@ -44,6 +44,19 @@ the existing `smoke` lane:**
    until a real-project run has exercised `install.sh` against a published
    release.
 
+   **Update, 2026-09-07.** That evidence now exists: `install.sh` ran end
+   to end against two real published projects (`laravel-api`+mongodb,
+   `nestjs`+postgres) and its `run_migrations` worked both times — the
+   only copy anyone has watched run. `scripts/deploy-check.sh` now calls
+   it instead of carrying a second copy. The gate's own `ROLE`/`DB_SERVICE`
+   check stays, beside the shared call, rather than folding into
+   `install.sh`: it is known before the project is even generated, so it
+   catches a driver dropping the `database` and `migrate` services
+   together — a case `install.sh`'s own compose.yaml-grepping fallback,
+   reading the same artifact under test, would not — and `install.sh` is a
+   client artifact with no concept of an adapter's `ROLE` to push that
+   check into.
+
 **The container port is fixed at 8080, not a variable.** Every adapter
 serves HTTP on container port 8080; `common/compose.yaml` publishes
 `${APP_PORT:-8080}:8080` and nothing rewrites it per-adapter. The

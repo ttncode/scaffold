@@ -192,21 +192,21 @@ done
 # code, separately, is what stops a deploy whose migration silently failed
 # from going green anyway.
 #
-# A missing migrate service used to just log a skip and exit 0 — which means
-# renaming the service, breaking `config` under the migrate profile, or a
-# driver returning an empty command all look identical to "this adapter has
-# no database" from here, and the check that exists to catch exactly that
-# regression turns itself off. ROLE and DB_SERVICE are already known, so
-# absence is only ever a skip when no database was actually requested.
-if docker compose --profile migrate config --services 2>/dev/null | grep -qx migrate; then
-  log "running migrations..."
-  docker compose --profile migrate run --rm migrate \
-    || die "migrate service exited non-zero — schema was not applied"
-elif [ "$ROLE" != "web" ] && [ "$DB_SERVICE" != "none" ]; then
-  die "expected a migrate service for ${ADAPTER} (role=${ROLE}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
-else
-  log "no migrate service for ${ADAPTER} — skipping migration"
+# install.sh's own run_migrations runs the migration now (see
+# docs/decisions/0021-the-released-stack-must-run.md's 2026-09-07 note) — it
+# decides whether a migrate service should exist by grepping compose.yaml
+# for a "database" service, the same artifact this gate just built. ROLE and
+# DB_SERVICE are known here before the project was even generated, so this
+# still asserts a migrate service independently of what compose.yaml says
+# now exists: a driver that drops the database and migrate services
+# together would satisfy install.sh's check and slip past unnoticed without
+# this.
+if [ "$ROLE" != "web" ] && [ "$DB_SERVICE" != "none" ]; then
+  docker compose --profile migrate config --services 2>/dev/null | grep -qx migrate \
+    || die "expected a migrate service for ${ADAPTER} (role=${ROLE}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
 fi
+
+run_migrations || die "could not run migrations for ${ADAPTER}; check the output above"
 
 # `|| true`: under pipefail, a .env with no APP_PORT line makes grep exit 1
 # and, unguarded, that kills the script here — silently, before the
