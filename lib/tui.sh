@@ -29,6 +29,7 @@ tui_begin() {
   # the only thing that fires on both a normal return and a signal.
   trap 'tui_end' EXIT
   trap 'tui_end; exit 130' INT TERM
+  tui_header
 }
 
 tui_end() {
@@ -44,6 +45,72 @@ tui_end() {
     _TUI_STTY_SAVED=""
   fi
   tput cnorm 2>/dev/null || true
+}
+
+# tui_header — the wizard's title box, printed once by tui_begin and never
+# repainted: this is a transcript, not a screen, so nothing below it may ever
+# clear or scroll it away.
+#
+# Box shape, edge colour and the one-column-short width are banner.sh's,
+# reimplemented rather than sourced — scaffold has to run standalone on a
+# client machine, same reason lib/tui.sh's select loop reimplements menu.sh's
+# instead of sourcing it. The key hints used to repeat in every question's
+# footer; they are constant for the whole wizard, so they are said once here
+# instead.
+#
+# Collapses to one line under menu.sh's own threshold (TERM_LINES < 23): a
+# terminal that short scrolls once the header and a question's screen don't
+# both fit, and a scroll is exactly what breaks tui_select's cursor-up
+# overwrite math.
+tui_header() {
+  local term_lines; term_lines="$(tput lines 2>/dev/null || echo 24)"
+  if (( term_lines < 23 )); then
+    echo -e "${BOLD}${GREEN}scaffold — new project wizard${RESET}"
+    return
+  fi
+
+  local cols width; cols="$(tput cols 2>/dev/null || echo 80)"
+  width=$(( cols - 1 ))
+
+  _tui_header_edge '╭' '╮' 'scaffold' "$width"
+  _tui_header_row '' 'Interactively build a scaffold new command.' "$width"
+  _tui_header_row '' '' "$width"
+  _tui_header_row dim 'up/down or type to move, enter to select, esc to cancel' "$width"
+  _tui_header_edge '╰' '╯' 'new project wizard' "$width"
+}
+
+# _tui_header_edge <left-corner> <right-corner> <label> <width> — banner.sh's
+# _banner_edge, cut down to the one shape tui_header needs: a label centred
+# in a horizontal rule, drawn once so it carries none of banner.sh's
+# rebuild-on-resize bookkeeping.
+_tui_header_edge() {
+  local left="$1" right="$2" label="$3" width="$4"
+  local inner=$(( width - 2 ))
+
+  _tui_fit " ${label} " "$inner"
+  label="$REPLY"
+  local side=$(( (inner - ${#label}) / 2 ))
+  local extra=$(( inner - ${#label} - side * 2 ))
+  local l r
+  printf -v l '%*s' "$side" ''; l="${l// /─}"
+  printf -v r '%*s' "$(( side + extra ))" ''; r="${r// /─}"
+
+  echo -e "${BOLD}${GREEN}${left}${l}${label}${r}${right}${RESET}"
+}
+
+# _tui_header_row [dim] <text> <width> — banner.sh's _banner_row, minus the
+# plain/bold/blank styles it never uses here.
+_tui_header_row() {
+  local style="$1" text="$2" width="$3"
+  local inner=$(( width - 2 ))
+
+  _tui_fit "$text" "$inner"
+  text="$REPLY"
+  local pad; printf -v pad '%*s' "$(( inner - ${#text} ))" ''
+  local styled="$text"
+  [ "$style" = dim ] && styled="${DIM}${text}${RESET}"
+
+  echo -e "${BOLD}${GREEN}│${RESET}${styled}${pad}${BOLD}${GREEN}│${RESET}"
 }
 
 # tui_name_is_usable <name> — project_name_is_usable (lib/project.sh), so
@@ -96,21 +163,31 @@ _tui_fit() {
   fi
 }
 
-# _tui_render <prompt> <footer> <cursor> <option>...
+# _tui_render <prompt> <cursor> <option>...
 # Every row is cut one column short of the terminal width: a row that reaches
 # the last column leaves the cursor in the terminal's pending-wrap state, and
 # resolving that costs a second screen row.
+#
+# No `clear`: this is a transcript now, not a screen, and a `clear` here
+# would take the header above it with it. The first paint of a question has
+# no block above it yet to preserve, so it prints in place; every later paint
+# (an arrow key moving the cursor) backs up over its own last block with
+# \033[<n>A and overwrites it — never touching a line outside that block.
+_TUI_RENDER_HEIGHT=0
+
 _tui_render() {
-  local prompt="$1" footer="$2" cursor="$3"; shift 3
+  local prompt="$1" cursor="$2"; shift 2
   local -a options=("$@")
   local cols limit
   cols="$(tput cols 2>/dev/null || echo 80)"
   limit=$(( cols - 1 ))
 
-  clear
+  (( _TUI_RENDER_HEIGHT > 0 )) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
+
   _tui_fit "$prompt" "$limit"
   echo -e "${BOLD}? ${REPLY}${RESET}\033[K"
   echo -e "\033[K"
+  local height=2
 
   local i value meta pointer label
   for i in "${!options[@]}"; do
@@ -133,24 +210,29 @@ _tui_render() {
     else
       echo -e " ${pointer} ${REPLY}\033[K"
     fi
+    height=$(( height + 1 ))
   done
 
   echo -e "\033[K"
-  _tui_fit "$footer" "$limit"
-  echo -e "${DIM}${REPLY}${RESET}\033[K"
+  _TUI_RENDER_HEIGHT=$(( height + 1 ))
 }
 
-# tui_select <prompt> <footer> <option>...
+# tui_select <prompt> <option>...
 # One single-select screen. Each <option> is value<TAB>meta. Leaves the chosen
 # value in TUI_CHOICE; returns 1 on Esc rather than dying, so the caller
 # decides what cancelling the wizard means.
 tui_select() {
-  local prompt="$1" footer="$2"; shift 2
+  local prompt="$1"; shift
   local -a options=("$@")
   local cursor=0 key i value
 
+  # A fresh question has no block of its own above it yet — the line right
+  # above is the previous question's collapsed answer (or the header), and
+  # _tui_render must not back up over that.
+  _TUI_RENDER_HEIGHT=0
+
   while true; do
-    _tui_render "$prompt" "$footer" "$cursor" "${options[@]}"
+    _tui_render "$prompt" "$cursor" "${options[@]}"
     IFS= read -rsn1 key || true
 
     case "$key" in
@@ -170,6 +252,12 @@ tui_select() {
       "")
         # shellcheck disable=SC2034 # read by the caller
         TUI_CHOICE="${options[$cursor]%%$'\t'*}"
+        # Collapse the block _tui_render just painted into the one line a
+        # normal transcript would have — the next question then prints
+        # straight underneath it instead of onto a screen it has to clear.
+        printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
+        tput ed 2>/dev/null || true
+        echo -e "${GREEN}✔${RESET} ${prompt}  ${TUI_CHOICE}"
         return 0
         ;;
       *)

@@ -272,3 +272,68 @@ EOF
   grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' "$out" \
     || { echo "typing did not select the named options:"; cat "$out"; false; }
 }
+
+@test "the header banner appears exactly once in a whole session" {
+  # The regression this catches: tui_begin prints the banner once and nothing
+  # after it may clear or repaint the screen. A `clear` reintroduced anywhere
+  # in the render loop would print this same banner text again once tui_begin
+  # itself does; `script` records the literal bytes written to the terminal
+  # (unlike a rendered pane), so a byte-for-byte count of the banner's own
+  # text is enough here — no terminal emulation needed for "did this print
+  # twice".
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local out="${BATS_TEST_TMPDIR}/session.log"
+  {
+    sleep 1; printf 'wizard-demo\n'
+    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'   # shape: app
+    sleep 1; printf '\n'                               # fullstack: laravel-inertia
+    sleep 1; printf '\n'                               # database: mysql
+    sleep 1; printf '\n'                               # cache: none
+    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+  } | COLUMNS=90 LINES=45 script -qec \
+        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+      > "$out" 2>&1 || true
+
+  local count
+  count="$(grep -c 'Interactively build a scaffold new command.' "$out")"
+  [ "$count" -eq 1 ] \
+    || { echo "expected the header to appear exactly once, got ${count}:"; cat "$out"; false; }
+}
+
+@test "an answered question leaves exactly one line behind" {
+  # `script` only records what was written, not what a terminal would still
+  # be showing — erasing a line doesn't remove its bytes from that recording,
+  # so a byte-count assertion (as above) cannot tell a working erase from a
+  # missing one. tmux's capture-pane renders the escape sequences the way a
+  # real terminal would, which is the only way to see whether tui_select's
+  # own block is actually gone after Enter, not just followed by a "✔" line.
+  command -v tmux >/dev/null || skip "tmux not available"
+
+  local session="wizard-collapse-$$"
+  tmux kill-session -t "$session" 2>/dev/null || true
+  tmux new-session -d -s "$session" -x 90 -y 40 \
+    "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'"
+
+  tmux send-keys -t "$session" "wizard-demo" Enter
+  sleep 1
+  # Plain Enter picks web+api, the first shape option — its meta text
+  # ("separate frontend and backend, one repository") appears nowhere else,
+  # so its absence below proves the row itself is gone, not just repainted
+  # over.
+  tmux send-keys -t "$session" Enter
+  sleep 1
+
+  local pane
+  pane="$(tmux capture-pane -t "$session" -p)"
+  tmux kill-session -t "$session" 2>/dev/null || true
+
+  [[ "$pane" != *"separate frontend and backend, one repository"* ]] \
+    || { echo "the answered question's option row is still on screen:"; echo "$pane"; false; }
+
+  local collapsed
+  collapsed="$(grep -c '✔ What are you building?  web+api' <<< "$pane")"
+  [ "$collapsed" -eq 1 ] \
+    || { echo "expected exactly one collapsed line, got ${collapsed}:"; echo "$pane"; false; }
+}
