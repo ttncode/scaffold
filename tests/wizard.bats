@@ -12,6 +12,13 @@ setup() {
   LISTING="$(mise exec -- "${SCAFFOLD_ROOT}/scaffold" list)"
 }
 
+# The wizard styles its output, and the command line now carries a colour
+# escape between every token. These tests are about what it says, not how it
+# looks, so they read a stripped copy.
+strip_ansi() {
+  sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$1"
+}
+
 @test "wizard_options groups adapters by role" {
   run wizard_options "$LISTING" api
   assert_ok
@@ -307,7 +314,7 @@ EOF
         "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
       > "$out" 2>&1 || true
 
-  grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' "$out" \
+  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' \
     || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
 }
 
@@ -335,7 +342,7 @@ EOF
         "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
       > "$out" 2>&1 || true
 
-  grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' "$out" \
+  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' \
     || { echo "typing did not select the named options:"; cat "$out"; false; }
 }
 

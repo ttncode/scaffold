@@ -532,9 +532,13 @@ cmd_wizard() {
   local name; name="$(tui_prompt_name)"
   local listing; listing="$(cmd_list)"
 
+  # Read by tui_select to pad every question to one answer column.
+  # shellcheck disable=SC2034 # read by lib/tui.sh, not by this file
+  TUI_ANSWER_COLUMN="$(wizard_prompt_width)"
+
   local -a shape_options
   mapfile -t shape_options < <(wizard_shapes)
-  _wizard_select_or_cancel "What are you building?" "${shape_options[@]}"
+  _wizard_select_or_cancel "$WIZARD_SHAPE_PROMPT" "${shape_options[@]}"
   local shape="$TUI_CHOICE"
 
   local -a answers=()
@@ -557,12 +561,8 @@ cmd_wizard() {
   # Each question already collapsed into its own "✔ question  answer" line
   # above, so restating them here would just say it all a second time — only
   # the command line is new information.
-  # The header's own bold green, so the line reads as a command rather than
-  # as another sentence in the transcript. Flush left and with no `$` prefix:
-  # this line exists to be copied, and both an indent and a prompt character
-  # copy along with it.
   log ""
-  printf '%b\n' "${BOLD}${GREEN}$(wizard_command "$name" "${answers[@]}")${RESET}" >&2
+  wizard_echo_command "$(wizard_command "$name" "${answers[@]}")"
 
   # A web+api project still builds one image: set_image_context records one
   # context per project, whichever role was applied last. The flags made this
@@ -570,7 +570,7 @@ cmd_wizard() {
   # said here rather than discovered after the first release build.
   if [ "$shape" = "web+api" ]; then
     log ""
-    log "Note: web and api still share one build image — whichever adapter is applied last wins the build context."
+    printf '%b\n' "${DIM}Note: web and api still share one build image — whichever adapter is applied last wins the build context.${RESET}" >&2
   fi
   log ""
 

@@ -8,6 +8,7 @@
 BOLD="\033[1m"
 DIM="\033[2m"
 GREEN="\033[32m"
+CYAN="\033[36m"
 RED="\033[31m"
 RESET="\033[0m"
 
@@ -274,37 +275,38 @@ _tui_render() {
 
   (( _TUI_RENDER_HEIGHT > 0 )) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
 
+  # The blank belongs to the question, not to the transcript above it: the
+  # collapse below rewinds over everything this function printed, so the
+  # answered lines end up contiguous while the live question always has air
+  # above it.
+  echo -e "\033[K"
   _tui_fit "$prompt" "$limit"
   echo -e "${BOLD}? ${REPLY}${RESET}\033[K"
-  echo -e "\033[K"
-  local height=2
 
-  local i value meta pointer label
+  local i value meta pointer
   for i in "${!options[@]}"; do
     value="${options[$i]%%$'\t'*}"
     meta="${options[$i]#*$'\t'}"
     pointer=" "
     [ "$i" -eq "$cursor" ] && pointer="»"
 
+    _tui_fit "$value" $(( limit - 4 ))
+    value="$REPLY"
     # An empty meta means the caller had nothing to add beyond the value
     # itself (wizard_options' database/cache rows) — "mysql ()" would say
-    # less than plain "mysql".
-    if [ -n "$meta" ]; then
-      label="${value} (${meta})"
-    else
-      label="$value"
-    fi
-    _tui_fit "$label" $(( limit - 2 ))
+    # less than plain "mysql". Dim, because it qualifies the choice rather
+    # than being part of it.
+    [ -z "$meta" ] || meta="${DIM} (${meta})${RESET}"
+
     if [ "$i" -eq "$cursor" ]; then
-      echo -e " ${GREEN}${pointer} ${REPLY}${RESET}\033[K"
+      echo -e "  ${GREEN}${pointer} ${value}${RESET}${meta}\033[K"
     else
-      echo -e " ${pointer} ${REPLY}\033[K"
+      echo -e "  ${pointer} ${value}${meta}\033[K"
     fi
-    height=$(( height + 1 ))
   done
 
   echo -e "\033[K"
-  _TUI_RENDER_HEIGHT=$(( height + 1 ))
+  _TUI_RENDER_HEIGHT=$(( ${#options[@]} + 3 ))
 }
 
 # tui_select <prompt> <option>...
@@ -347,7 +349,15 @@ tui_select() {
         # straight underneath it instead of onto a screen it has to clear.
         printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
         tput ed 2>/dev/null || true
-        echo -e "${GREEN}✔${RESET}  ${prompt}  ${TUI_CHOICE}"
+        # Padding outside the colour escapes, so no run of styled whitespace
+        # lands on the line or in the clipboard — lib/usage.sh's rule, and the
+        # reason the answers line up in one column rather than after each
+        # question's own width. TUI_ANSWER_COLUMN is set by the caller, which
+        # is the only thing that knows every question it will ask.
+        printf '  %b✔%b  %s%*s  %b%s%b\n' \
+          "$GREEN" "$RESET" "$prompt" \
+          "$(( ${TUI_ANSWER_COLUMN:-0} - ${#prompt} ))" "" \
+          "$CYAN" "$TUI_CHOICE" "$RESET"
         return 0
         ;;
       *)
