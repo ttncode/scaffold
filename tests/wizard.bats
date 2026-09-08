@@ -363,7 +363,7 @@ EOF
       > "$out" 2>&1 || true
 
   local count
-  count="$(grep -cF 'Pick a stack — CI, containers and a release path come wired' "$out")"
+  count="$(grep -cF 'Pick a stack — CI, containers and a release you can install' "$out")"
   [ "$count" -eq 1 ] \
     || { echo "expected the header to appear exactly once, got ${count}:"; cat "$out"; false; }
 }
@@ -437,6 +437,6 @@ EOF
     && { echo "the wordmark was drawn at 68 columns, where it does not fit:"; echo "$narrow"; false; }
 
   # The rest of the header still has to be there in both.
-  grep -qF 'Pick a stack — CI, containers and a release path come wired' <<<"$narrow" \
+  grep -qF 'Pick a stack — CI, containers and a release you can install' <<<"$narrow" \
     || { echo "the narrow header lost more than the wordmark:"; echo "$narrow"; false; }
 }
