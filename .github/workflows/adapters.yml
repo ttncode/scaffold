@@ -228,6 +228,13 @@ jobs:
           ADAPTER: ${{ matrix.adapter }}
           DB: ${{ matrix.db }}
           CACHE: ${{ matrix.cache }}
+          # resolve_github_owner (lib/project.sh) substitutes this for the
+          # generated workflows' placeholder `you/` account, and falls back to
+          # `gh auth login` or git's github.user before giving up — a runner
+          # has none of the three. scripts/deploy-check.sh and
+          # tests/helpers/setup.bash each set their own; this job calls
+          # `scaffold new` directly and so needs its own too.
+          SCAFFOLD_GITHUB_OWNER: ${{ github.repository_owner }}
         run: |
           work="$(mktemp -d)"
           ./scaffold new "${work}/demo" --api "$ADAPTER" --db "$DB" --cache "$CACHE"
