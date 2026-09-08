@@ -102,6 +102,23 @@ wizard_questions() {
   esac
 }
 
+# The first question, asked before wizard_questions knows the shape. Named
+# rather than inlined so wizard_prompt_width can measure it with the rest.
+WIZARD_SHAPE_PROMPT='What are you building?'
+
+# wizard_prompt_width — the widest question this wizard can ask, so every
+# answer lines up in one column instead of trailing its own question's width.
+# Measured from the prompts themselves: a new kind widens the column rather
+# than overflowing a hand-counted constant.
+wizard_prompt_width() {
+  local kind text width=${#WIZARD_SHAPE_PROMPT}
+  for kind in web api app database cache; do
+    text="$(wizard_prompt_for "$kind")"
+    (( ${#text} > width )) && width=${#text}
+  done
+  printf '%s' "$width"
+}
+
 # wizard_prompt_for <kind> — the question text tui_select shows for one of
 # wizard_questions' kinds.
 wizard_prompt_for() {
@@ -133,6 +150,23 @@ wizard_new_args() {
       *) die "unknown answer: ${pair}" ;;
     esac
   done
+}
+
+# wizard_echo_command <command-line>
+# The command, with `!` in front of it: that is how this shell runs a line
+# without leaving the prompt, so the transcript shows the thing to type
+# rather than a sentence about it. The binary and its flags carry the same
+# cyan lib/usage.sh gives `-h, --help`; the values stay plain so the two
+# halves of each pair read apart.
+wizard_echo_command() {
+  local token out="${CYAN}!${RESET}"
+  for token in $1; do
+    case "$token" in
+      --*|scaffold) out+=" ${CYAN}${token}${RESET}" ;;
+      *)            out+=" ${token}" ;;
+    esac
+  done
+  printf '%b\n' "$out" >&2
 }
 
 # wizard_command <name> <kind=value>...
