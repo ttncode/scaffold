@@ -1,5 +1,14 @@
 setup() {
   REAL_HOME="$HOME"
+  # Redirecting HOME to hide a git identity moves mise's data directory with
+  # it, and an empty one means every generated project re-downloads node,
+  # pnpm, lefthook and gitleaks. That is minutes per test and, worse, four
+  # network calls that can fail for reasons this suite is not testing —
+  # measured twice: `peer closed connection without sending TLS close_notify`
+  # while fetching pnpm, failing a test about git identity. The tests below
+  # point it back at the real store; HOME stays redirected, which is the
+  # thing they actually need.
+  REAL_MISE_DATA_DIR="${MISE_DATA_DIR:-${HOME}/.local/share/mise}"
 
   # a test that redirects HOME loses git's identity with it, and
   # GIT_AUTHOR_* does not satisfy `git config --get`. Write a real one.
@@ -85,6 +94,7 @@ teardown() {
   # unauthenticated gh instead of a detected account.
   run env -u SCAFFOLD_GITHUB_OWNER HOME="$BATS_TEST_TMPDIR" \
     GH_CONFIG_DIR="${REAL_HOME}/.config/gh" \
+    MISE_DATA_DIR="$REAL_MISE_DATA_DIR" \
     scaffold new "$detected" --api nestjs
   assert_ok
   # detection must be announced, not silent: a wrong account is only visible
@@ -101,6 +111,7 @@ teardown() {
   # The owner is supplied so this test can't fail on owner detection instead.
   rm -f "${BATS_TEST_TMPDIR}/.gitconfig"
   run env HOME="$BATS_TEST_TMPDIR" GIT_CONFIG_GLOBAL=/dev/null SCAFFOLD_GITHUB_OWNER=someone \
+    MISE_DATA_DIR="$REAL_MISE_DATA_DIR" \
     scaffold new "$no_ident" --api nestjs
   assert_ok
   # the finalize commit carries its own identity rather than the caller's —
