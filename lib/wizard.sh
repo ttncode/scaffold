@@ -159,7 +159,7 @@ wizard_new_args() {
 # cyan lib/usage.sh gives `-h, --help`; the values stay plain so the two
 # halves of each pair read apart.
 wizard_echo_command() {
-  local token out="  ${CYAN}!${RESET}"
+  local token out="${CYAN}!${RESET}"
   for token in $1; do
     case "$token" in
       --*|scaffold) out+=" ${CYAN}${token}${RESET}" ;;

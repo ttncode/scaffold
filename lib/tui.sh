@@ -168,8 +168,14 @@ tui_prompt_name() {
   tput cnorm >&2 2>/dev/null || true
 
   while true; do
-    printf '%b' "${BOLD}? Project name: ${RESET}" >&2
-    _tui_read_line || { printf '\n' >&2; exit 130; }
+    # Cyan opens before the read and closes after it, so the characters
+    # _tui_read_line echoes as they are typed carry the same colour the
+    # answered questions below will show. Every exit from the read closes
+    # it, including Esc — a cancelled wizard must not leave the terminal
+    # painted.
+    printf '%b' "${BOLD}? Project name: ${RESET}${CYAN}" >&2
+    _tui_read_line || { printf '%b\n' "$RESET" >&2; exit 130; }
+    printf '%b' "$RESET" >&2
     name="$REPLY"
     tui_name_is_usable "$name" && break
     printf '%b\n' "${RED}  ${PROJECT_NAME_RULE}: ${name}${RESET}" >&2
