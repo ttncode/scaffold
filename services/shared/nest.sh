@@ -116,11 +116,17 @@ EOF
     src/health/health.controller.ts || return 1
   sed -i.bak "s|throw new Error('no database is configured for this project');|return { status: 'ok' };|" \
     src/health/health.controller.ts || return 1
+  # The probe spliced above is the only thing in this method that awaits, so
+  # the adapter ships it without `async` — a --db none project would
+  # otherwise fail @typescript-eslint/require-await on its own lint task.
+  sed -i.bak "s|  ready(): Promise<|  async ready(): Promise<|" \
+    src/health/health.controller.ts || return 1
   rm -f src/health/health.controller.ts.bak
 
   grep -q "dbClient" src/health/health.controller.ts \
     && grep -q "PrismaClient" src/health/health.controller.ts \
     && grep -q "return { status: 'ok' };" src/health/health.controller.ts \
+    && grep -q "async ready(): Promise<" src/health/health.controller.ts \
     || die "could not splice the database probe into src/health/health.controller.ts — has the anchor moved?"
 
   # The spliced text's own line breaks are a guess, and the mongodb and SQL

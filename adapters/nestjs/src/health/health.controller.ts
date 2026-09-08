@@ -23,8 +23,12 @@ export class HealthController {
   // A fresh client per call would need its own $disconnect() to avoid
   // leaking a connection per poll, but tearing a real pool down and back up
   // every few seconds is the wasteful version of the same fix.
+  // Not `async` here: with --db none there is nothing to await, and
+  // @typescript-eslint/require-await fails a generated project on its own
+  // lint. services/shared/nest.sh adds the keyword when it splices in a
+  // probe, which is the only case that awaits anything.
   @Get('ready')
-  async ready(): Promise<{ status: string }> {
+  ready(): Promise<{ status: string }> {
     try {
       // @DB_PROBE@
       throw new Error('no database is configured for this project');
