@@ -81,7 +81,7 @@ tui_header() {
     done
     _tui_header_row '' '' "$width"
   fi
-  _tui_header_row '' '  Pick a stack — CI, containers and a release path come wired' "$width"
+  _tui_header_row '' '  Pick a stack — CI, containers and a release you can install' "$width"
   _tui_header_row '' '' "$width"
   _tui_header_row dim '  Up/down or type a letter to move' "$width"
   _tui_header_row dim '  Press Enter to select' "$width"
