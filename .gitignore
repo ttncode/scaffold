@@ -2,8 +2,11 @@
 .DS_Store
 *.swp
 
-# The toolbox is bash; a node_modules here is a stray pnpm run, not a
-# dependency. Ignored so a wide `git add -A` cannot commit one again.
+# Neither belongs to the toolbox: a node_modules here is a stray pnpm run,
+# and tmp/ is where a probe or a hand-run script lands. Both have been
+# committed by a wide `git add -A` before — tmp/ carried a whole generated
+# Nest project for a week.
 node_modules/
+tmp/
 package.json
 pnpm-lock.yaml

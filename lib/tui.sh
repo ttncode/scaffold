@@ -53,15 +53,11 @@ tui_end() {
 #
 # Box shape, edge colour and the one-column-short width are banner.sh's,
 # reimplemented rather than sourced — scaffold has to run standalone on a
-# client machine, same reason lib/tui.sh's select loop reimplements menu.sh's
-# instead of sourcing it. The key hints used to repeat in every question's
-# footer; they are constant for the whole wizard, so they are said once here
-# instead.
+# client machine, the same reason the select loop reimplements menu.sh's.
 #
 # Collapses to one line under menu.sh's own threshold (TERM_LINES < 23): a
 # terminal that short scrolls once the header and a question's screen don't
-# both fit, and a scroll is exactly what breaks tui_select's cursor-up
-# overwrite math.
+# both fit, and a scroll breaks tui_select's cursor-up overwrite math.
 tui_header() {
   local term_lines; term_lines="$(tput lines 2>/dev/null || echo 24)"
   if (( term_lines < 23 )); then
@@ -187,21 +183,16 @@ tui_prompt_name() {
   printf '%s\n' "$name"
 }
 
-# _tui_read_line — one line of input into REPLY, byte by byte.
+# _tui_read_line — one line of input into REPLY, byte by byte. Returns 1 on
+# Esc or EOF.
 #
 # `read -r` cannot see Esc: the tty hands it a whole line, and Esc is just a
-# byte inside it. The header promises "Press Esc to cancel" and every other
-# screen honours that, so the one screen that ignored it was the first one a
-# user meets. Reading a byte at a time is what makes Esc reachable here.
+# byte inside it. Reading a byte at a time is what makes the header's
+# "Press Esc to cancel" true on this screen too.
 #
-# The cost, stated because it is real: this is not readline. Ctrl-W, Ctrl-U
-# and the left/right arrows do nothing, and Backspace is handled below
-# because nothing else would. A project name is short enough to retype; a
-# promise the first screen breaks is not something a user retypes their way
-# out of.
-#
-# Returns 1 on Esc or EOF, so the caller treats both the way it already
-# treated Ctrl-D.
+# The cost is real: this is not readline. Ctrl-W, Ctrl-U and the left/right
+# arrows do nothing, and Backspace is handled below because nothing else
+# would.
 _tui_read_line() {
   local key
   REPLY=""
