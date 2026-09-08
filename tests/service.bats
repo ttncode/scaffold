@@ -691,3 +691,30 @@ _password_literal_report() {
       || { echo "${service}/nest.sh does not allow an override"; false; }
   done
 }
+
+@test "the nestjs health controller ships without async, and its driver adds it" {
+  # A project generated with --db none keeps this file as shipped: nothing
+  # splices a probe in, so nothing in ready() awaits. Shipping it `async`
+  # made every --db none project fail @typescript-eslint/require-await on
+  # its own lint task — green-on-generation is the whole promise (ADR-0021),
+  # and two of the sixteen nightly service cells were red on it.
+  #
+  # Both halves, because either alone is satisfiable by a broken file: the
+  # shipped file must not say async, and the driver must be the thing that
+  # adds it back for the case that does await.
+  local controller="${SCAFFOLD_ROOT}/adapters/nestjs/src/health/health.controller.ts"
+
+  run grep -q 'async ready(' "$controller"
+  [ "$status" -ne 0 ] || {
+    echo "the shipped controller declares ready() async, so a --db none project"
+    echo "fails require-await; services/shared/nest.sh adds the keyword instead."
+    false
+  }
+
+  run grep -q 'async ready(): Promise<' "${SCAFFOLD_ROOT}/services/shared/nest.sh"
+  [ "$status" -eq 0 ] || {
+    echo "services/shared/nest.sh no longer restores async ready(), so a project"
+    echo "with a database awaits inside a non-async method."
+    false
+  }
+}
