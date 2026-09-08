@@ -124,7 +124,14 @@ INNER_EOF
 
   DOCKER_LOG="${PWD}/d1.log" PATH="${PWD}/stub3:${PATH}" run start_stack
   assert_ok
+  # The stub has to have run before "no login happened" means anything: if it
+  # never did, d1.log does not exist, `cat` fails, and a bare `!= *login*`
+  # against its error message passes while start_stack talked to a real
+  # docker. Asserting what the stub did record is what closes that.
+  [ -f d1.log ] \
+    || { echo "the docker stub never ran — start_stack reached a real docker"; false; }
   run cat d1.log
+  [[ "$output" == *"compose up"* ]]
   [[ "$output" != *"login"* ]]
 
   DOCKER_LOG="${PWD}/d2.log" GITHUB_TOKEN=t0ken PATH="${PWD}/stub3:${PATH}" run start_stack
