@@ -412,14 +412,22 @@ EOF
   #
   # Both halves are asserted because only the pair is a contract: a header
   # that never draws the wordmark would pass the narrow case on its own.
-  local script="source '${SCAFFOLD_ROOT}/lib/tui.sh'; tui_header"
+  #
+  # Both run under a pty. tui_header measures with `tput cols`, which reads
+  # the terminal, not $COLUMNS — so without a pty `stty cols` fails silently,
+  # tput falls back to 80, and both cases draw the same 80-column box. That
+  # is how the first version of this test passed here and failed on CI: the
+  # width it claimed to set was never the width being measured.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local body="source '${SCAFFOLD_ROOT}/lib/tui.sh'; tui_header"
 
   local wide narrow
-  wide="$(COLUMNS=100 LINES=40 bash -c "stty cols 100 rows 40 2>/dev/null; ${script}" 2>&1)"
+  wide="$(TERM=xterm-256color script -qec "stty cols 100 rows 40; bash -c \"${body}\"" /dev/null)"
   # 68 columns leaves 65 inside the box: wide enough for every other row,
   # one column short of the wordmark's 67. That is the only width where the
   # drop is the wordmark's own and not a narrow terminal cutting everything.
-  narrow="$(COLUMNS=68 LINES=40 bash -c "stty cols 68 rows 40 2>/dev/null; ${script}" 2>&1)"
+  narrow="$(TERM=xterm-256color script -qec "stty cols 68 rows 40; bash -c \"${body}\"" /dev/null)"
 
   grep -q '███████╗' <<<"$wide" \
     || { echo "no wordmark at 100 columns:"; echo "$wide"; false; }
