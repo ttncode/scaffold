@@ -48,8 +48,13 @@ They differ only in which `IMAGE_TAG` the deployment sets.
 
 ## Before the first deploy
 
-`compose.yaml`'s `app.image` ships as a placeholder — ghcr.io, org and image
-both spelled CHANGEME — because this project was generated before it had a
-repository or a published image. Edit that line, and `install.sh`'s
-`RepoUrl`, once — after the repository exists and its first image has been
-published. Neither changes again after that.
+Nothing, if the GitHub repository is named after this project's directory.
+
+`compose.yaml`'s `app.image`, `install.sh`'s `RepoUrl`, and the image
+`build.yml` and `release.yml` push to were all written at generation time
+from the same owner and project name, so they already agree.
+
+If the repository was renamed, all four need the new name. `install.sh`
+re-downloads `compose.yaml` from the latest release on every run, so change
+it in this repository and cut a release — a hand-edit to a deployed copy is
+undone the next time the script runs.

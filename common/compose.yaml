@@ -12,14 +12,17 @@ name: app
 
 services:
   app:
-    # ghcr.io/CHANGEME/CHANGEME is a placeholder: scaffold generates this
-    # project before it has a github repository, so it cannot know its own
-    # registry path. install.sh re-downloads this file from the latest
-    # release on every run, so a hand-edit to a deployed copy is undone the
-    # next time it runs — fix it in this repository's own compose.yaml and
-    # cut a release instead (see the scaffold toolbox's
-    # docs/runbook/first-project-walkthrough.md step 10, not shipped here).
-    image: ghcr.io/CHANGEME/CHANGEME:${IMAGE_TAG:-latest}
+    # Substituted at generation time, from the same owner and project name
+    # build.yml and release.yml get — this is the path they push to, so the
+    # two cannot be written independently without drifting apart.
+    #
+    # It assumes the GitHub repository is named after the project directory.
+    # If you rename it, this line and install.sh's RepoUrl both need the new
+    # name — and so do the workflows, which carry the same assumption.
+    # install.sh re-downloads this file from the latest release on every run,
+    # so edit it here and cut a release; a hand-edit to a deployed copy is
+    # undone the next time install.sh runs.
+    image: ghcr.io/you/@PROJECT_NAME@:${IMAGE_TAG:-latest}
     env_file:
       # required: false so this validates before a .env exists; install.sh
       # always writes one before starting the stack.

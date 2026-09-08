@@ -22,6 +22,43 @@ teardown() {
   assert_ok
 }
 
+@test "compose.yaml, install.sh and the build workflows name one registry path" {
+  # build.yml pushes the image compose.yaml pulls, and install.sh downloads
+  # the release that publishes compose.yaml. Three files, one path — written
+  # from the same owner and project name at generation time.
+  #
+  # They used to disagree by construction: the workflows were substituted and
+  # compose.yaml/install.sh shipped `CHANGEME/CHANGEME`, so a project's first
+  # release named an image nothing had pushed and needed a hand-edit plus a
+  # second release before install.sh worked at all.
+  local want_image want_repo
+  want_image="$(grep -oE 'ghcr\.io/[^:[:space:]]+' "${PROJECT}/.github/workflows/build.yml" | head -1)"
+  [ -n "$want_image" ] || { echo "build.yml names no ghcr.io image"; false; }
+  want_repo="${want_image#ghcr.io/}"
+
+  # The app service, and the migrate service that inherits its image.
+  local service actual
+  for service in app migrate; do
+    actual="$(yq ".services.${service}.image // \"\"" "${PROJECT}/compose.yaml")"
+    [ -n "$actual" ] || continue
+    [[ "$actual" == "${want_image}:"* ]] || {
+      echo "compose.yaml's ${service} image is ${actual}, not ${want_image} as build.yml pushes"
+      false
+    }
+  done
+
+  run grep -qF "github.com/${want_repo}/releases" "${PROJECT}/install.sh"
+  [ "$status" -eq 0 ] || {
+    echo "install.sh's RepoUrl does not name ${want_repo}:"
+    grep -n '^RepoUrl=' "${PROJECT}/install.sh"
+    false
+  }
+
+  # A placeholder anywhere in either file means the substitution was skipped.
+  run bash -c "grep -l 'CHANGEME\|@PROJECT_NAME@\|ghcr.io/you/' '${PROJECT}/compose.yaml'"
+  [ -z "$output" ] || { echo "compose.yaml still carries a placeholder"; false; }
+}
+
 @test "third-party images are pinned by digest" {
   run bash -c "grep -E '^\s+image: (docker\.io|ghcr\.io)' '${PROJECT}/compose.yaml' | grep -v '@sha256:' | grep -v IMAGE_TAG"
   [ -z "$output" ]
