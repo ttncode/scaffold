@@ -23,7 +23,7 @@ Ship no deploy adapter. Build seven seams instead — the boundary a real
 deploy target plugs into later without restructuring anything above it:
 
 1. **A published image is the boundary.** `compose.yaml`'s `app` service
-   runs `ghcr.io/CHANGEME/CHANGEME:${IMAGE_TAG:-latest}` — a client's
+   runs `ghcr.io/<owner>/<project>:${IMAGE_TAG:-latest}` — a client's
    target only ever needs to know how to run one image, never how to build
    one.
 2. **Configuration only through the environment.** No Dockerfile in any
@@ -97,17 +97,24 @@ constrains them:
   `install.sh` at all; `docker compose up -d` does not recreate volumes,
   only containers. This matches immich's own `install.sh`, which overwrites
   `docker-compose.yml` and keeps an existing `.env` for the same reason.
-- **The image and repository references are placeholders
-  (`ghcr.io/CHANGEME/CHANGEME`, `github.com/CHANGEME/CHANGEME`), not
-  parameterised.** `scaffold new` generates a project before it has a
-  GitHub repository, so it cannot derive either value — there is no remote
-  to read a path from, and no registry path exists until a release has
-  published one. Unlike `IMAGE_TAG` (which changes release to release, so
-  it has to be a variable with a default), the repository path is fixed
-  for the life of the project once it exists — a variable would only add a
-  place for the default to silently drift from the real value. A comment
-  next to each placeholder says to replace it once, by hand, after the
-  repository exists and its first image has been published.
+- **The image and repository references are substituted at generation
+  time, not parameterised.** Unlike `IMAGE_TAG` (which changes release to
+  release, so it has to be a variable with a default), the repository path
+  is fixed for the life of the project — a variable would only add a place
+  for the default to silently drift from the real value.
+
+  *Revised 2026-09-08.* This bullet originally said both were placeholders
+  spelled `CHANGEME/CHANGEME`, on the reasoning that `scaffold new`
+  generates a project before it has a GitHub repository and so cannot
+  derive either value. That reasoning was wrong, and the file next to them
+  disproved it: `build.yml` and `release.yml` have always shipped
+  `ghcr.io/you/@PROJECT_NAME@`, filled in by `resolve_github_owner` and the
+  project's own directory name. The path compose.yaml pulls and the path
+  build.yml pushes have to be one string, so writing one by substitution
+  and the other by hand guaranteed a first release nobody could install.
+  Both now use the same two values, and `tests/compose.bats` asserts they
+  agree. The remaining assumption — the GitHub repository is named after
+  the project directory — is one the workflows already carried.
 
 ## Consequences
 
@@ -117,18 +124,17 @@ constrains them:
 - Today, a human still runs `install.sh` on the target host by hand; there
   is no automated path from a merged pull request to a running client
   instance.
-- Every generated project ships a `compose.yaml` whose `app.image` is a
-  placeholder until someone edits it. Run straight from a checked-out
-  working tree, `docker compose up` against an unedited placeholder fails
-  before it ever tries to pull anything — confirmed against a live Docker
-  daemon: `invalid reference format: repository name (CHANGEME/CHANGEME)
-  must be lowercase`. That error names the placeholder outright, milder
-  than a bare "pull access denied" would be, so this path is already
-  reasonably self-explanatory without extra code. Run through `install.sh`,
-  the failure is caught even earlier: `check_image_configured` greps the
-  downloaded `compose.yaml`'s image line for a bare `CHANGEME` before
-  starting the stack and, if it is still there, says to edit the image
-  line rather than let Docker's own error be the only signal. That guard
+- A generated project's first release is installable without an edit. Under
+  the placeholder this bullet used to describe, it never was: the first
+  release shipped a `compose.yaml` naming an image nothing had pushed, so
+  every project needed a hand-edit and a second release before
+  `install.sh` could work at all. `check_image_configured` remains as a
+  safety net for a copy edited back to a placeholder, or carried over from
+  a project generated before this changed: it greps the downloaded
+  `compose.yaml`'s image line for a bare `CHANGEME` before starting the
+  stack and says to edit the image line rather than let Docker's own error
+  (`invalid reference format: repository name must be lowercase`, confirmed
+  against a live daemon) be the only signal. That guard
   only exists in `install.sh` — a client who runs `docker compose up`
   directly against a project's working tree still gets Docker's own
   message, not this project's, though that message is already actionable.

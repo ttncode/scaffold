@@ -93,7 +93,7 @@ init_project() {
   # at whoever CODEOWNERS names. GitHub treats an unresolvable owner as a
   # syntax error, making the security contact unreachable.
   local wf
-  for wf in "${dir}/.github/workflows/"*.yml; do
+  for wf in "${dir}/.github/workflows/"*.yml "${dir}/compose.yaml" "${dir}/install.sh"; do
     sed -i.bak "s|you/|${owner}/|g" "$wf"
     rm -f "${wf}.bak"
   done
@@ -104,9 +104,19 @@ init_project() {
   sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"
 
+  # compose.yaml and install.sh are in this list for the same reason the
+  # workflows are: the image build.yml pushes to and the image compose.yaml
+  # pulls have to be one string. They used to ship `CHANGEME/CHANGEME`, which
+  # made every project's first release unusable — its compose.yaml named an
+  # image nothing had pushed, so install.sh had to be given a second release
+  # after a hand-edit. Both values were already known here.
+  #
+  # assemble_compose runs after this and copies the app image onto the migrate
+  # service, so migrate inherits the substitution rather than needing its own.
   local file
   for file in "${dir}/.github/workflows/build.yml" "${dir}/.github/workflows/release.yml" \
-              "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md"; do
+              "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md" \
+              "${dir}/compose.yaml" "${dir}/install.sh"; do
     sed -i.bak "s|@PROJECT_NAME@|${name}|g" "$file"
     rm -f "${file}.bak"
   done

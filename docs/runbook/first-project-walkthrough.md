@@ -264,28 +264,24 @@ git pull
 ./install.sh
 ```
 
-Expect: it fails immediately, printing `could not download the release
-assets`. `install.sh`'s `RepoUrl` still names the CHANGEME/CHANGEME
-placeholder GitHub org and repo — `scaffold new` could not have filled that
-in: no repository existed yet to read a path from. This is the first point
-the one-time edit ADR-0014 describes can happen, now that step 9's release
-has given both `RepoUrl` and `compose.yaml`'s image line something real to
-name.
+Expect: it downloads the release assets and starts the stack. `RepoUrl` and
+`compose.yaml`'s image already name the ttncode/demo-app repository step 8
+created: `scaffold new` wrote both from the GitHub owner it resolved and this
+project's own directory name, the same pair it wrote into `build.yml` and
+`release.yml`.
+
+Check that they agree, because a repository renamed after generation breaks
+the assumption and this is where it would show:
 
 ```sh
-sed -i "s#github.com/CHANGEME/CHANGEME#github.com/ttncode/demo-app#" install.sh
-sed -i "s#ghcr.io/CHANGEME/CHANGEME#ghcr.io/ttncode/demo-app#" compose.yaml
-git checkout -b fix/point-at-published-image
-git commit -am "fix: point install.sh and compose.yaml at the published image"
-git push -u origin fix/point-at-published-image
-gh pr create --fill
-gh pr checks --watch
-gh pr merge --squash --delete-branch
-gh release list
+grep -n 'image: ghcr' compose.yaml .github/workflows/build.yml
+grep -n '^RepoUrl=' install.sh
 ```
 
-Expect: a `fix:` commit moves the patch version, so this cuts `v0.2.1` —
-the release `install.sh` downloads from once it names the right repository.
+Expect: one owner and one project name across all three. If the repository
+was renamed, edit them here and cut another release — `install.sh`
+re-downloads `compose.yaml` on every run, so editing the deployed copy is
+undone the next time it runs.
 
 This project is private (step 8's `--private`), so `install.sh` needs one
 more thing: a personal access token scoped `repo` and `read:packages`, and

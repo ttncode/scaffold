@@ -126,21 +126,28 @@ log "building ${IMAGE_TAG} from ${DOCKERFILE} (context: ${CONTEXT})..."
 docker build -f "${PROJECT_DIR}/${DOCKERFILE}" -t "$IMAGE_TAG" "${PROJECT_DIR}/${CONTEXT}" \
   || die "docker build failed for ${ADAPTER} (${DOCKERFILE})"
 
-# compose.yaml's app and migrate services both carry the ghcr.io/CHANGEME
-# placeholder scaffold ships before a project has a real registry path (see
-# common/compose.yaml) — every reference to it becomes the image just built,
-# so the stack that comes up next is the one that just passed this check,
-# not whatever a registry happens to publish.
+# compose.yaml's app and migrate services both carry this project's own
+# ghcr.io path, written at generation time (see common/compose.yaml) — every
+# reference to it becomes the image just built, so the stack that comes up
+# next is the one that just passed this check, not whatever a registry
+# happens to publish.
+#
+# Matched on the ghcr.io prefix rather than on the owner or project name:
+# those vary per run, while every service a fragment contributes pins
+# docker.io/library/... by digest, so the prefix selects exactly the images
+# this script built and nothing else.
 export IMAGE_TAG
 yq --inplace \
-  '(.services[] | select(.image | test("CHANGEME")) | .image) = strenv(IMAGE_TAG)' \
+  '(.services[] | select(.image | test("^ghcr\.io/")) | .image) = strenv(IMAGE_TAG)' \
   "${PROJECT_DIR}/compose.yaml" || die "could not rewrite compose.yaml's image"
 
-# Asserting equality with the tag just built, not just "no CHANGEME left": if
-# common/compose.yaml ever ships a real registry reference instead of the
-# placeholder, the select("CHANGEME") above matches nothing, no CHANGEME
-# string remains either, and the stack would come up on a *pulled* image
-# while the one just built is discarded — a green run proving nothing.
+# Asserting equality with the tag just built, not just "the rewrite ran": if
+# the selector above ever stops matching — a registry other than ghcr.io, a
+# renamed service — it matches nothing, yq still exits 0, and the stack would
+# come up on a *pulled* image while the one just built is discarded: a green
+# run proving nothing. This assertion is what makes that impossible, and it
+# already caught the change that moved compose.yaml off its CHANGEME
+# placeholder.
 assert_image_is_built_tag() {
   local service="$1" actual
   actual="$(yq ".services.${service}.image" "${PROJECT_DIR}/compose.yaml")"

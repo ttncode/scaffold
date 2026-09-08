@@ -8,11 +8,11 @@
 set -o nounset
 set -o pipefail
 
-# CHANGEME/CHANGEME: filled in by hand once this project has a real github
-# repository and a release has published compose.yaml and example.env —
-# scaffold generates this file before either exists (see the scaffold
-# toolbox's ADR-0014, not shipped here).
-RepoUrl='https://github.com/CHANGEME/CHANGEME/releases/latest/download'
+# Substituted at generation time from the GitHub owner scaffold resolved and
+# this project's own name, the same pair compose.yaml's image and the build
+# workflows carry. It assumes the repository is named after the project
+# directory; rename it and this line needs the new name too.
+RepoUrl='https://github.com/you/@PROJECT_NAME@/releases/latest/download'
 TargetDir='./app'
 
 # The owner/repo pair, taken from RepoUrl so a project still edits one line.
@@ -182,9 +182,11 @@ generate_service_passwords() {
   done < <(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=changeme$/\1/p' "$file")
 }
 
-# docker rejects the placeholder on its own, but with "invalid reference
-# format" rather than anything actionable. Matched case-insensitively so a
-# half-edit — ghcr.io/myorg/changeme — trips it too.
+# A generated project no longer ships a placeholder here — scaffold fills the
+# image in. This stays for the copy that was hand-edited back to one, or
+# carried over from a project generated before that was true: docker rejects
+# it on its own, but with "invalid reference format" rather than anything
+# actionable. Matched case-insensitively so a half-edit trips it too.
 check_image_configured() {
   if grep 'image:' compose.yaml | grep -qi 'CHANGEME'; then
     echo "compose.yaml's image line still has a CHANGEME placeholder; edit it to this project's real registry path, then re-run this script"
@@ -257,7 +259,8 @@ main() {
 }
 
 # sourced by the toolbox's tests to exercise one function at a time; running
-# main on source would try to download a release from a CHANGEME url.
+# main on source would try to download a release from the toolbox's own
+# unsubstituted `you/@PROJECT_NAME@` url.
 # `${BASH_SOURCE[0]:-$0}`, not a bare `${BASH_SOURCE[0]}`: this is documented
 # as curl-piped (`curl ... | bash`, same as the immich script it's adapted
 # from), and piped in there is no BASH_SOURCE at all — `set -o nounset` above
