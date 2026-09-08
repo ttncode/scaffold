@@ -231,3 +231,37 @@ setup() {
   done
   [ -z "$missing" ] || { echo "missing ADAPTER_READINESS_PATH:"; echo "$missing"; false; }
 }
+
+@test "every caller of scaffold new supplies the environment it demands" {
+  # scaffold new refuses to run without a GitHub owner, because the workflows
+  # it generates carry a `you/` placeholder that has to be substituted. Two
+  # things in this repository call it outside the test suite:
+  #
+  #   scripts/deploy-check.sh         exports its own
+  #   .github/workflows/adapters.yml  sets it on the step
+  #
+  # The workflow was the one that did not, and it failed every scheduled run
+  # from 2026-09-05 to 2026-09-08 — the second time a caller was missed after
+  # the same defect was fixed for deploy-check.sh alone. Grepping the call
+  # sites is what makes a third one impossible to miss.
+  #
+  # tests/*.bats are excluded deliberately: they reach scaffold through
+  # tests/helpers/setup.bash, which exports the variable once for all of them,
+  # so scanning them would report a hundred false callers.
+  local file hits=0
+  while IFS= read -r file; do
+    grep -qE '(\./)?scaffold new ' "$file" || continue
+    hits=$(( hits + 1 ))
+    grep -q 'SCAFFOLD_GITHUB_OWNER' "$file" || {
+      echo "${file} calls 'scaffold new' but never supplies SCAFFOLD_GITHUB_OWNER;"
+      echo "it will fail on any machine without 'gh auth login' or git's github.user."
+      false
+    }
+  done < <(git -C "$SCAFFOLD_ROOT" ls-files -- 'scripts/*.sh' '.github/workflows/*')
+
+  # A grep that matches nothing passes for free — the exact shape this file
+  # exists to refuse elsewhere. Assert the search found the call sites it is
+  # written against; a rename that moves them out of this glob fails here
+  # rather than silently checking nothing.
+  [ "$hits" -eq 2 ] || { echo "expected 2 callers of 'scaffold new', found ${hits}"; false; }
+}
