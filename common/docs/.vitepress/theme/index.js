@@ -5,5 +5,6 @@ import DefaultTheme from 'vitepress/theme';
 // and CSS resolves them in load order.
 import './vendor/escrcpy/rainbow.css';
 import './vendor/escrcpy/vars.css';
+import './custom.css';
 
 export default DefaultTheme;

@@ -104,17 +104,32 @@ EOF
   assert_ok
 }
 
-@test "the built site carries the vendored brand colour and the hero logo" {
+@test "the built site carries the theme's css and the hero logo" {
   cd "$PROJECT"
   run mise run //docs:build
   assert_ok
-  # the vendored css reaches a reader only through theme/index.js. Drop that
+  # every stylesheet reaches a reader only through theme/index.js. Drop an
   # import and the site still builds, still passes every other check, and
-  # quietly serves stock vitepress green.
+  # quietly serves stock vitepress: green instead of teal, and content that
+  # jumps sideways whenever a page is short enough not to scroll.
   run grep -rq -- '#00a98e' docs/.vitepress/dist/assets
+  assert_ok
+  run grep -rq 'scrollbar-gutter' docs/.vitepress/dist/assets
   assert_ok
   run grep -q 'logo.png' docs/.vitepress/dist/index.html
   assert_ok
+}
+
+@test "the docs site titles itself with a capitalised project name" {
+  # project_name_is_usable forces a lowercase first character, because a
+  # registry path and a directory name need one. A browser tab and a page
+  # heading reading `demo` is that constraint leaking into prose.
+  run grep -q "title: 'Demo'" "${PROJECT}/docs/.vitepress/config.ts"
+  assert_ok
+  run grep -q 'name: "Demo"' "${PROJECT}/docs/index.md"
+  assert_ok
+  run grep -rq '@PROJECT_TITLE@' "${PROJECT}/docs"
+  [ "$status" -ne 0 ]
 }
 
 @test "the docs build fails on a dead link" {

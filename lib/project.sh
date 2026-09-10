@@ -121,6 +121,15 @@ init_project() {
     rm -f "${file}.bak"
   done
 
+  # The docs site is the one place the name is read rather than resolved: a
+  # browser tab and a page heading. project_name_is_usable forces a lowercase
+  # first character, because a registry path and a directory name need one —
+  # so a title taken straight from it reads as a shell argument, not a title.
+  for file in "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md"; do
+    sed -i.bak "s|@PROJECT_TITLE@|${name^}|g" "$file"
+    rm -f "${file}.bak"
+  done
+
   # a config not yet trusted makes mise prompt or refuse instead of working.
   mise trust -y --quiet -C "$dir"
 }

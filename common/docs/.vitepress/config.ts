@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-  title: '@PROJECT_NAME@',
+  title: '@PROJECT_TITLE@',
   description: 'Project documentation',
   head: [['link', { rel: 'icon', href: '/logo.png' }]],
   // a dead link is a failed build, not a warning
