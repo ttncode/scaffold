@@ -77,6 +77,15 @@ EOF
   assert_ok
 }
 
+@test "the shipped docs are already prettier-clean" {
+  # The toolbox's own `lint` only shellchecks, so nothing else runs prettier
+  # over common/docs. A shipped markdown file with the wrong emphasis marker
+  # reaches every generated project and fails its first //docs:ci-unit.
+  cd "$PROJECT"
+  run mise run //docs:format
+  assert_ok
+}
+
 @test "the docs site builds" {
   cd "$PROJECT"
   run mise run //docs:build

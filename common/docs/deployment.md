@@ -24,7 +24,7 @@ GITHUB_TOKEN=ghp_... bash install.sh
 ```
 
 - **`repo`**, to download the release assets. A private release's browser
-  download URL returns 404 *even with a token attached*, so `install.sh`
+  download URL returns 404 _even with a token attached_, so `install.sh`
   fetches assets through the GitHub API instead. Without that, an operator
   who hits a 404, adds a token, and hits another 404 concludes the token is
   wrong and looks in the wrong place.
