@@ -92,6 +92,31 @@ EOF
   assert_ok
 }
 
+@test "the vendored theme ships whole: css, licence, notice and logo" {
+  local vendor="${PROJECT}/docs/.vitepress/theme/vendor/escrcpy" file
+  for file in LICENSE NOTICE rainbow.css vars.css; do
+    [ -f "${vendor}/${file}" ] || { echo "missing: vendor/escrcpy/${file}"; false; }
+  done
+  [ -f "${PROJECT}/docs/public/logo.png" ]
+  # reformatting the copy would make it a modified file under section 4(b);
+  # the exemption is the only thing standing between prettier and that.
+  run grep -qx '.vitepress/theme/vendor' "${PROJECT}/docs/.prettierignore"
+  assert_ok
+}
+
+@test "the built site carries the vendored brand colour and the hero logo" {
+  cd "$PROJECT"
+  run mise run //docs:build
+  assert_ok
+  # the vendored css reaches a reader only through theme/index.js. Drop that
+  # import and the site still builds, still passes every other check, and
+  # quietly serves stock vitepress green.
+  run grep -rq -- '#00a98e' docs/.vitepress/dist/assets
+  assert_ok
+  run grep -q 'logo.png' docs/.vitepress/dist/index.html
+  assert_ok
+}
+
 @test "the docs build fails on a dead link" {
   echo '[nowhere](/nowhere)' >> "${PROJECT}/docs/index.md"
   cd "$PROJECT"
