@@ -1,3 +1,7 @@
 pnpm-lock.yaml
 .vitepress/cache
 .vitepress/dist
+
+# copied verbatim from escrcpy under Apache-2.0; reformatting it would make it
+# a modified file, which section 4(b) then asks us to mark as changed
+.vitepress/theme/vendor

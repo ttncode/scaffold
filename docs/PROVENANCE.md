@@ -36,6 +36,14 @@ Excluded, and why:
 - **`tests/fixtures/`** — synthetic input this repo's own test suite invented
   (broken adapters, incomplete lint fixtures). Nothing here was ever copied
   from anywhere.
+- **`common/docs/.vitepress/theme/vendor/escrcpy`** — copied from
+  [`viarotel-org/escrcpy`](https://github.com/viarotel-org/escrcpy), not from
+  immich, so `UPSTREAM` and `scripts/check-provenance.sh` cannot speak for it:
+  both resolve exactly one upstream clone. Its provenance travels with the
+  files instead, in that directory's own `NOTICE` — source repository, commit,
+  file-by-file origin and licence — which is what a reader who finds the
+  directory will actually look at. `docs/public/logo.png` comes from the same
+  repository and the same `NOTICE` covers it.
 - **`docs/decisions/`, `docs/superpowers/`** (this repository's own, at the
   root — not `common/docs/decisions/`, which ships and is covered below).
   These are this project's planning record, not files copied from upstream.

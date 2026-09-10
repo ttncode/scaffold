@@ -1,0 +1,18 @@
+This directory contains files copied verbatim from escrcpy.
+
+    Copyright (C) 2023 viarotel
+    https://github.com/viarotel-org/escrcpy
+    Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Copied at commit 1e87397da0535b825d5e2e87a53e08fa3896f4a9:
+
+    rainbow.css   from docs/.vitepress/theme/rainbow.css
+    vars.css      from docs/.vitepress/theme/vars.css
+
+Unmodified. Prettier is told to skip this directory (see docs/.prettierignore)
+so that reformatting can never turn the copy into a derivative work by
+accident.
+
+The project logo at docs/public/logo.png is also escrcpy's. It is a placeholder
+for this project's own mark, not an asset the Apache licence grants: section 6
+withholds trademark rights. Replace it before the docs site is published.
