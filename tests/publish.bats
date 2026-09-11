@@ -99,6 +99,22 @@ _project() {
   [[ "$output" == *"uncommitted changes"* ]]
 }
 
+@test "publish refuses to create a second repository beside an existing origin" {
+  # `gh repo create --remote origin` fails on this anyway, with "Unable to add
+  # remote" — a message about git that says nothing about the project pointing
+  # at two different repositories.
+  _stub_gh
+  _project
+  git -C "$PROJECT" remote add origin https://github.com/acme/somewhere-else.git
+
+  GH_SCENARIO=absent run scaffold publish "$PROJECT"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"already pushes to"* ]]
+  [[ "$output" == *"acme/demo"* ]]
+  run grep -c 'repo create' "$GH_LOG"
+  [ "$output" = 0 ]
+}
+
 @test "a dry run asks nothing of GitHub but whether the repository exists" {
   _stub_gh
   _project

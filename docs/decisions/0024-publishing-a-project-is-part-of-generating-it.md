@@ -82,10 +82,18 @@ deploy job is added there, this decision needs revisiting.
 - Steps 8's `gh` incantations disappear from the walkthrough, and the trap
   they were warning about cannot be walked into.
 - The command is tested against a stubbed `gh` (`tests/publish.bats`), the
-  same technique `tests/install.bats` uses for `curl` and `docker`. What that
-  does not cover is whether GitHub accepts the ruleset payload; the shape is
-  asserted to be valid JSON carrying the three rules, and the live path was
-  exercised only far enough to observe the plan limit above.
+  same technique `tests/install.bats` uses for `curl` and `docker`. The
+  ruleset payload was additionally verified live, against a public repository:
+  GitHub accepts it and reports the ruleset `main` as `active` with
+  `deletion`, `non_fast_forward` and `pull_request`.
+- `gh repo create` does three things in one call — create, add the remote,
+  push — and a failure in the second or third leaves the first behind.
+  Observed while verifying the above. Every step here is idempotent, so a
+  second run finishes the job; the failure message says the repository may
+  already exist rather than implying nothing happened.
+- Creating a repository while `origin` already points elsewhere is refused.
+  `gh` fails on it regardless, with "Unable to add remote", which says nothing
+  about the project naming one repository and pushing to another.
 - A project whose GitHub repository is renamed after generation still breaks
   every reference to it. This command does not fix that; it removes one way
   of arriving there.

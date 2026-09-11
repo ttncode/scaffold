@@ -19,6 +19,63 @@ strip_ansi() {
   sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$1"
 }
 
+@test "update and publish are offered only from inside a project" {
+  # Both act on a project that already exists. Offering them anywhere else
+  # would be a refusal the user can walk into — the same reason a web project
+  # is never asked about a database.
+  run wizard_actions 0
+  assert_ok
+  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "new " ] \
+    || { echo "outside a project the wizard offers: ${output}"; false; }
+
+  run wizard_actions 1
+  assert_ok
+  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "new update publish " ] \
+    || { echo "inside a project the wizard offers: ${output}"; false; }
+}
+
+@test "every action the wizard offers is a command scaffold accepts" {
+  # The wizard's menu and scaffold's own dispatch are two lists of the same
+  # thing, which is how this repository has drifted before. This is the
+  # cheapest way to keep them in step.
+  local action
+  while read -r action; do
+    grep -qE "^    ${action}\) cmd_" "${SCAFFOLD_ROOT}/scaffold" \
+      || { echo "the wizard offers '${action}', which scaffold's main has no case for"; false; }
+  done < <(wizard_actions 1 | cut -f1)
+}
+
+@test "every action the wizard offers says what it does" {
+  # The second column is the only thing distinguishing three verbs that all
+  # sound like "do the thing".
+  local line
+  while IFS= read -r line; do
+    [ -n "$(cut -f2 <<< "$line")" ] \
+      || { echo "no description for: $(cut -f1 <<< "$line")"; false; }
+  done < <(wizard_actions 1)
+}
+
+@test "publish asks the one question it has an answer for" {
+  run wizard_visibilities
+  assert_ok
+  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "private public " ] \
+    || { echo "visibilities are: ${output}"; false; }
+  # Private first: a plain Enter picks what cmd_publish would have defaulted
+  # to unset, the same promise wizard_order_options makes for the flags.
+  [ "$(head -1 <<< "$output" | cut -f1)" = private ]
+}
+
+@test "the answer column fits the widest question the wizard can ask" {
+  # Measured from the prompts rather than hand-counted, so a new screen
+  # widens the column instead of overflowing it.
+  local width; width="$(wizard_prompt_width)"
+  local prompt
+  for prompt in "$WIZARD_ACTION_PROMPT" "$WIZARD_SHAPE_PROMPT" "$WIZARD_VISIBILITY_PROMPT"; do
+    [ "${#prompt}" -le "$width" ] \
+      || { echo "'${prompt}' is ${#prompt} wide, column is ${width}"; false; }
+  done
+}
+
 @test "wizard_options groups adapters by role" {
   run wizard_options "$LISTING" api
   assert_ok
@@ -294,6 +351,36 @@ EOF
   [ "$seen" -eq 1 ] || { echo "header appeared ${seen} times, expected 1:"; cat "$out"; false; }
 }
 
+@test "from inside a project the wizard reaches publish, not new" {
+  # The pure functions above say what the menu holds; this says the menu is
+  # actually reached, that choosing an action skips the screens belonging to
+  # the other one, and that the command printed is the one those answers mean.
+  command -v script >/dev/null || skip "script(1) not available"
+
+  local project="${BATS_TEST_TMPDIR}/inside"
+  mkdir -p "$project"
+  printf 'monorepo_root = true\n\n[vars]\nimage = "ghcr.io/acme/demo"\n' \
+    > "${project}/mise.toml"
+  git -C "$project" init -q -b main
+
+  local out="${BATS_TEST_TMPDIR}/publish-session.log"
+  {
+    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\x1b[B'; sleep 0.3; printf '\n'  # action: publish
+    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'                            # visibility: public
+    sleep 1; printf 'n\n'                                                       # do not publish
+    sleep 1
+  } | ( cd "$project" && COLUMNS=90 LINES=45 script -qec \
+        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null ) \
+      > "$out" 2>&1 || true
+
+  strip_ansi "$out" | grep -q 'scaffold publish --public' \
+    || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
+  # The name prompt belongs to `new` and must not have been asked.
+  strip_ansi "$out" | grep -qi 'project name' \
+    && { echo "publish asked for a project name:"; cat "$out"; false; }
+  return 0
+}
+
 @test "the wizard reaches a command without generating anything" {
   # Drives the real screens through a pty and asserts only on the command it
   # prints. Frames are not asserted: this proves the loop reads keys, applies
@@ -405,8 +492,11 @@ EOF
   [[ "$pane" != *"separate frontend and backend, one repository"* ]] \
     || { echo "the answered question's option row is still on screen:"; echo "$pane"; false; }
 
+  # The gap is whatever wizard_prompt_width measured, so it is matched as a
+  # run of spaces rather than counted: this test is about there being one
+  # collapsed line, not about how wide the answer column happens to be.
   local collapsed
-  collapsed="$(grep -c '✔  What are you building?  web+api' <<< "$pane")"
+  collapsed="$(grep -cE '✔ +What are you building\? +web\+api' <<< "$pane")"
   [ "$collapsed" -eq 1 ] \
     || { echo "expected exactly one collapsed line, got ${collapsed}:"; echo "$pane"; false; }
 }
