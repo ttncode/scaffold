@@ -92,9 +92,12 @@ init_project() {
   # so it used to ship untouched, and SECURITY.md points vulnerability reports
   # at whoever CODEOWNERS names. GitHub treats an unresolvable owner as a
   # syntax error, making the security contact unreachable.
+  # mise.root.toml is in this list because it carries the registry path every
+  # application publishes under ([vars] image) — and it has to be substituted
+  # here, before it becomes mise.toml a few lines below.
   local wf
   for wf in "${dir}/.github/workflows/"*.yml "${dir}/compose.yaml" "${dir}/install.sh" \
-            "${dir}/README.md"; do
+            "${dir}/README.md" "${dir}/mise.root.toml"; do
     sed -i.bak "s|you/|${owner}/|g" "$wf"
     rm -f "${wf}.bak"
   done
@@ -136,35 +139,49 @@ init_project() {
   mise trust -y --quiet -C "$dir"
 }
 
-# set_image_context <project> <relative-path> — build.yml and release.yml
-# default to apps/api; rewrite both to the role's actual path when the
-# requested adapter builds a deployable image somewhere else. Writes
-# dockerfile alongside context on the assumption the role stands alone
-# (context and Dockerfile in the same directory) — use_workspace_build_context
-# corrects context alone for the one shape where that assumption doesn't hold.
-set_image_context() {
-  local project="$1" rel="$2" file
-  for file in "${project}/.github/workflows/build.yml" \
-              "${project}/.github/workflows/release.yml"; do
-    sed -i.bak \
-      -e "s|^      context: .*|      context: ${rel}|" \
-      -e "s|^      dockerfile: .*|      dockerfile: ${rel}/Dockerfile|" \
-      "$file"
-    rm -f "${file}.bak"
-  done
-}
+# register_image_target <project> <rel> — add one entry to the `images` array
+# build.yml and release.yml pass to the reusable workflow (ADR-0022).
+#
+# This replaced a pair of functions that wrote one context/dockerfile pair per
+# project: every applied adapter overwrote the previous one, so a project with
+# a web and an api application published only whichever was applied last, and
+# the other passed CI and was never built at all.
+#
+# Called after the workspace decision is settled, not during it: an
+# application's build context depends on whether it resolves through the
+# shared pnpm workspace or owns its manifests, which cmd_new decides only once
+# every adapter has been applied.
+register_image_target() {
+  local project="$1" rel="$2"
+  local name context dockerfile image file current updated
 
-# use_workspace_build_context <project> — an all-typescript project's apps
-# are pnpm workspace members with no package.json/lockfile of their own
-# (enable_typescript_workspace, sync_workspace_lockfile); the Dockerfile
-# set_image_context already named needs the workspace root as its build
-# context instead, the same shape immich's own server/Dockerfile builds from.
-use_workspace_build_context() {
-  local project="$1" file
+  name="$(app_service_key "$rel")"
+  image="$(project_image_base "$project")-${name}"
+  dockerfile="${rel}/Dockerfile"
+
+  # A workspace member has no package.json or lockfile of its own — they live
+  # at the root — so its Dockerfile's first COPY only resolves from there.
+  if app_is_workspace_member "$project" "$rel"; then
+    context="."
+  else
+    context="$rel"
+  fi
+
+  [ -f "${project}/${dockerfile}" ] \
+    || die "no Dockerfile at ${dockerfile} to build ${name} from"
+
   for file in "${project}/.github/workflows/build.yml" \
               "${project}/.github/workflows/release.yml"; do
-    sed -i.bak "s|^      context: .*|      context: .|" "$file"
-    rm -f "${file}.bak"
+    current="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$file")"
+    updated="$(jq -c --arg image "$image" --arg context "$context" \
+      --arg dockerfile "$dockerfile" \
+      '. + [{image: $image, context: $context, dockerfile: $dockerfile}]' \
+      <<<"$current")" \
+      || die "could not read the images array out of ${file}"
+
+    IMAGES="$updated" yq --inplace \
+      '(.jobs[] | select(has("with")) | .with.images) = strenv(IMAGES)' "$file" \
+      || die "could not record ${name}'s image in ${file}"
   done
 }
 

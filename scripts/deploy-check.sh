@@ -16,6 +16,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/lib/log.sh"
 # shellcheck source=lib/adapter.sh
 source "${ROOT}/lib/adapter.sh"
+# for app_service_key and app_port_variable — the same two rules that named
+# the compose service and the port variable when the project was generated,
+# rather than a second copy here that can drift from them.
+# shellcheck source=lib/service.sh
+source "${ROOT}/lib/service.sh"
 
 [ $# -ge 1 ] || die "usage: deploy-check.sh <adapter> [--db <service>]"
 
@@ -117,16 +122,27 @@ new_args=("$PROJECT_DIR" "--${ROLE}" "$ADAPTER")
 
 BUILD_YML="${PROJECT_DIR}/.github/workflows/build.yml"
 [ -f "$BUILD_YML" ] || die "generated project has no .github/workflows/build.yml"
-CONTEXT="$(yq '.jobs.build.with.context' "$BUILD_YML")"
-DOCKERFILE="$(yq '.jobs.build.with.dockerfile' "$BUILD_YML")"
+# One target, because this gate generates a project with exactly one adapter.
+# Read out of the `images` array all the same (ADR-0022), and asserted to hold
+# exactly one entry: a second would mean this script silently checked half of
+# what it built.
+IMAGES="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$BUILD_YML")"
+[ "$(jq 'length' <<<"$IMAGES")" = 1 ] \
+  || die "expected exactly one build target in ${BUILD_YML}, got: ${IMAGES}"
+CONTEXT="$(jq -r '.[0].context' <<<"$IMAGES")"
+DOCKERFILE="$(jq -r '.[0].dockerfile' <<<"$IMAGES")"
 [ -n "$CONTEXT" ] && [ "$CONTEXT" != "null" ] || die "could not read build context from ${BUILD_YML}"
 [ -n "$DOCKERFILE" ] && [ "$DOCKERFILE" != "null" ] || die "could not read dockerfile path from ${BUILD_YML}"
+
+# The compose service and the port variable are both named after the
+# application's own directory, which for a single-adapter project is its role.
+APP_SERVICE="$(app_service_key "$(dirname "$DOCKERFILE")")"
 
 log "building ${IMAGE_TAG} from ${DOCKERFILE} (context: ${CONTEXT})..."
 docker build -f "${PROJECT_DIR}/${DOCKERFILE}" -t "$IMAGE_TAG" "${PROJECT_DIR}/${CONTEXT}" \
   || die "docker build failed for ${ADAPTER} (${DOCKERFILE})"
 
-# compose.yaml's app and migrate services both carry this project's own
+# compose.yaml's application and migrate services both carry this project's own
 # ghcr.io path, written at generation time (see common/compose.yaml) — every
 # reference to it becomes the image just built, so the stack that comes up
 # next is the one that just passed this check, not whatever a registry
@@ -150,11 +166,11 @@ yq --inplace \
 # placeholder.
 assert_image_is_built_tag() {
   local service="$1" actual
-  actual="$(yq ".services.${service}.image" "${PROJECT_DIR}/compose.yaml")"
+  actual="$(yq ".services.\"${service}\".image" "${PROJECT_DIR}/compose.yaml")"
   [ "$actual" = "$IMAGE_TAG" ] \
     || die "compose.yaml's ${service} image is ${actual}, not the image just built (${IMAGE_TAG})"
 }
-assert_image_is_built_tag app
+assert_image_is_built_tag "$APP_SERVICE"
 yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1 \
   && assert_image_is_built_tag migrate
 
@@ -174,7 +190,7 @@ cd "$PROJECT_DIR"
 log "starting the stack..."
 docker compose up -d || die "docker compose up failed for ${ADAPTER}"
 
-log "waiting for the app container to become healthy (up to ${HEALTH_TIMEOUT_SECONDS}s)..."
+log "waiting for the ${APP_SERVICE} container to become healthy (up to ${HEALTH_TIMEOUT_SECONDS}s)..."
 health=""
 elapsed=0
 while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
@@ -184,15 +200,15 @@ while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
   # '.Health'` error, which the `|| true` this needs anyway would swallow
   # into a false "unknown", producing a full 120s red on an actually-healthy
   # stack. `docker inspect` on one container id has one shape.
-  health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)" 2>/dev/null || true)"
+  health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q "$APP_SERVICE")" 2>/dev/null || true)"
   [ "$health" = "healthy" ] && break
   [ "$health" = "unhealthy" ] \
-    && die "app container reported unhealthy — its HEALTHCHECK against ${LIVENESS_PATH} is failing (see: docker compose logs app)"
+    && die "${APP_SERVICE} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_PATH} is failing (see: docker compose logs ${APP_SERVICE})"
   sleep "$HEALTH_POLL_INTERVAL_SECONDS"
   elapsed=$((elapsed + HEALTH_POLL_INTERVAL_SECONDS))
 done
 [ "$health" = "healthy" ] \
-  || die "app container did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s (last status: ${health:-unknown})"
+  || die "${APP_SERVICE} container did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s (last status: ${health:-unknown})"
 
 # The readiness probe is `select 1` — it proves connectivity, not schema, and
 # returns 200 against an empty database. Asserting the migration's own exit
@@ -215,10 +231,14 @@ fi
 
 run_migrations || die "could not run migrations for ${ADAPTER}; check the output above"
 
-# `|| true`: under pipefail, a .env with no APP_PORT line makes grep exit 1
-# and, unguarded, that kills the script here — silently, before the
-# `${PORT:-8080}` fallback below ever gets a chance to run.
-PORT="$(grep '^APP_PORT=' .env | cut -d= -f2 || true)"
+# Named after the application's own directory, the same way its compose
+# service is (ADR-0022): WEB_PORT for apps/web, API_PORT for apps/api.
+#
+# `|| true`: under pipefail, a .env with no such line makes grep exit 1 and,
+# unguarded, that kills the script here — silently, before the `${PORT:-8080}`
+# fallback below ever gets a chance to run.
+PORT_VARIABLE="$(app_port_variable "$APP_SERVICE")"
+PORT="$(grep "^${PORT_VARIABLE}=" .env | cut -d= -f2 || true)"
 PORT="${PORT:-8080}"
 BASE_URL="http://localhost:${PORT}"
 

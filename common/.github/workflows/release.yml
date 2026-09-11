@@ -31,6 +31,7 @@ jobs:
       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
     with:
-      image: ghcr.io/you/@PROJECT_NAME@
-      context: apps/api
-      dockerfile: apps/api/Dockerfile
+      # One entry per application, written by scaffold as each one is
+      # generated (ADR-0022): {image, context, dockerfile}. A project with no
+      # application publishes nothing, and this job does not run.
+      images: "[]"

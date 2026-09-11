@@ -278,14 +278,11 @@ cmd_new() {
       load_adapter "$adapter"
       [ "$ADAPTER_ROLE" = "$flag" ] \
         || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
+      # Before the adapter, not after: apply_adapter runs the service drivers,
+      # and a driver's compose environment is merged into this application's
+      # own service, which has to exist by then.
+      add_app_service "$target" "$(role_path "$ADAPTER_ROLE")" "$ADAPTER_ROLE"
       apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
-      # build.yml/release.yml default to apps/api; every requested role
-      # (web, api, or app) is a candidate for the one image this project
-      # builds, so the context tracks whichever was applied most recently.
-      # a project requesting more than one role still gets only one image
-      # (see Task 9's report note on compose.yaml's single generic app
-      # service) — same pre-existing scope boundary, not new here.
-      set_image_context "$target" "$(role_path "$ADAPTER_ROLE")"
     done
   fi
 
@@ -318,7 +315,6 @@ cmd_new() {
     for entry in "${requested[@]}"; do
       finalize_app_dockerfile "$target" "$(role_path "${entry%%:*}")"
     done
-    use_workspace_build_context "$target"
   else
     rm -rf "${target}/packages-types"
 
@@ -353,6 +349,14 @@ cmd_new() {
       resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
     done
   fi
+
+  # Last, because a build context depends on the workspace decision both
+  # branches above have only just made: a workspace member builds from the
+  # root, an application that owns its manifests builds from its own
+  # directory (ADR-0022).
+  for entry in ${requested[@]+"${requested[@]}"}; do
+    register_image_target "$target" "$(role_path "${entry%%:*}")"
+  done
 
   finalize_project "$target"
   trap - EXIT
@@ -437,6 +441,11 @@ cmd_add() {
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
 
+  # Loaded here rather than left to apply_adapter's own call: add_app_service
+  # below needs the role to decide whether this application waits on the
+  # database, and apply_adapter sets ADAPTER_ROLE too late for that.
+  load_adapter "$adapter"
+
   # Linking a second member into an installed workspace makes pnpm purge and
   # relink the shared node_modules, which it refuses without a TTY
   # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Relaxed for this call only —
@@ -486,6 +495,11 @@ cmd_add() {
   [ -f "$workspace_file" ] \
     && printf 'confirmModulesPurge: false\nfrozenLockfile: false\nminimumReleaseAge: 0\n' >> "$workspace_file"
 
+  # Before the adapter, for the same reason as cmd_new's: a service driver's
+  # compose environment is merged into this application's own service, which
+  # has to exist by then. load_adapter above has already resolved the role.
+  add_app_service "$project" "$rel" "$ADAPTER_ROLE"
+
   apply_adapter "$adapter" "$project" "$rel"
 
   # apply_adapter lands both Dockerfile and Dockerfile.workspace for an
@@ -531,6 +545,9 @@ cmd_add() {
   fi
 
   sync_ci_roots "$project"
+  # After finalize_app_dockerfile above, which is what settles whether this
+  # application builds from the workspace root or from its own directory.
+  register_image_target "$project" "$rel"
   trap - EXIT
 
   # packages/types and the all-typescript pnpm workspace are decided once,
@@ -604,14 +621,6 @@ cmd_wizard() {
   log ""
   wizard_echo_command "$(wizard_command "$name" "${answers[@]}")"
 
-  # A web+api project still builds one image: set_image_context records one
-  # context per project, whichever role was applied last. The flags made this
-  # shape awkward to reach; the wizard makes it the first option, so it is
-  # said here rather than discovered after the first release build.
-  if [ "$shape" = "web+api" ]; then
-    log ""
-    printf '%b\n' "${DIM}Note: web and api still share one build image — whichever adapter is applied last wins the build context.${RESET}" >&2
-  fi
   log ""
 
   printf '%b' "${BOLD}Generate this project? [y/N] ${RESET}" >&2

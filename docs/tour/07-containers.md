@@ -52,11 +52,12 @@ and `tests/service.bats` fails a fragment that pins its own.
   adapter, and ADR-0014 for the seven seams a real deploy target plugs into
   later (published image, environment-only configuration, parameterised
   `IMAGE_TAG`, health checks, and more).
-- `scaffold`'s `cmd_new`, the comment above its `set_image_context` call:
-  the build and release workflows point at one `apps/<role>` directory per
-  project, so `--web nextjs --api nestjs` still builds a single image, for
-  whichever role's adapter was applied last. Unrelated to services — true
-  before this work and unchanged by it.
+- `lib/service.sh`'s `add_app_service` and `lib/project.sh`'s
+  `register_image_target`: one compose service and one image per application,
+  named after the application's own directory (ADR-0022). Until that ADR the
+  build and release workflows named one `apps/<role>` directory per project,
+  so `--web nextjs --api nestjs` published only whichever adapter was applied
+  last and the other was never built at all.
 
 ## Delete test
 

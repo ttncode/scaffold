@@ -297,17 +297,16 @@ curl -fsS http://localhost:8080/api/health/live
 
 Expect: `install.sh` downloads `compose.yaml` and `example.env` from
 `v0.2.1` through that API endpoint, generates passwords, signs in to
-`ghcr.io`, starts the stack, runs the migration task, and prints `the
-application is running on http://localhost:8080`. The curl returns `200`.
+`ghcr.io`, starts the stack, runs the migration task, and prints one line per
+application — `web is running on http://localhost:8080`, `api is running on
+http://localhost:8081`. The curl returns `200`.
 
-There is no readiness path to curl for this project: `--web nextjs` is the
-role that won the image (the last one on the command line, back in step 5),
-and `nextjs` ships no readiness route — the `web` role takes no database
-driver, so there is nothing for one to query. A project whose deployed
-image is `laravel-api` or `nestjs` additionally has
-`curl -fsS http://localhost:8080/health/ready` return `200`. See ADR-0021
-for both routes, and for why a project that requests more than one role
-still deploys only one image.
+Every application in the project is published and running, each on its own
+port (ADR-0022) — `WEB_PORT` and `API_PORT` in `.env`, printed one per line
+when `install.sh` finishes. `nextjs` ships no readiness route, because the
+`web` role takes no database driver and there is nothing for one to query;
+curl the api's instead, `curl -fsS http://localhost:8081/health/ready`,
+which returns `200`. See ADR-0021 for both routes.
 
 ```sh
 docker compose -f app/compose.yaml down -v

@@ -31,22 +31,39 @@ teardown() {
   # compose.yaml/install.sh shipped `CHANGEME/CHANGEME`, so a project's first
   # release named an image nothing had pushed and needed a hand-edit plus a
   # second release before install.sh worked at all.
-  local want_image want_repo
-  want_image="$(grep -oE 'ghcr\.io/[^:[:space:]]+' "${PROJECT}/.github/workflows/build.yml" | head -1)"
-  [ -n "$want_image" ] || { echo "build.yml names no ghcr.io image"; false; }
-  want_repo="${want_image#ghcr.io/}"
+  # One entry per application now (ADR-0022), so this asks the question of
+  # every one of them rather than of a single `app` service.
+  local images want_repo
+  images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
+    "${PROJECT}/.github/workflows/build.yml")"
+  [ "$(jq 'length' <<<"$images")" -gt 0 ] \
+    || { echo "build.yml publishes no image at all"; false; }
 
-  # The app service, and the migrate service that inherits its image.
-  local service actual
-  for service in app migrate; do
-    actual="$(yq ".services.${service}.image // \"\"" "${PROJECT}/compose.yaml")"
-    [ -n "$actual" ] || continue
+  local want_image service actual
+  while IFS= read -r want_image; do
+    service="${want_image##*-}"
+    actual="$(yq ".services.\"${service}\".image // \"\"" "${PROJECT}/compose.yaml")"
+    [ -n "$actual" ] && [ "$actual" != null ] || {
+      echo "build.yml pushes ${want_image} but compose.yaml has no ${service} service to run it"
+      false
+    }
     [[ "$actual" == "${want_image}:"* ]] || {
       echo "compose.yaml's ${service} image is ${actual}, not ${want_image} as build.yml pushes"
       false
     }
-  done
+  done < <(jq -r '.[].image' <<<"$images")
 
+  # The migrate service inherits a driven application's image rather than
+  # naming one of its own.
+  actual="$(yq '.services.migrate.image // ""' "${PROJECT}/compose.yaml")"
+  if [ -n "$actual" ] && [ "$actual" != null ]; then
+    jq -e --arg image "${actual%%:*}" 'any(.[]; .image == $image)' <<<"$images" >/dev/null \
+      || { echo "migrate runs ${actual}, which no build target publishes"; false; }
+  fi
+
+  want_repo="$(jq -r '.[0].image' <<<"$images")"
+  want_repo="${want_repo#ghcr.io/}"
+  want_repo="${want_repo%-*}"
   run grep -qF "github.com/${want_repo}/releases" "${PROJECT}/install.sh"
   [ "$status" -eq 0 ] || {
     echo "install.sh's RepoUrl does not name ${want_repo}:"
@@ -163,17 +180,23 @@ INNER_EOF
   local ts="${WORKDIR}/all-ts"
   scaffold new "$ts" --web nextjs --api nestjs
 
-  local context dockerfile
-  context="$(yq '.jobs.build.with.context' "${ts}/.github/workflows/build.yml")"
-  dockerfile="$(yq '.jobs.build.with.dockerfile' "${ts}/.github/workflows/build.yml")"
-  [ "$context" = "." ]
-  [ -f "${ts}/${dockerfile}" ]
+  # Both applications, not just the one that happened to be applied last:
+  # that single-target shape is exactly the defect ADR-0022 removed.
+  local images
+  images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
+    "${ts}/.github/workflows/build.yml")"
+  [ "$(jq 'length' <<<"$images")" -eq 2 ] \
+    || { echo "expected two build targets, got: ${images}"; false; }
 
-  local manifest
-  for manifest in package.json pnpm-lock.yaml pnpm-workspace.yaml; do
-    [ -f "${ts}/${context}/${manifest}" ] \
-      || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
-  done
+  local context dockerfile manifest
+  while IFS=$'\t' read -r context dockerfile; do
+    [ "$context" = "." ] || { echo "${dockerfile} builds from '${context}', not the workspace root"; false; }
+    [ -f "${ts}/${dockerfile}" ] || { echo "no Dockerfile at ${dockerfile}"; false; }
+    for manifest in package.json pnpm-lock.yaml pnpm-workspace.yaml; do
+      [ -f "${ts}/${context}/${manifest}" ] \
+        || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
+    done
+  done < <(jq -r '.[] | [.context, .dockerfile] | @tsv' <<<"$images")
 }
 
 @test "a mixed-language project's build context and dockerfile still see their own manifests" {
@@ -183,13 +206,15 @@ INNER_EOF
   local mixed="${WORKDIR}/mixed-context"
   scaffold new "$mixed" --api laravel-api --web nextjs
 
-  local context dockerfile
-  context="$(yq '.jobs.build.with.context' "${mixed}/.github/workflows/build.yml")"
-  dockerfile="$(yq '.jobs.build.with.dockerfile' "${mixed}/.github/workflows/build.yml")"
-  [ "$context" = "apps/web" ]
+  local images context dockerfile manifest
+  images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
+    "${mixed}/.github/workflows/build.yml")"
+  context="$(jq -r '.[] | select(.dockerfile == "apps/web/Dockerfile") | .context' <<<"$images")"
+  dockerfile="apps/web/Dockerfile"
+  [ "$context" = "apps/web" ] \
+    || { echo "apps/web builds from '${context}', not its own directory"; false; }
   [ -f "${mixed}/${dockerfile}" ]
 
-  local manifest
   for manifest in package.json pnpm-lock.yaml pnpm-workspace.yaml; do
     [ -f "${mixed}/${context}/${manifest}" ] \
       || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
@@ -197,10 +222,15 @@ INNER_EOF
 }
 
 @test "every adapter Dockerfile serves the port compose publishes" {
-  # common/compose.yaml publishes ${APP_PORT:-8080}:8080 and nothing rewrites
-  # it, so an adapter exposing anything else publishes a dead port.
+  # add_app_service publishes ${<NAME>_PORT:-<allocated>}:8080 for every
+  # application, so an adapter exposing anything else publishes a dead port.
   run bash -c "grep -L '^EXPOSE 8080\$' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile*"
   [ -z "$output" ] || { echo "not exposing 8080:"; echo "$output"; false; }
+
+  # The container side of every published port, asserted against a real
+  # project rather than the template it came from.
+  run bash -c "yq -r '.services[].ports[]? | select(test(\":8080\$\") | not)' '${PROJECT}/compose.yaml'"
+  [ -z "$output" ] || { echo "publishing to a port no adapter serves:"; echo "$output"; false; }
 }
 
 @test "every adapter Dockerfile probes the liveness path its adapter declares" {
