@@ -1,10 +1,10 @@
 # Deployment
 
 This project distributes container images; it does not deploy them for you.
-One image per application, named after the application's own directory —
-`apps/web` publishes `…/<project>-web` — and `compose.yaml` runs one service
-per application, each on its own host port (`WEB_PORT`, `API_PORT`, … in
-`.env`).
+One image per application, named after the application's own directory: an
+application in a directory called `web` publishes `…/<project>-web` and runs
+as the `web` service in `compose.yaml`, on its own host port (`WEB_PORT`,
+`API_PORT`, … in `.env`).
 
 `.github/workflows/build.yml` publishes `main` and `sha-<commit>` tags on
 every push to `main`. `.github/workflows/release.yml` additionally publishes
