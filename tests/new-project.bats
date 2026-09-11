@@ -180,6 +180,18 @@ collect_roots() {
   [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
 }
 
+@test "no @PROJECT_ placeholder survives into the generated project" {
+  scaffold new "$PROJECT"
+  # The account placeholder above and these two are substituted by three
+  # separate loops in init_project, each naming its own files — so a template
+  # added to common/ is silently missed by whichever loop nobody remembered.
+  # Checked over the whole tree rather than a file list, which is the same
+  # second copy that goes stale.
+  run grep -rn --exclude-dir=node_modules --exclude-dir=.git \
+    '@PROJECT_NAME@\|@PROJECT_TITLE@' "$PROJECT"
+  [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+}
+
 @test "register_config_root fails loudly when it cannot find its anchor" {
   # Both halves are anchored on the exact formatting common/mise.root.toml
   # ships. An inline array — valid TOML, and what any formatter produces —

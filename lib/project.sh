@@ -93,7 +93,8 @@ init_project() {
   # at whoever CODEOWNERS names. GitHub treats an unresolvable owner as a
   # syntax error, making the security contact unreachable.
   local wf
-  for wf in "${dir}/.github/workflows/"*.yml "${dir}/compose.yaml" "${dir}/install.sh"; do
+  for wf in "${dir}/.github/workflows/"*.yml "${dir}/compose.yaml" "${dir}/install.sh" \
+            "${dir}/README.md"; do
     sed -i.bak "s|you/|${owner}/|g" "$wf"
     rm -f "${wf}.bak"
   done
@@ -116,7 +117,7 @@ init_project() {
   local file
   for file in "${dir}/.github/workflows/build.yml" "${dir}/.github/workflows/release.yml" \
               "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md" \
-              "${dir}/compose.yaml" "${dir}/install.sh"; do
+              "${dir}/compose.yaml" "${dir}/install.sh" "${dir}/README.md"; do
     sed -i.bak "s|@PROJECT_NAME@|${name}|g" "$file"
     rm -f "${file}.bak"
   done
@@ -125,7 +126,8 @@ init_project() {
   # browser tab and a page heading. project_name_is_usable forces a lowercase
   # first character, because a registry path and a directory name need one —
   # so a title taken straight from it reads as a shell argument, not a title.
-  for file in "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md"; do
+  for file in "${dir}/docs/.vitepress/config.ts" "${dir}/docs/index.md" \
+              "${dir}/README.md"; do
     sed -i.bak "s|@PROJECT_TITLE@|${name^}|g" "$file"
     rm -f "${file}.bak"
   done
