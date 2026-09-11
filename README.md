@@ -41,6 +41,7 @@ scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                     [--db <service>] [--cache <service>]
 scaffold add <dir> --adapter <adapter>
 scaffold update [dir] [--dry-run]
+scaffold publish [dir] [--public] [--no-protect] [--dry-run]
 scaffold list
 scaffold lint
 scaffold --version
@@ -55,8 +56,11 @@ terminal attached — it keeps exactly the behaviour below.
 already exists. `update` brings a project that already exists up to this
 toolbox — it diffs `common/` and each adapter between the commit the project
 records in its own `.scaffold.toml` and this one, and applies the result to
-the project's own paths; `--dry-run` prints that patch instead. `list` reports
-the adapters and their tiers. `lint` checks every adapter and every service
+the project's own paths; `--dry-run` prints that patch instead. `publish` creates the GitHub
+repository the project already names and applies the settings a generated
+project needs but cannot carry in a file — see
+[ADR-0024](docs/decisions/0024-publishing-a-project-is-part-of-generating-it.md).
+`list` reports the adapters and their tiers. `lint` checks every adapter and every service
 against the contract. `--version` reports
 which commit of this toolbox is installed — `git describe`, so a working tree
 with uncommitted edits says `-dirty`.
