@@ -47,6 +47,38 @@ teardown() {
   [ ! -e "${SCAFFOLD_ROOT}/demo-relative" ]
 }
 
+@test "new reports its steps instead of a package manager's output" {
+  # It used to hand the terminal several minutes of progress bars, through
+  # which the one line that mattered — which application is being generated —
+  # never appeared at all.
+  run scaffold new "$PROJECT"
+  assert_ok
+  [[ "$output" == *"→ "* ]] || { echo "no step lines:"; echo "$output"; false; }
+  [[ "$output" != *"Progress: resolved"* ]] \
+    || { echo "package manager output reached the terminal"; false; }
+  # And says what to do with what it just made.
+  [[ "$output" == *"next:"* ]]
+  [[ "$output" == *"scaffold publish"* ]]
+}
+
+@test "a captured step still shows everything when it fails" {
+  # The whole point of hiding output is that a failure prints all of it.
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'
+    run_quietly 'the probe' bash -c 'echo the-only-clue; exit 3'"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"the-only-clue"* ]]
+  [[ "$output" == *"failed while the probe"* ]]
+}
+
+@test "SCAFFOLD_VERBOSE passes a step's output straight through" {
+  # For a run that hangs rather than fails, where there is otherwise nothing
+  # to look at.
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'
+    SCAFFOLD_VERBOSE=1 run_quietly 'the probe' bash -c 'echo live-output'"
+  assert_ok
+  [[ "$output" == *"live-output"* ]]
+}
+
 @test "new copies the common layer" {
   scaffold new "$PROJECT"
   [ -f "${PROJECT}/lefthook.yml" ]
@@ -73,6 +105,7 @@ teardown() {
 @test "register_config_root is idempotent" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   register_config_root "$PROJECT" "apps/api"
@@ -83,6 +116,7 @@ teardown() {
 @test "sync_ci_roots writes the roots as a JSON array" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   sync_ci_roots "$PROJECT"
@@ -103,6 +137,7 @@ teardown() {
 @test "register, collect and sync agree on two roots" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   register_config_root "$PROJECT" "apps/web"
@@ -174,6 +209,7 @@ teardown() {
 collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   collect_config_roots "$1"
 }
 
@@ -235,7 +271,7 @@ collect_roots() {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = ["docs"]\n\n[tasks.checklist]\nrun = [{ task = "//docs:checklist" }]\n' \
     > "${p}/mise.toml"
 
-  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; register_config_root '$p' apps/web"
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/manifest.sh'; register_config_root '$p' apps/web"
   [ "$status" -ne 0 ]
   [[ "$output" == *"config_roots"* ]]
 }

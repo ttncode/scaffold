@@ -7,6 +7,8 @@ setup() {
   source "${SCAFFOLD_ROOT}/lib/adapter.sh"
   source "${SCAFFOLD_ROOT}/lib/service.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/pnpm.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   source "${SCAFFOLD_ROOT}/lib/update.sh"
   WORKDIR="$(mktemp -d)"
 }

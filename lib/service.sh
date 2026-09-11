@@ -462,20 +462,25 @@ apply_service_drivers() {
     pnpm_bin="$(dirname "$(mise which pnpm -C "$app")")"
     node_bin="$(dirname "$(mise which node -C "$app")")"
 
-    PATH="${pnpm_bin}:${node_bin}:${PATH}" \
-      npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
-      SCAFFOLD_PROJECT_ROOT="$project" \
-      bash -euo pipefail -c '
+    # The child's own script, held in a variable so it reaches `bash -c`
+    # through `env` intact. Its `$1`/`$2` and ${SCAFFOLD_ROOT} are the
+    # child's to expand, not this shell's, and the two `.` lines source paths
+    # that vary per service and family.
+    # shellcheck disable=SC2016
+    local driver_script='
         cd "$1"
-        # shellcheck source=/dev/null
         . "${SCAFFOLD_ROOT}/lib/log.sh"
-        # shellcheck source=/dev/null
         . "${SCAFFOLD_ROOT}/lib/service.sh"
-        # shellcheck source=/dev/null
         . "$2"
         service_driver_apply
-      ' _ "$app" "$driver" \
-      || die "the ${service} driver failed for ${family}"
+    '
+
+    step "wiring ${service} into $(app_service_key "$app")"
+    run_quietly "wiring ${service} into $(app_service_key "$app") (the ${family} driver)" \
+      env PATH="${pnpm_bin}:${node_bin}:${PATH}" \
+        npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+        SCAFFOLD_PROJECT_ROOT="$project" \
+      bash -euo pipefail -c "$driver_script" _ "$app" "$driver"
 
     # A driver with nothing to add to the Dockerfile (redis's drivers, on
     # both families) returns an empty string; appending it anyway spliced a

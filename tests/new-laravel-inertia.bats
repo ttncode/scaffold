@@ -20,7 +20,7 @@ teardown() {
 
 @test "the fullstack project has exactly two config roots" {
   scaffold new "$PROJECT" --app laravel-inertia
-  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; collect_config_roots '${PROJECT}' | sort | tr '\n' ' '"
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/manifest.sh'; collect_config_roots '${PROJECT}' | sort | tr '\n' ' '"
   [ "$output" = "apps/app docs " ]
 }
 

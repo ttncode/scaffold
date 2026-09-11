@@ -1,0 +1,52 @@
+name: Pull request
+# Its own workflow, not a job in ci.yml, because of `edited`: a body that fails
+# this check is fixed by editing the body, and ci.yml does not run on that —
+# so the check stayed red for a fix that had already been made. Putting
+# `edited` in ci.yml instead would re-run the integration lane, twenty
+# minutes, every time somebody touched a description.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  # The checklist is only worth having if something reads it. This parses the
+  # headings out of the template itself rather than holding a second copy of
+  # them, so editing the template changes what is enforced — the convention and
+  # its enforcement cannot drift apart. Borrowed from immich's auto-close.yml.
+  #
+  # The job's name is load-bearing: `main`'s branch protection requires a
+  # check called `pull-request-body`, and a required check that never reports
+  # blocks every merge forever. Moving the job to this workflow was safe;
+  # renaming it to `body` at the same time was not, and blocked the pull
+  # request that made the change. Renaming it means updating the repository
+  # setting first — there is no trace of that setting in this repository to
+  # remind anyone, which is ADR-0004's point about the guardrail that is not
+  # a file.
+  pull-request-body:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          missing=""
+          while IFS= read -r heading; do
+            printf '%s\n' "$BODY" | grep -qF "$heading" || missing="${missing}\n  ${heading}"
+          done < <(grep '^## ' .github/pull_request_template.md)
+
+          if [ -n "$missing" ]; then
+            printf 'pull request body is missing:%b\n' "$missing" >&2
+            echo "Keep the template's sections; delete the comments, not the headings." >&2
+            exit 1
+          fi
