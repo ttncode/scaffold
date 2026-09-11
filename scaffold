@@ -23,6 +23,22 @@ source "${SCAFFOLD_ROOT}/lib/tui.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 
+# scaffold_version — which toolbox produced a given project, in one string.
+#
+# `git describe` against this checkout rather than a VERSION file: every
+# install of this toolbox is a clone, and a file is a second copy of the same
+# fact that goes stale the first time someone forgets to bump it. `--dirty`
+# is the point as much as the tag is — a project generated from uncommitted
+# edits cannot be reproduced from any commit, and the string has to say so.
+# Printed without a trailing newline so a caller that records it into a file
+# decides its own framing.
+scaffold_version() {
+  local version
+  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" \
+    || version="unknown"
+  printf '%s' "$version"
+}
+
 usage() {
   cat <<'EOF'
 usage:
@@ -32,6 +48,7 @@ usage:
   scaffold add <dir> --adapter <adapter>
   scaffold list [--adapters] [--services]
   scaffold lint
+  scaffold --version
 EOF
 }
 
@@ -620,6 +637,14 @@ cmd_wizard() {
 SCAFFOLD_SERVICES=()
 
 main() {
+  # Answered before the toolchain is checked, not through the case below: the
+  # moment this question gets asked is usually the moment something is wrong
+  # with the install, and "which version is this" must not itself fail with
+  # "missing required tool(s): yq".
+  case "${1:-}" in
+    -v|--version) scaffold_version; printf '\n'; return ;;
+  esac
+
   hoist_toolchain
   require_tools
 

@@ -119,6 +119,16 @@ setup() {
   [[ "$output" == *"missing required tool"* ]]
 }
 
+@test "scaffold reports its own version without a toolchain" {
+  # The question is usually asked because something is wrong with the install,
+  # so it must not fail with "missing required tool(s)" — which is what it did
+  # when --version went through the same case as every other command.
+  run env PATH=/usr/bin:/bin "${SCAFFOLD_ROOT}/scaffold" --version
+  assert_ok
+  [ -n "$output" ]
+  [[ "$output" != *"missing required tool"* ]]
+}
+
 @test "scaffold supplies its own jq and yq when only mise is on PATH" {
   # The state a developer is actually in after `git clone` — mise installed,
   # nothing else. hoist_toolchain reads this toolbox's own mise environment so

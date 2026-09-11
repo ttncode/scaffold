@@ -42,6 +42,7 @@ scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
 scaffold add <dir> --adapter <adapter>
 scaffold list
 scaffold lint
+scaffold --version
 ```
 
 Run with no arguments in a terminal, `scaffold` walks you to a complete
@@ -51,7 +52,9 @@ terminal attached — it keeps exactly the behaviour below.
 
 `new` creates a project. `add` installs another application into one that
 already exists. `list` reports the adapters and their tiers. `lint` checks
-every adapter and every service against the contract.
+every adapter and every service against the contract. `--version` reports
+which commit of this toolbox is installed — `git describe`, so a working tree
+with uncommitted edits says `-dirty`.
 
 `--db` and `--cache` select a database and a cache; each defaults to `none`
 except `--db`, which defaults to `mysql` for a project with an `--api` or
