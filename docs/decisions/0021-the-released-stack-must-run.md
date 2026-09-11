@@ -59,7 +59,9 @@ the existing `smoke` lane:**
 
 **The container port is fixed at 8080, not a variable.** Every adapter
 serves HTTP on container port 8080; `common/compose.yaml` publishes
-`${APP_PORT:-8080}:8080` and nothing rewrites it per-adapter. The
+`${APP_PORT:-8080}:8080` and nothing rewrites it per-adapter (ADR-0022 later
+replaced that single service with one per application, each on its own
+`<NAME>_PORT`; the container side is still 8080 for every adapter). The
 alternative — teaching compose each adapter's port through an
 `APP_CONTAINER_PORT` written at generation time — is rejected for the same
 reason ADR-0014 rejected a parameterised `IMAGE_REPOSITORY`:
@@ -206,6 +208,12 @@ actually ran the image.
   generated and checked, never deployed. Unchanged by this record, and
   worth restating because gate 2 looks like it covers a project when it
   covers one image.
+
+  *Superseded 2026-09-11 by ADR-0022.* A project now publishes one image per
+  application and runs one compose service per application. The gate
+  (`scripts/deploy-check.sh`) still generates a single-adapter project and so
+  still tests one image — it asserts that, rather than assuming it — so the
+  caveat about what gate 2 covers survives the change that removed its cause.
 - **A readiness route is application code a client may delete.** Nothing
   detects that later. The gate tests generated projects, not a client's
   repository six months on.

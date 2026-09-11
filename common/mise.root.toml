@@ -8,6 +8,13 @@ monorepo_root = true
 database = "@DATABASE@"
 cache = "@CACHE@"
 
+# The registry path every application in this project publishes under, with
+# its own directory name appended: apps/web becomes <image>-web (ADR-0022).
+# Read by `scaffold add`, so an application added in month six lands under the
+# same path as the first one, and by compose.yaml and the build workflows,
+# which have to name one string or a release publishes an image nothing pulls.
+image = "ghcr.io/you/@PROJECT_NAME@"
+
 [monorepo]
 config_roots = [
   "docs",

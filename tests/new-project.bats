@@ -15,6 +15,38 @@ teardown() {
   [ "$output" = "main" ]
 }
 
+@test "the scaffold commit is one Release Please will cut a release for" {
+  # Under `chore:` the first push ran the release workflow, found nothing
+  # releasable and finished green having published nothing — so install.sh
+  # had no release to download until somebody hand-wrote a feat commit.
+  # Asserted against the config that decides it rather than the literal
+  # string: chore and docs are `hidden` there, and a fourth hidden type
+  # added later must fail this too.
+  scaffold new "$PROJECT"
+  run git -C "$PROJECT" log -1 --format=%s
+  assert_ok
+  local type="${output%%:*}"
+  run jq -r --arg type "$type" \
+    '.packages["."]["changelog-sections"][] | select(.type == $type) | .hidden // false' \
+    "${PROJECT}/release-please-config.json"
+  [ "$output" = "false" ] || {
+    echo "the scaffold commit is '${type}:', which Release Please hides and never releases"
+    false
+  }
+}
+
+@test "a relative target is created where the command was run" {
+  # scaffold loads its own pinned toolchain through `mise env -C`, which
+  # prints the environment without moving. `mise exec -C` — what the README
+  # used to route every invocation through — moves as well, and this project
+  # then landed inside the toolbox rather than in the caller's directory.
+  cd "$WORKDIR"
+  run scaffold new demo-relative
+  assert_ok
+  [ -d "${WORKDIR}/demo-relative/.git" ]
+  [ ! -e "${SCAFFOLD_ROOT}/demo-relative" ]
+}
+
 @test "new copies the common layer" {
   scaffold new "$PROJECT"
   [ -f "${PROJECT}/lefthook.yml" ]
@@ -177,6 +209,18 @@ collect_roots() {
   # maintainer listed there. GitHub treats an unresolvable owner as a syntax
   # error, so the security contact was a name that cannot receive anything.
   run grep -rn '@you\b\|you/' "$PROJECT" --include='*.yml' --include='*.md' --include='CODEOWNERS'
+  [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+}
+
+@test "no @PROJECT_ placeholder survives into the generated project" {
+  scaffold new "$PROJECT"
+  # The account placeholder above and these two are substituted by three
+  # separate loops in init_project, each naming its own files — so a template
+  # added to common/ is silently missed by whichever loop nobody remembered.
+  # Checked over the whole tree rather than a file list, which is the same
+  # second copy that goes stale.
+  run grep -rn --exclude-dir=node_modules --exclude-dir=.git \
+    '@PROJECT_NAME@\|@PROJECT_TITLE@' "$PROJECT"
   [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
 }
 

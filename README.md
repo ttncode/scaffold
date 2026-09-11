@@ -18,26 +18,20 @@ then:
 git clone https://github.com/ttncode/scaffold.git
 cd scaffold
 mise install            # jq, yq, bats, shellcheck, zizmor, rush — pinned in mise.toml
-mise exec -- ./scaffold list
+./scaffold list
 ```
 
-`scaffold` refuses to run without those tools and names the missing one, so
-`mise exec --` is the reliable way to invoke it from a clone.
-
-To run it from anywhere, add a shell function rather than putting it on `PATH`:
-it needs its own pinned tools, but must still resolve a relative target against
-wherever you are standing.
+`scaffold` loads its own pinned `jq` and `yq` from this toolbox's `mise.toml`
+before it does anything else, so it runs the same from a clone, from a symlink,
+or from `PATH`:
 
 ```sh
-scaffold() {
-  ( eval "$(mise env -C "$HOME/path/to/scaffold" -s zsh)"
-    "$HOME/path/to/scaffold/scaffold" "$@" )
-}
+ln -s "$PWD/scaffold" ~/.local/bin/scaffold
 ```
 
-`mise env -C` prints the environment without changing directory. `mise exec -C`
-would change it as well, and a relative target would then be created inside the
-toolbox instead of where the command was run.
+It reads that environment without changing directory, so a relative target is
+always created where the command was run, not inside the toolbox. It still
+refuses to run when `git` or `mise` itself is missing, and names which.
 
 ## Usage
 
@@ -48,6 +42,7 @@ scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
 scaffold add <dir> --adapter <adapter>
 scaffold list
 scaffold lint
+scaffold --version
 ```
 
 Run with no arguments in a terminal, `scaffold` walks you to a complete
@@ -57,7 +52,9 @@ terminal attached — it keeps exactly the behaviour below.
 
 `new` creates a project. `add` installs another application into one that
 already exists. `list` reports the adapters and their tiers. `lint` checks
-every adapter and every service against the contract.
+every adapter and every service against the contract. `--version` reports
+which commit of this toolbox is installed — `git describe`, so a working tree
+with uncommitted edits says `-dirty`.
 
 `--db` and `--cache` select a database and a cache; each defaults to `none`
 except `--db`, which defaults to `mysql` for a project with an `--api` or

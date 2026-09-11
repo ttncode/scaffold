@@ -23,6 +23,22 @@ source "${SCAFFOLD_ROOT}/lib/tui.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 
+# scaffold_version — which toolbox produced a given project, in one string.
+#
+# `git describe` against this checkout rather than a VERSION file: every
+# install of this toolbox is a clone, and a file is a second copy of the same
+# fact that goes stale the first time someone forgets to bump it. `--dirty`
+# is the point as much as the tag is — a project generated from uncommitted
+# edits cannot be reproduced from any commit, and the string has to say so.
+# Printed without a trailing newline so a caller that records it into a file
+# decides its own framing.
+scaffold_version() {
+  local version
+  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" \
+    || version="unknown"
+  printf '%s' "$version"
+}
+
 usage() {
   cat <<'EOF'
 usage:
@@ -32,11 +48,35 @@ usage:
   scaffold add <dir> --adapter <adapter>
   scaffold list [--adapters] [--services]
   scaffold lint
+  scaffold --version
 EOF
 }
 
-# require_tools — a green test suite under `mise exec` proves nothing about
-# running scaffold bare, so fail here, by name, before touching disk.
+# hoist_toolchain — jq and yq are pinned in this toolbox's own mise.toml, so
+# scaffold loads that environment itself rather than asking every caller to
+# wrap the command in one.
+#
+# `mise env -C`, not `mise exec -C`: exec changes directory as well, and a
+# relative target then resolves against the toolbox — `scaffold new demo`
+# created the project inside the toolbox instead of where it was run. That
+# distinction used to be a paragraph in the README explaining the shell
+# function a user had to write; it is one line here instead.
+#
+# Silent and best-effort: only require_tools reports a real absence, and it
+# names the missing tool. An untrusted or unparseable config makes `mise env`
+# fail, which is that same absence one step earlier.
+hoist_toolchain() {
+  command -v jq >/dev/null 2>&1 && command -v yq >/dev/null 2>&1 && return 0
+  command -v mise >/dev/null 2>&1 || return 0
+
+  local environment
+  environment="$(mise env -C "$SCAFFOLD_ROOT" -s bash 2>/dev/null)" || return 0
+  eval "$environment"
+}
+
+# require_tools — hoist_toolchain runs first and usually supplies jq and yq,
+# so what reaches here is a genuine absence. Fail by name, before touching
+# disk.
 require_tools() {
   local tool missing=()
 
@@ -45,7 +85,7 @@ require_tools() {
   done
 
   [ "${#missing[@]}" -eq 0 ] && return 0
-  die "missing required tool(s): ${missing[*]} — run scaffold through 'mise exec -- ./scaffold ...', or 'mise install' in the toolbox root"
+  die "missing required tool(s): ${missing[*]} — run 'mise install' in ${SCAFFOLD_ROOT}"
 }
 
 cmd_list() {
@@ -238,14 +278,11 @@ cmd_new() {
       load_adapter "$adapter"
       [ "$ADAPTER_ROLE" = "$flag" ] \
         || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
+      # Before the adapter, not after: apply_adapter runs the service drivers,
+      # and a driver's compose environment is merged into this application's
+      # own service, which has to exist by then.
+      add_app_service "$target" "$(role_path "$ADAPTER_ROLE")" "$ADAPTER_ROLE"
       apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
-      # build.yml/release.yml default to apps/api; every requested role
-      # (web, api, or app) is a candidate for the one image this project
-      # builds, so the context tracks whichever was applied most recently.
-      # a project requesting more than one role still gets only one image
-      # (see Task 9's report note on compose.yaml's single generic app
-      # service) — same pre-existing scope boundary, not new here.
-      set_image_context "$target" "$(role_path "$ADAPTER_ROLE")"
     done
   fi
 
@@ -278,7 +315,6 @@ cmd_new() {
     for entry in "${requested[@]}"; do
       finalize_app_dockerfile "$target" "$(role_path "${entry%%:*}")"
     done
-    use_workspace_build_context "$target"
   else
     rm -rf "${target}/packages-types"
 
@@ -313,6 +349,14 @@ cmd_new() {
       resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
     done
   fi
+
+  # Last, because a build context depends on the workspace decision both
+  # branches above have only just made: a workspace member builds from the
+  # root, an application that owns its manifests builds from its own
+  # directory (ADR-0022).
+  for entry in ${requested[@]+"${requested[@]}"}; do
+    register_image_target "$target" "$(role_path "${entry%%:*}")"
+  done
 
   finalize_project "$target"
   trap - EXIT
@@ -397,6 +441,11 @@ cmd_add() {
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
 
+  # Loaded here rather than left to apply_adapter's own call: add_app_service
+  # below needs the role to decide whether this application waits on the
+  # database, and apply_adapter sets ADAPTER_ROLE too late for that.
+  load_adapter "$adapter"
+
   # Linking a second member into an installed workspace makes pnpm purge and
   # relink the shared node_modules, which it refuses without a TTY
   # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Relaxed for this call only —
@@ -446,6 +495,11 @@ cmd_add() {
   [ -f "$workspace_file" ] \
     && printf 'confirmModulesPurge: false\nfrozenLockfile: false\nminimumReleaseAge: 0\n' >> "$workspace_file"
 
+  # Before the adapter, for the same reason as cmd_new's: a service driver's
+  # compose environment is merged into this application's own service, which
+  # has to exist by then. load_adapter above has already resolved the role.
+  add_app_service "$project" "$rel" "$ADAPTER_ROLE"
+
   apply_adapter "$adapter" "$project" "$rel"
 
   # apply_adapter lands both Dockerfile and Dockerfile.workspace for an
@@ -491,6 +545,9 @@ cmd_add() {
   fi
 
   sync_ci_roots "$project"
+  # After finalize_app_dockerfile above, which is what settles whether this
+  # application builds from the workspace root or from its own directory.
+  register_image_target "$project" "$rel"
   trap - EXIT
 
   # packages/types and the all-typescript pnpm workspace are decided once,
@@ -564,14 +621,6 @@ cmd_wizard() {
   log ""
   wizard_echo_command "$(wizard_command "$name" "${answers[@]}")"
 
-  # A web+api project still builds one image: set_image_context records one
-  # context per project, whichever role was applied last. The flags made this
-  # shape awkward to reach; the wizard makes it the first option, so it is
-  # said here rather than discovered after the first release build.
-  if [ "$shape" = "web+api" ]; then
-    log ""
-    printf '%b\n' "${DIM}Note: web and api still share one build image — whichever adapter is applied last wins the build context.${RESET}" >&2
-  fi
   log ""
 
   printf '%b' "${BOLD}Generate this project? [y/N] ${RESET}" >&2
@@ -597,6 +646,15 @@ cmd_wizard() {
 SCAFFOLD_SERVICES=()
 
 main() {
+  # Answered before the toolchain is checked, not through the case below: the
+  # moment this question gets asked is usually the moment something is wrong
+  # with the install, and "which version is this" must not itself fail with
+  # "missing required tool(s): yq".
+  case "${1:-}" in
+    -v|--version) scaffold_version; printf '\n'; return ;;
+  esac
+
+  hoist_toolchain
   require_tools
 
   # A terminal, and only a terminal: scaffold runs in scripts, in CI and in

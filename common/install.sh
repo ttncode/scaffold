@@ -253,9 +253,17 @@ main() {
   start_stack || { echo 'could not start the stack; check the output above'; return 1; }
   run_migrations || { echo 'could not run migrations; check the output above'; return 1; }
 
-  local port
-  port="$(grep '^APP_PORT=' .env | cut -d= -f2)"
-  echo "the application is running on http://localhost:${port:-8080}"
+  # One line per application, not one for the project: a project publishes an
+  # image per application now, and compose gives each its own host port
+  # (see the scaffold toolbox's ADR-0022). Read out of .env rather than
+  # compose.yaml so it reports the ports actually in effect, including any the
+  # operator changed.
+  local name port
+  while IFS='=' read -r name port; do
+    [ -n "$port" ] || continue
+    name="${name%_PORT}"
+    echo "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]') is running on http://localhost:${port}"
+  done < <(grep -E '^[A-Z][A-Z0-9_]*_PORT=' .env || true)
 }
 
 # sourced by the toolbox's tests to exercise one function at a time; running

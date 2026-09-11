@@ -3,6 +3,10 @@
 setup() {
   load 'helpers/setup'
   source "${SCAFFOLD_ROOT}/lib/log.sh"
+  # DRIVEN_ROLES lives here, and add_app_service reads it to decide whether an
+  # application waits on the database. Unset, every application looks
+  # undriven and the depends_on tests pass for the wrong reason.
+  source "${SCAFFOLD_ROOT}/lib/contract.sh"
   source "${SCAFFOLD_ROOT}/lib/service.sh"
 }
 
@@ -78,9 +82,6 @@ setup() {
 
   run yq -e '.services.database.image | test("@sha256:")' "${project}/compose.yaml"
   assert_ok
-  run yq -e '.services.app.depends_on.database.condition == "service_healthy"' \
-    "${project}/compose.yaml"
-  assert_ok
   run yq -e '.volumes | has("database")' "${project}/compose.yaml"
   assert_ok
   run yq -e '.services.database.tmpfs != null' "${project}/compose.test.yaml"
@@ -106,14 +107,14 @@ setup() {
   assert_ok
 }
 
-@test "a project with no services has no depends_on" {
+@test "a project with no services gets no services" {
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" "$project/"
 
   run assemble_compose "$project"
   assert_ok
-  run yq -e '.services.app.depends_on == null' "${project}/compose.yaml"
+  run yq -e '(.services | length) == 0' "${project}/compose.yaml"
   assert_ok
 }
 
@@ -503,12 +504,98 @@ EOF
   run yq -e '.services.database != null and .services.cache != null' \
     "${project}/compose.yaml"
   assert_ok
-  run yq -e '.services.app.depends_on | keys | length == 2' \
+  # assemble_compose no longer touches an application service — a project has
+  # one per application now, and add_app_service is what makes each of them
+  # wait on the services it was generated against (ADR-0022).
+  # Compared as a joined string: yq's `==` on two sequences returns a
+  # sequence of per-element results, not one boolean, so `-e` reads it as no
+  # match and the test fails whatever the keys are.
+  run yq -e '(.services | keys | sort | join(",")) == "cache,database"' \
     "${project}/compose.yaml"
   assert_ok
   cd "$project"
   run docker compose -f compose.yaml config --quiet
   assert_ok
+}
+
+# _app_fixture <project> [database] [cache] — the two files add_app_service
+# reads: the manifest carrying the registry path and the recorded services,
+# and the compose file it merges into.
+_app_fixture() {
+  local project="$1" database="${2:-none}" cache="${3:-none}"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" "${project}/compose.yaml"
+  : > "${project}/example.env"
+  printf 'monorepo_root = true\n\n[vars]\ndatabase = "%s"\ncache = "%s"\nimage = "ghcr.io/acme/demo"\n' \
+    "$database" "$cache" > "${project}/mise.toml"
+}
+
+@test "add_app_service names the service and image after the application directory" {
+  local project="${BATS_TEST_TMPDIR}/named"
+  _app_fixture "$project"
+
+  run add_app_service "$project" apps/web web
+  assert_ok
+  run yq -r '.services.web.image' "${project}/compose.yaml"
+  [ "$output" = 'ghcr.io/acme/demo-web:${IMAGE_TAG:-latest}' ] \
+    || { echo "image is ${output}"; false; }
+}
+
+@test "add_app_service allocates a port per application, from 8080 up" {
+  # Allocated off compose.yaml rather than counted in a variable, so
+  # `scaffold add` months later continues the same sequence (ADR-0022).
+  local project="${BATS_TEST_TMPDIR}/ports"
+  _app_fixture "$project"
+
+  add_app_service "$project" apps/web web
+  add_app_service "$project" apps/api api
+  add_app_service "$project" apps/admin-ui web
+
+  run yq -r '[.services[].ports[0]] | join(" ")' "${project}/compose.yaml"
+  [ "$output" = '${WEB_PORT:-8080}:8080 ${API_PORT:-8081}:8080 ${ADMIN_UI_PORT:-8082}:8080' ] \
+    || { echo "ports are: ${output}"; false; }
+
+  # The same variable names, in the file install.sh writes .env from.
+  run grep -c -E '^(WEB|API|ADMIN_UI)_PORT=' "${project}/example.env"
+  [ "$output" = 3 ]
+}
+
+@test "only an application that opens a connection waits for one" {
+  # A web application has no driver and no client, so making it wait on the
+  # database would only delay it behind a service it never reaches.
+  local project="${BATS_TEST_TMPDIR}/depends"
+  _app_fixture "$project" postgres redis
+
+  add_app_service "$project" apps/web web
+  add_app_service "$project" apps/api api
+
+  run yq -r '.services.web.depends_on // "none"' "${project}/compose.yaml"
+  [ "$output" = none ] || { echo "web waits on: ${output}"; false; }
+
+  run yq -r '.services.api.depends_on | keys | sort | join(",")' "${project}/compose.yaml"
+  [ "$output" = "cache,database" ] || { echo "api waits on: ${output}"; false; }
+}
+
+@test "add_app_service refuses a project with no recorded registry path" {
+  # A project generated before [vars] image existed would otherwise get a
+  # service whose image is the bare suffix, which docker rejects much later.
+  local project="${BATS_TEST_TMPDIR}/old"
+  mkdir -p "$project"
+  cp "${SCAFFOLD_ROOT}/common/compose.yaml" "${project}/compose.yaml"
+  printf 'monorepo_root = true\n\n[vars]\ndatabase = "none"\ncache = "none"\n' > "${project}/mise.toml"
+
+  # Through `bash -e`, the way scaffold itself runs it: die() inside a command
+  # substitution exits only the subshell, and it is errexit on the assignment
+  # that actually stops the run. bats' own `run` turns errexit off, so calling
+  # the function directly here would report success and prove nothing.
+  run bash -euo pipefail -c "
+    source '${SCAFFOLD_ROOT}/lib/log.sh'
+    source '${SCAFFOLD_ROOT}/lib/contract.sh'
+    source '${SCAFFOLD_ROOT}/lib/service.sh'
+    add_app_service '$project' apps/api api
+  "
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"[vars] image"* ]]
 }
 
 @test "a cache contributes its own password to example.env" {
@@ -658,15 +745,22 @@ _password_literal_report() {
     || { echo "expected a literal password to be reported, got:"; echo "$bad"; false; }
 }
 
-@test "apply_service_compose_env merges into the app service" {
+@test "apply_service_compose_env merges into the application it was given" {
+  # Named, not assumed: a project has one service per application now, and a
+  # driver's environment belongs to the one whose adapter pulled it in — not
+  # to a generic `app` (ADR-0022).
   local project="${BATS_TEST_TMPDIR}/p"
   mkdir -p "$project"
-  printf 'services:\n  app:\n    image: x\n' > "${project}/compose.yaml"
+  printf 'services:\n  api:\n    image: x\n  web:\n    image: y\n' > "${project}/compose.yaml"
   . "${SCAFFOLD_ROOT}/lib/service.sh"
-  apply_service_compose_env "$project" 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
-  run mise exec -- yq -r '.services.app.environment.DATABASE_URL' "${project}/compose.yaml"
+  apply_service_compose_env "$project" api 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
+  run mise exec -- yq -r '.services.api.environment.DATABASE_URL' "${project}/compose.yaml"
   [[ "$output" == 'postgresql://app@database:5432/app' ]] \
     || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
+
+  # The application beside it is left alone.
+  run mise exec -- yq -r '.services.web.environment // "none"' "${project}/compose.yaml"
+  [ "$output" = none ]
 }
 
 @test "the laravel drivers name the connection selector laravel actually reads" {

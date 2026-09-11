@@ -135,14 +135,30 @@ teardown() {
   # as any other all-typescript combination, so it needs the same workspace
   # root context and apps/web/Dockerfile.workspace-turned-Dockerfile as the
   # multi-app case, not the standalone shape apps/web alone would suggest.
-  run yq '.jobs.build.with.context' "${web_project}/.github/workflows/build.yml"
-  [ "$output" = "." ]
-  run yq '.jobs.build.with.dockerfile' "${web_project}/.github/workflows/build.yml"
-  [ "$output" = "apps/web/Dockerfile" ]
-  run yq '.jobs.release.with.context' "${web_project}/.github/workflows/release.yml"
-  [ "$output" = "." ]
-  run yq '.jobs.release.with.dockerfile' "${web_project}/.github/workflows/release.yml"
-  [ "$output" = "apps/web/Dockerfile" ]
+  local file
+  for file in build release; do
+    run bash -c "yq -r '[.jobs[] | select(has(\"with\")) | .with.images] | .[0]' \
+      '${web_project}/.github/workflows/${file}.yml' \
+      | jq -c 'map({context, dockerfile})'"
+    assert_ok
+    [ "$output" = '[{"context":".","dockerfile":"apps/web/Dockerfile"}]' ] \
+      || { echo "${file}.yml builds: ${output}"; false; }
+  done
+}
+
+@test "a project with no application publishes no image" {
+  # The empty array is the honest answer, and app-targets.yml in the reusable
+  # workflow treats it as "nothing to build" rather than a failure — a project
+  # generated without an adapter must not go red on every push.
+  local bare="${WORKDIR}/bare"
+  scaffold new "$bare"
+  local file
+  for file in build release; do
+    run bash -c "yq -r '[.jobs[] | select(has(\"with\")) | .with.images] | .[0]' \
+      '${bare}/.github/workflows/${file}.yml'"
+    assert_ok
+    [ "$output" = "[]" ] || { echo "${file}.yml publishes: ${output}"; false; }
+  done
 }
 
 @test "every reusable workflow pins its actions by sha" {

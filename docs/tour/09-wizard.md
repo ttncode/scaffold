@@ -5,7 +5,7 @@
 `scaffold` run with no arguments walks a user to a complete `new` command
 instead of printing usage and exiting. It only does this in a terminal:
 `main` checks `[ -t 0 ]` before calling `cmd_wizard`, and every other
-invocation — a script, CI, `mise exec -- ./scaffold list` inside this
+invocation — a script, CI, `./scaffold list` inside this
 repository's own tests — keeps exactly today's behaviour. `scaffold`
 appears in all three; a bare call that opened a menu there would hang them
 as a timeout, not fail as an error, so the TTY check is the whole safety
@@ -57,9 +57,9 @@ The second project from the same answers is scripted rather than clicked.
   drives the real screens with a scripted key sequence and asserts only on
   the command line it prints at the end, not on frames.
 - `docs/superpowers/specs/2026-09-04-interactive-wizard-design.md` for the
-  full design, including the known limits: no back navigation (Ctrl-C and
-  re-run), and a `web+api` project still building one image because
-  `set_image_context` records one context per project regardless of shape.
+  full design, including its known limit: no back navigation (Ctrl-C and
+  re-run). The other limit that design records — a `web+api` project building
+  only one image — is gone; see ADR-0022.
 
 ## Delete test
 
@@ -77,7 +77,7 @@ without needing CI's five-minute timeout to say so.
 ## Try it
 
 ```bash
-mise exec -- ./scaffold
+./scaffold
 ```
 
 Run this in an actual terminal — it opens the wizard. Piped or redirected,

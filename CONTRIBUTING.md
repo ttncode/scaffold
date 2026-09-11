@@ -4,12 +4,19 @@
 
 ```sh
 mise install            # every tool this repository uses, pinned in mise.toml
+mise exec -- lefthook install   # shellcheck, gitleaks, commit-message check
 mise run lint           # shellcheck over scaffold, lib/, scripts/, common/
 mise run test-unit      # the offline suites
 ```
 
-Run `scaffold` through `mise exec -- ./scaffold …` from a clone; see the
-README's Install section for a shell function that works from anywhere.
+`lefthook` is pinned here, not on your PATH, so the bare command works only if
+your shell already runs `mise activate`. The hooks are deliberately cheap —
+`lint` and a secret scan at `pre-commit`, a Conventional Commit check at
+`commit-msg`, and no `pre-push` gate: the suites run in this repository's CI on
+every push, and paying two minutes locally to learn the same thing is a tax.
+
+`./scaffold` loads this repository's own pinned `jq` and `yq` before it does
+anything else, so it needs no wrapper — from the clone, a symlink, or `PATH`.
 
 ## Tasks
 

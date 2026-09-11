@@ -1,10 +1,19 @@
 # Deployment
 
-This project distributes a container image; it does not deploy it for you.
+This project distributes container images; it does not deploy them for you.
+One image per application, named after the application's own directory: an
+application in a directory called `web` publishes `…/<project>-web` and runs
+as the `web` service in `compose.yaml`, on its own host port (`WEB_PORT`,
+`API_PORT`, … in `.env`).
+
 `.github/workflows/build.yml` publishes `main` and `sha-<commit>` tags on
 every push to `main`. `.github/workflows/release.yml` additionally publishes
-semver tags (`1.4.0`, `1.4`) plus `latest` when a release is cut. Both are the
-same image; they differ only in which tag names it.
+semver tags (`1.4.0`, `1.4`) plus `latest` when a release is cut. Both build
+the same images; they differ only in which tags name them. One release covers
+every application, so their versions never drift apart.
+
+Nothing routes between them: put whatever reverse proxy you already terminate
+TLS with in front of the ports, rather than one this project chose for you.
 
 `compose.yaml` and `example.env` are attached to every GitHub Release, so a
 deployment target always fetches a matching pair rather than whatever is on

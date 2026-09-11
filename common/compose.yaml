@@ -5,29 +5,10 @@
 # exists at all — the real values live in .env, written by install.sh from
 # example.env.
 #
-# the database and cache services are not here: scaffold merges in whichever
-# were selected at generation time (ADR-0019), so a project that asked for
-# neither ships neither, rather than a service nothing opens a connection to.
+# nothing is here yet on purpose. scaffold merges in one service per
+# application (ADR-0022) and whichever database and cache were selected at
+# generation time (ADR-0019), so a project ships exactly what it asked for
+# rather than a service nothing opens a connection to.
 name: app
 
-services:
-  app:
-    # Substituted at generation time, from the same owner and project name
-    # build.yml and release.yml get — this is the path they push to, so the
-    # two cannot be written independently without drifting apart.
-    #
-    # It assumes the GitHub repository is named after the project directory.
-    # If you rename it, this line and install.sh's RepoUrl both need the new
-    # name — and so do the workflows, which carry the same assumption.
-    # install.sh re-downloads this file from the latest release on every run,
-    # so edit it here and cut a release; a hand-edit to a deployed copy is
-    # undone the next time install.sh runs.
-    image: ghcr.io/you/@PROJECT_NAME@:${IMAGE_TAG:-latest}
-    env_file:
-      # required: false so this validates before a .env exists; install.sh
-      # always writes one before starting the stack.
-      - path: .env
-        required: false
-    restart: always
-    ports:
-      - '${APP_PORT:-8080}:8080'
+services: {}

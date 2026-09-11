@@ -111,14 +111,50 @@ setup() {
 }
 
 @test "scaffold names the tool it cannot find" {
-  # require_tools guards against running outside mise, and its own comment says
-  # a green suite under `mise exec` proves nothing about that path. This runs it
-  # with an empty PATH so the guard is the thing under test.
-  # a plain system PATH, without mise's shims — the state a developer is in
-  # when they clone and run ./scaffold directly.
+  # A PATH with no mise on it at all: hoist_toolchain has nothing to load
+  # from, so require_tools is the thing under test. A green suite under
+  # `mise exec` proves nothing about this path.
   run env PATH=/usr/bin:/bin "${SCAFFOLD_ROOT}/scaffold" list
   [ "$status" -ne 0 ]
   [[ "$output" == *"missing required tool"* ]]
+}
+
+@test "scaffold reports its own version without a toolchain" {
+  # The question is usually asked because something is wrong with the install,
+  # so it must not fail with "missing required tool(s)" — which is what it did
+  # when --version went through the same case as every other command.
+  run env PATH=/usr/bin:/bin "${SCAFFOLD_ROOT}/scaffold" --version
+  assert_ok
+  [ -n "$output" ]
+  [[ "$output" != *"missing required tool"* ]]
+}
+
+@test "scaffold supplies its own jq and yq when only mise is on PATH" {
+  # The state a developer is actually in after `git clone` — mise installed,
+  # nothing else. hoist_toolchain reads this toolbox's own mise environment so
+  # the command needs no wrapper.
+  local mise_bin
+  mise_bin="$(command -v mise)" || skip "mise is not on PATH"
+
+  local stub="${BATS_TEST_TMPDIR}/only-mise"
+  mkdir -p "$stub"
+  ln -s "$mise_bin" "${stub}/mise"
+
+  # The precondition is the whole test: require_tools demands yq by name, so
+  # a successful `scaffold list` below can only mean hoist_toolchain supplied
+  # it. jq is not asserted absent — some systems ship one, and it would make
+  # this test skip on those rather than check anything.
+  if env PATH="${stub}:/usr/bin:/bin" sh -c 'command -v yq' >/dev/null 2>&1; then
+    skip "this system has a yq outside mise, so the precondition cannot hold"
+  fi
+
+  # MISE_STATE_DIR unset on purpose: the config being loaded is this toolbox's
+  # own, trusted by whoever ran `mise install` here, not a throwaway project
+  # the suite created.
+  run env -u MISE_STATE_DIR PATH="${stub}:/usr/bin:/bin" \
+    "${SCAFFOLD_ROOT}/scaffold" list
+  assert_ok
+  [[ "$output" == *nextjs* ]]
 }
 
 @test "an adapter name cannot escape the adapters directory" {

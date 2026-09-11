@@ -15,9 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # ci-unit is lint plus test-unit, and test-unit is now genuinely
-    # offline (measured ~3s locally for 30 tests) — no adapter generator
-    # anywhere in its setup(), so no pnpm/php provisioning needed here.
+    # ci-unit is lint plus test-unit, and test-unit is genuinely offline —
+    # no adapter generator anywhere in its setup(), asserted by
+    # tests/contract.bats rather than promised by this comment — so no
+    # pnpm/php provisioning is needed here. The lane has grown from 30 tests
+    # to 152 since it was written; measured 79 seconds for the whole job on
+    # a runner (checkout, mise install, lint and the suites), which is what
+    # the timeout below leaves room around.
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

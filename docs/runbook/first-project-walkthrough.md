@@ -28,8 +28,8 @@ README does not mention one.
 ## 2. Prove the toolbox runs
 
 ```sh
-mise exec -- ./scaffold list
-mise exec -- ./scaffold lint
+./scaffold list
+./scaffold lint
 ```
 
 Expect: `list` prints eight rows now, not four — every adapter and every
@@ -44,7 +44,7 @@ walkthrough here.
 ## 3. Try the wizard
 
 ```sh
-mise exec -- ./scaffold
+./scaffold
 ```
 
 Run this in an actual terminal. Expect an interactive wizard: a name prompt,
@@ -69,23 +69,22 @@ Piped, redirected, or run from a script — a closed stdin, not a terminal —
 same as before:
 
 ```sh
-printf '' | mise exec -- ./scaffold
+printf '' | ./scaffold
 ```
 
 ## 4. Make it callable from anywhere
 
-Add the shell function from the README's Install section to your shell profile,
-open a new shell, then from a directory that is **not** the toolbox:
-
 ```sh
+ln -s "$PWD/scaffold" ~/.local/bin/scaffold
 cd ~/some/other/directory
 scaffold list
 ```
 
-Expect: the same output as step 2. If it reports a missing tool, the function
-is not supplying mise's environment. If a later `scaffold new relative-name`
-lands inside the toolbox, the function used `mise exec -C` instead of
-`mise env -C`.
+Expect: the same output as step 2. A report of a missing tool means
+`hoist_toolchain` could not read this toolbox's mise environment — check
+`mise env -C <toolbox>` by hand. A later `scaffold new relative-name` that
+lands inside the toolbox rather than in the current directory is a finding:
+nothing in `scaffold` may change directory before resolving the target.
 
 ## 5. Generate a project
 
@@ -101,7 +100,7 @@ Then read what it made before doing anything else:
 
 ```sh
 cd demo-app
-git log --oneline           # one commit, "chore: scaffold project"
+git log --oneline           # one commit, "feat: scaffold project"
 cat mise.toml               # [monorepo] config_roots = apps/web, apps/api, docs
                              # [vars] database = "postgres", cache = "redis"
 ls .github/workflows        # five call sites
@@ -298,17 +297,16 @@ curl -fsS http://localhost:8080/api/health/live
 
 Expect: `install.sh` downloads `compose.yaml` and `example.env` from
 `v0.2.1` through that API endpoint, generates passwords, signs in to
-`ghcr.io`, starts the stack, runs the migration task, and prints `the
-application is running on http://localhost:8080`. The curl returns `200`.
+`ghcr.io`, starts the stack, runs the migration task, and prints one line per
+application — `web is running on http://localhost:8080`, `api is running on
+http://localhost:8081`. The curl returns `200`.
 
-There is no readiness path to curl for this project: `--web nextjs` is the
-role that won the image (the last one on the command line, back in step 5),
-and `nextjs` ships no readiness route — the `web` role takes no database
-driver, so there is nothing for one to query. A project whose deployed
-image is `laravel-api` or `nestjs` additionally has
-`curl -fsS http://localhost:8080/health/ready` return `200`. See ADR-0021
-for both routes, and for why a project that requests more than one role
-still deploys only one image.
+Every application in the project is published and running, each on its own
+port (ADR-0022) — `WEB_PORT` and `API_PORT` in `.env`, printed one per line
+when `install.sh` finishes. `nextjs` ships no readiness route, because the
+`web` role takes no database driver and there is nothing for one to query;
+curl the api's instead, `curl -fsS http://localhost:8081/health/ready`,
+which returns `200`. See ADR-0021 for both routes.
 
 ```sh
 docker compose -f app/compose.yaml down -v
