@@ -86,6 +86,15 @@ merge until every existing service has a `drivers/<that-family>.sh`, which is
 why the lint requires the full matrix rather than checking each service in
 isolation.
 
+## What a change reaches
+
+A change to `common/` or to an adapter reaches a project that already exists
+only when somebody runs `scaffold update` in it — see
+[ADR-0023](docs/decisions/0023-a-project-records-what-generated-it.md). A
+change to a reusable workflow in `you/.github` reaches every project the next
+time it runs, once `v1` moves (ADR-0005). Knowing which of the two you are
+writing decides whether anything has to be done afterwards.
+
 ## Commits
 
 Conventional Commits, enforced by lefthook at `commit-msg`. `feat:` and `fix:`

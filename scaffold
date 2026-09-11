@@ -22,22 +22,8 @@ source "${SCAFFOLD_ROOT}/lib/wizard.sh"
 source "${SCAFFOLD_ROOT}/lib/tui.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
-
-# scaffold_version — which toolbox produced a given project, in one string.
-#
-# `git describe` against this checkout rather than a VERSION file: every
-# install of this toolbox is a clone, and a file is a second copy of the same
-# fact that goes stale the first time someone forgets to bump it. `--dirty`
-# is the point as much as the tag is — a project generated from uncommitted
-# edits cannot be reproduced from any commit, and the string has to say so.
-# Printed without a trailing newline so a caller that records it into a file
-# decides its own framing.
-scaffold_version() {
-  local version
-  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" \
-    || version="unknown"
-  printf '%s' "$version"
-}
+# shellcheck source=lib/update.sh
+source "${SCAFFOLD_ROOT}/lib/update.sh"
 
 usage() {
   cat <<'EOF'
@@ -46,6 +32,7 @@ usage:
   scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                       [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
+  scaffold update [dir] [--dry-run]
   scaffold list [--adapters] [--services]
   scaffold lint
   scaffold --version
@@ -264,6 +251,7 @@ cmd_new() {
   # init_project itself arms the EXIT trap right after it creates $target,
   # so a failure inside it is covered too; nothing to install here.
   init_project "$target" "$name"
+  init_scaffold_manifest "$target"
 
   SCAFFOLD_SERVICES=(${services[@]+"${services[@]}"})
   record_services "$target" "$database" "$cache"
@@ -283,6 +271,7 @@ cmd_new() {
       # own service, which has to exist by then.
       add_app_service "$target" "$(role_path "$ADAPTER_ROLE")" "$ADAPTER_ROLE"
       apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
+      record_scaffold_app "$target" "$(role_path "$ADAPTER_ROLE")" "$adapter"
     done
   fi
 
@@ -548,6 +537,7 @@ cmd_add() {
   # After finalize_app_dockerfile above, which is what settles whether this
   # application builds from the workspace root or from its own directory.
   register_image_target "$project" "$rel"
+  record_scaffold_app "$project" "$rel" "$adapter"
   trap - EXIT
 
   # packages/types and the all-typescript pnpm workspace are decided once,
@@ -569,6 +559,106 @@ cmd_add() {
   else
     warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
   fi
+}
+
+# cmd_update [dir] [--dry-run] — bring a project up to this toolbox.
+#
+# Applies with `git apply --reject`, not `--3way`. Measured: the blobs a
+# three-way merge needs belong to this toolbox's object database, not the
+# project's, so git falls back to a direct apply — and a direct apply is
+# atomic, so one diverged file would discard every other file's changes.
+# `--reject` is per hunk: what fits lands, what does not is written beside it
+# as a .rej file naming exactly what a human still has to place.
+cmd_update() {
+  local rel="" dry_run=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run) dry_run=1; shift ;;
+      -*) die "unknown option: ${1}" ;;
+      *)
+        [ -z "$rel" ] || die "update takes at most one directory"
+        rel="$1"; shift ;;
+    esac
+  done
+
+  local project
+  if [ -n "$rel" ]; then
+    project="$(cd "$rel" 2>/dev/null && pwd)" \
+      || die "no such directory: ${rel}"
+  else
+    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+      || die "not inside a git repository: run 'scaffold update' from inside a project created by 'scaffold new', or give its path"
+  fi
+
+  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+    || die "not a scaffold project (${project})"
+
+  local from
+  from="$(manifest_version "$project")" || die "$(printf '%s\n' \
+    "no ${SCAFFOLD_MANIFEST} in ${project}, so there is nothing to update from." \
+    "" \
+    "A project generated before this file existed can adopt it: write" \
+    "${SCAFFOLD_MANIFEST} with the toolbox commit it came from and the adapter" \
+    "behind each application, then run this again." \
+    "" \
+    "  version = \"<commit>\"" \
+    "" \
+    "  [apps]" \
+    "  \"apps/api\" = \"nestjs\"")"
+
+  case "$from" in
+    *-dirty)
+      die "${SCAFFOLD_MANIFEST} records ${from}: this project was generated from uncommitted edits, so there is no commit to diff against" ;;
+  esac
+  git -C "$SCAFFOLD_ROOT" rev-parse --verify --quiet "${from}^{commit}" >/dev/null \
+    || die "this toolbox has no commit ${from} — the checkout that generated ${project} is not this one, or its history was rewritten"
+
+  SCAFFOLD_UPDATE_FROM="$from"
+
+  local patch; patch="$(mktemp)"
+  update_patch "$project" > "$patch"
+
+  if [ ! -s "$patch" ]; then
+    rm -f "$patch"
+    log "already up to date with $(scaffold_version)"
+    return 0
+  fi
+
+  if [ "$dry_run" -eq 1 ]; then
+    cat "$patch"
+    rm -f "$patch"
+    return 0
+  fi
+
+  # A dirty tree would make the result unreadable: `git diff` after this is
+  # the only review anyone gets, and it has to show this run's changes alone.
+  [ -z "$(git -C "$project" status --porcelain)" ] \
+    || { rm -f "$patch"; die "${project} has uncommitted changes — commit or stash them first, so 'git diff' afterwards shows only what this brought in"; }
+
+  local status=0
+  git -C "$project" apply --reject --whitespace=nowarn "$patch" || status=$?
+  rm -f "$patch"
+
+  resync_derived "$project"
+
+  # Recorded even when hunks were rejected: the diff has been delivered, and
+  # what is left is a human's to place. Re-running from the old version would
+  # offer every hunk that already landed a second time.
+  sed -i.bak "s|^version = .*|version = \"$(scaffold_version)\"|" \
+    "${project}/${SCAFFOLD_MANIFEST}"
+  rm -f "${project}/${SCAFFOLD_MANIFEST}.bak"
+
+  local -a rejected=()
+  mapfile -t rejected < <(cd "$project" && git ls-files --others --exclude-standard -- '*.rej')
+
+  log "updated ${project} from ${from} to $(scaffold_version)"
+  if [ "${#rejected[@]}" -gt 0 ]; then
+    warn "$(printf '%s\n' "${#rejected[@]} file(s) could not be applied in full:" "${rejected[@]/#/  }" \
+      "each .rej holds the hunks that did not fit — place them by hand, then delete it")"
+  fi
+  log "review with 'git -C ${project} diff' before committing"
+  return "$status"
 }
 
 # _wizard_select_or_cancel <prompt> <option>... — tui_select, with
@@ -670,6 +760,7 @@ main() {
   case "$command" in
     new) cmd_new "$@" ;;
     add) cmd_add "$@" ;;
+    update) cmd_update "$@" ;;
     list) cmd_list "$@" ;;
     lint) cmd_lint "$@" ;;
     -h|--help) usage ;;
