@@ -1,0 +1,40 @@
+# The toolbox ships lefthook and gitleaks into every generated project
+# (common/lefthook.yml) and ran neither on itself, and nothing in this
+# repository's own CI scanned for secrets at all.
+#
+# Through `mise exec --` so only mise has to be on PATH: both tools exist only
+# in this repository's mise.toml, so calling them bare fails a plain
+# `git commit` with `gitleaks: not found`. lefthook's `rc:` key would do this
+# too, but it is baked into .git/hooks at install time and drifts silently.
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      # `mise run lint`, not a staged-files glob: shellcheck's subjects here
+      # are `scaffold` and `scripts/*.sh` as much as `lib/*.sh`, and a glob
+      # that has to name an extensionless file is a second copy of the list
+      # mise.toml's lint task already discovers with `git ls-files`. It costs
+      # a third of a second over the whole repository.
+      run: mise run lint
+    gitleaks:
+      run: mise exec -- gitleaks protect --staged --redact --no-banner
+
+commit-msg:
+  commands:
+    conventional:
+      # A grep, not commitlint: commitlint is a node package, and this
+      # repository has no node in it — adding a package.json and a lockfile to
+      # a bash toolbox to check one line of text is the wrong trade. The types
+      # are the ones this repository's history actually uses, `merge:`
+      # included.
+      run: |
+        head -1 {1} | grep -qE '^(feat|fix|docs|chore|refactor|test|perf|build|ci|style|revert|merge)(\([a-z0-9./-]+\))?!?: .+' || {
+          echo "commit message must be a Conventional Commit, e.g. 'fix(tui): flush the command line left'" >&2
+          exit 1
+        }
+
+# No pre-push gate. A generated project pushes its whole checklist because its
+# CI is somebody else's repository and a red run costs a client's afternoon;
+# here the same suites run in this repository's own CI on every push, and
+# test-unit takes over two minutes. Paying that on every push to catch what CI
+# catches anyway is a tax, not a guardrail.
