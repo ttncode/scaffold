@@ -100,6 +100,25 @@ writing decides whether anything has to be done afterwards.
 Conventional Commits, enforced by lefthook at `commit-msg`. `feat:` and `fix:`
 move the version of a generated project; `chore:` and `docs:` do not.
 
+## Versions
+
+This toolbox is versioned by git tag and nothing else — there is no package to
+publish, and the tag is the artefact. `scaffold --version` is `git describe`
+against the checkout, and a generated project records that same string in its
+`.scaffold.toml`, which is what `scaffold update` later diffs from.
+
+Cut one from `main` after a change worth telling somebody about:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Tagging is deliberately manual. Release Please is not set up here the way it is
+in a generated project, because nothing downstream installs this by version:
+what a tag buys is a readable answer in `--version` and in every
+`.scaffold.toml` written after it, not a distribution channel.
+
 ## Before opening a pull request
 
 ```sh

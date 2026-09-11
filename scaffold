@@ -350,9 +350,18 @@ cmd_new() {
     register_image_target "$target" "$(role_path "${entry%%:*}")"
   done
 
+  step "locking the toolchain and committing"
   finalize_project "$target"
   trap - EXIT
+
+  log ""
   log "created ${target}"
+  log ""
+  log "next:"
+  log "  cd ${target}"
+  log "  mise install && mise exec -- lefthook install"
+  log "  scaffold publish              # create its GitHub repository"
+  log "  mise run checklist            # what CI will run"
 }
 
 # cmd_add_cleanup <target> <status> <workspace-file> — same EXIT-trap

@@ -65,6 +65,10 @@ against the contract. `--version` reports
 which commit of this toolbox is installed — `git describe`, so a working tree
 with uncommitted edits says `-dirty`.
 
+`new` prints one line per step rather than a package manager's output, and the
+commands to run next when it finishes. `SCAFFOLD_VERBOSE=1` passes everything
+through instead; a failing step prints its whole output either way.
+
 `--db` and `--cache` select a database and a cache; each defaults to `none`
 except `--db`, which defaults to `mysql` for a project with an `--api` or
 `--app` adapter. Requesting either on a project with neither is refused —

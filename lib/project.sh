@@ -350,6 +350,7 @@ sync_standalone_build_policy() {
 # still quiet.
 pnpm_install() {
   local dir="$1" what="$2" log status=0
+  step "$what"
   log="$(mktemp)"
 
   (
@@ -388,6 +389,7 @@ pnpm_install() {
 resolve_minimum_release_age() {
   local project="$1"
   local settings="${2:-$1}"
+  step "checking $(basename "$project")'s lockfile against the supply-chain policy"
   local workspace_file="${settings}/pnpm-workspace.yaml"
 
   # Keyed on the lockfile pnpm will actually verify — which for an app outside
