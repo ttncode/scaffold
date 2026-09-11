@@ -48,12 +48,12 @@ Excluded, and why:
   root — not `common/docs/decisions/`, which ships and is covered below).
   These are this project's planning record, not files copied from upstream.
 - **`lib/*.sh`, `scaffold`, `scripts/*.sh`, `tests/*.bats`, `mise.toml`,
-  `mise.lock`, `.github/workflows/*.yml`** (this repository's own CI, not
-  `common/.github/workflows/`, which ships and is covered below) — the
-  toolbox's own implementation, covered collectively by the `scaffold` row
-  below. immich ships files with the same names (`ci.yml`, `security.yml`);
-  these are original, built for this toolbox's own test suite, not adapted
-  from them.
+  `mise.lock`, `lefthook.yml`, `.github/workflows/*.yml`** (this repository's
+  own CI and hooks, not `common/.github/workflows/` or `common/lefthook.yml`,
+  which ship and are covered below) — the toolbox's own implementation,
+  covered collectively by the `scaffold` row below. immich ships files with
+  the same names (`ci.yml`, `security.yml`); these are original, built for
+  this toolbox's own test suite, not adapted from them.
 
 ## Table
 
@@ -70,8 +70,7 @@ Excluded, and why:
 | `common/.github/workflows/build.yml`, `ci.yml`, `docs.yml`, `release.yml`, `security.yml` | `.github/workflows/test.yml`, `docker.yml`, `docs-build.yml`, `codeql-analysis.yml`, `static_analysis.yml` | adapted | immich's per-repository workflows collapsed into five thin call sites that each delegate to `you/.github` (ADR-0005); `GITHUB_TOKEN` instead of a minted GitHub App token (ADR-0010); one docs workflow instead of three (ADR-0009); build and release split so an ordinary merge never waits on the standing release PR (ADR-0015). |
 | `common/docs/` | `docs/` | adapted | VitePress instead of Docusaurus; one docs workflow instead of three (ADR-0009). `common/docs/scripts/check-adrs.mjs` and `check-paths.mjs` have no upstream equivalent — immich has no ADR process — and are original, not adapted. |
 | `common/lefthook.yml` | — | original | immich runs no git hooks (ADR-0007). |
-| `common/deploy-adapters/` | — | original | seam left by ADR-0014; no upstream equivalent. |
-| `common/.gitignore`, `common/CODEOWNERS`, `common/CONTRIBUTING.md`, `common/SECURITY.md`, `common/commitlint.config.js`, `common/.git-blame-ignore-revs`, `common/release-please-config.json`, `common/.release-please-manifest.json`, `common/mise.root.toml`, `common/pnpm-workspace.yaml`, `common/AGENTS.md`, `common/packages-types/` | (various — e.g. `.gitignore`, `CODEOWNERS`, `CONTRIBUTING.md`, `pnpm-workspace.yaml`) | original | conventional files any GitHub/pnpm project carries. Checked against immich's own copies of each — `diff` shows no shared content beyond the two both being, say, a `.gitignore` — so these were written for this project, not adapted from immich's. |
+| `common/.gitignore`, `common/CODEOWNERS`, `common/CONTRIBUTING.md`, `common/README.md`, `common/SECURITY.md`, `common/commitlint.config.js`, `common/.git-blame-ignore-revs`, `common/release-please-config.json`, `common/.release-please-manifest.json`, `common/mise.root.toml`, `common/pnpm-workspace.yaml`, `common/AGENTS.md`, `common/packages-types/` | (various — e.g. `.gitignore`, `CODEOWNERS`, `CONTRIBUTING.md`, `README.md`, `pnpm-workspace.yaml`) | original | conventional files any GitHub/pnpm project carries. Checked against immich's own copies of each — `diff` shows no shared content beyond the two both being, say, a `.gitignore` — so these were written for this project, not adapted from immich's. |
 | `adapters/nestjs/mise.toml` | `server/mise.toml` | adapted | task-name vocabulary and the `ci-unit`/`checklist` aggregate pattern kept (ADR-0011); `pnpm exec` instead of a `node_modules/.bin` `PATH` entry; immich's `sql` and `sync-open-api` tasks dropped — nothing in the generator output needs them. |
 | `adapters/nextjs/mise.toml` | `web/mise.toml` | adapted | same vocabulary and aggregate pattern (ADR-0011); immich's SDK-build steps and the svelte-specific half of `check` dropped — Next.js has neither. |
 | `adapters/laravel-api/mise.toml`, `adapters/laravel-inertia/mise.toml`, `adapters/laravel-api/phpstan.neon`, `adapters/{laravel-api,laravel-inertia}/docker/opcache.ini` | — | original | immich has no PHP stack, so there is no upstream file to adapt for any PHP-specific tooling — phpstan and opcache have no immich equivalent at all. Task names in the two `mise.toml` files still follow the ADR-0011 vocabulary, but that is a shared naming convention, not a derived file. |

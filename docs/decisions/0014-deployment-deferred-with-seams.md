@@ -68,9 +68,20 @@ port and a target genuinely only ever has to run one image. See 0021 for
 the working implementation.
 
 `common/deploy-adapters/` ships empty, with a `README.md` explaining why and
-pointing at this ADR. `install.sh` is the one deploy mechanism that exists
-today: a human runs it, by hand, on the target host, after cloning nothing
-more than the two files a release publishes (`compose.yaml`, `example.env`).
+pointing at this ADR.
+
+**Update, 2026-09-11.** It no longer ships at all. An empty directory whose
+only content explained its own emptiness was shipped into every client
+project, where it answered a question nobody there had asked — the reasoning
+lives in this ADR, which is where a reader looking for it goes. Seam 7 is not
+weakened by the removal: the `deploy` job it describes already exists,
+gated on `vars.DEPLOY_TARGET`, in the reusable release workflow. A deploy
+adapter still fills in a body rather than restructuring anything, and
+`common/deploy-adapters/` is one `mkdir` away on the day one exists.
+
+`install.sh` is the one deploy mechanism that exists today: a human runs it,
+by hand, on the target host, after cloning nothing more than the two files a
+release publishes (`compose.yaml`, `example.env`).
 
 **Update, 2026-09-07.** "The one deploy mechanism that exists today" held
 only for a public project. Measured against a real private repository, a
