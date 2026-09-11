@@ -15,6 +15,26 @@ teardown() {
   [ "$output" = "main" ]
 }
 
+@test "the scaffold commit is one Release Please will cut a release for" {
+  # Under `chore:` the first push ran the release workflow, found nothing
+  # releasable and finished green having published nothing — so install.sh
+  # had no release to download until somebody hand-wrote a feat commit.
+  # Asserted against the config that decides it rather than the literal
+  # string: chore and docs are `hidden` there, and a fourth hidden type
+  # added later must fail this too.
+  scaffold new "$PROJECT"
+  run git -C "$PROJECT" log -1 --format=%s
+  assert_ok
+  local type="${output%%:*}"
+  run jq -r --arg type "$type" \
+    '.packages["."]["changelog-sections"][] | select(.type == $type) | .hidden // false' \
+    "${PROJECT}/release-please-config.json"
+  [ "$output" = "false" ] || {
+    echo "the scaffold commit is '${type}:', which Release Please hides and never releases"
+    false
+  }
+}
+
 @test "new copies the common layer" {
   scaffold new "$PROJECT"
   [ -f "${PROJECT}/lefthook.yml" ]

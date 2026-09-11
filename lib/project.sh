@@ -432,16 +432,25 @@ finalize_project() {
   sync_ci_roots "$project"
   lock_toolchains "$project"
   git -C "$project" add -A
+  # `feat:`, not `chore:`. Release Please hides chore from the changelog and
+  # cuts nothing for it, so the first push of a new project ran the release
+  # workflow, found no releasable commit, and finished green with no release —
+  # leaving install.sh with nothing to download until somebody hand-wrote a
+  # feat or fix commit. Measured on a real repository: Release succeeded in
+  # 10 seconds and published nothing. This commit really is the project's
+  # first feature, and common/.release-please-manifest.json starts at 0.0.0 so
+  # it cuts 0.1.0.
+  #
   # GIT_AUTHOR_*/GIT_COMMITTER_* rather than relying on the caller's git
-  # config: this commit is boilerplate ("chore: scaffold project"), not
-  # authored by a person, so it has no business depending on an ambient
-  # identity that a developer machine has and a CI runner does not — every
-  # caller outside the test suite (deploy-check.sh, the adapters workflow)
-  # had to work around that gap on its own, repeatedly. `-c user.name=`
-  # alone isn't enough: these env vars outrank `-c` config in git's own
-  # precedence, so a caller that happens to export one (as this sandbox's
-  # shell does) would otherwise still leak through.
+  # config: this commit is boilerplate, not authored by a person, so it has no
+  # business depending on an ambient identity that a developer machine has and
+  # a CI runner does not — every caller outside the test suite
+  # (deploy-check.sh, the adapters workflow) had to work around that gap on
+  # its own, repeatedly. `-c user.name=` alone isn't enough: these env vars
+  # outrank `-c` config in git's own precedence, so a caller that happens to
+  # export one (as this sandbox's shell does) would otherwise still leak
+  # through.
   GIT_AUTHOR_NAME="scaffold" GIT_AUTHOR_EMAIL="scaffold@scaffold.invalid" \
     GIT_COMMITTER_NAME="scaffold" GIT_COMMITTER_EMAIL="scaffold@scaffold.invalid" \
-    git -C "$project" commit --quiet -m "chore: scaffold project"
+    git -C "$project" commit --quiet -m "feat: scaffold project"
 }

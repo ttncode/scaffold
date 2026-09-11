@@ -101,7 +101,7 @@ Then read what it made before doing anything else:
 
 ```sh
 cd demo-app
-git log --oneline           # one commit, "chore: scaffold project"
+git log --oneline           # one commit, "feat: scaffold project"
 cat mise.toml               # [monorepo] config_roots = apps/web, apps/api, docs
                              # [vars] database = "postgres", cache = "redis"
 ls .github/workflows        # five call sites
