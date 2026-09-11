@@ -455,8 +455,12 @@ finalize_project() {
   # leaving install.sh with nothing to download until somebody hand-wrote a
   # feat or fix commit. Measured on a real repository: Release succeeded in
   # 10 seconds and published nothing. This commit really is the project's
-  # first feature, and common/.release-please-manifest.json starts at 0.0.0 so
-  # it cuts 0.1.0.
+  # first feature, and common/.release-please-manifest.json starts at 0.0.0
+  # because nothing has been released yet — measured on a real repository, the
+  # release it then cuts is v1.0.0: release-please treats a feat on a 0.x
+  # version as the 1.0.0 it was building towards unless told otherwise, and a
+  # client project's first shipped version being 1.0.0 is the right answer
+  # anyway.
   #
   # GIT_AUTHOR_*/GIT_COMMITTER_* rather than relying on the caller's git
   # config: this commit is boilerplate, not authored by a person, so it has no
