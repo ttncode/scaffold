@@ -60,6 +60,66 @@ project_name_is_usable() {
   esac
 }
 
+# scaffold_version — which toolbox produced a given project, in one string.
+#
+# `git describe` against this checkout rather than a VERSION file: every
+# install of this toolbox is a clone, and a file is a second copy of the same
+# fact that goes stale the first time someone forgets to bump it. `--dirty`
+# is the point as much as the tag is — a project generated from uncommitted
+# edits cannot be reproduced from any commit, and the string has to say so.
+# Printed without a trailing newline so a caller that records it into a file
+# decides its own framing.
+scaffold_version() {
+  local version
+  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" \
+    || version="unknown"
+  printf '%s' "$version"
+}
+
+# SCAFFOLD_MANIFEST — the file a generated project records its own origin in.
+# A file of its own rather than another `[vars]` entry in mise.toml: the apps
+# table is a mapping, and mise's vars are flat strings.
+SCAFFOLD_MANIFEST=".scaffold.toml"
+
+# init_scaffold_manifest <project>
+# Without this a generated project has no record of what produced it, and
+# `scaffold update` has no "since when" to diff against — which is the state
+# every project generated before this one is stuck in.
+init_scaffold_manifest() {
+  local project="$1"
+
+  # A heredoc, not a run of printf: the prose is full of backticks, which the
+  # linter reads inside single quotes as a command substitution somebody
+  # forgot to escape.
+  cat > "${project}/${SCAFFOLD_MANIFEST}" <<EOF
+# Written by scaffold. \`scaffold update\` reads this to work out what changed
+# in the toolbox since this project was generated.
+#
+# version is \`git describe\` from the toolbox checkout. A \`-dirty\` suffix means
+# it was generated from uncommitted edits, so there is no commit to diff
+# against and \`scaffold update\` will say so.
+version = "$(scaffold_version)"
+
+# Which adapter produced each application, so an update knows whose files to
+# bring across. Added by \`scaffold new\` and \`scaffold add\`.
+[apps]
+EOF
+}
+
+# record_scaffold_app <project> <rel> <adapter>
+record_scaffold_app() {
+  local project="$1" rel="$2" adapter="$3"
+  local file="${project}/${SCAFFOLD_MANIFEST}"
+
+  [ -f "$file" ] \
+    || die "no ${SCAFFOLD_MANIFEST} in ${project} — this project predates it; see 'scaffold update'"
+
+  grep -q "^\"${rel}\" = " "$file" \
+    && die "${rel} is already recorded in ${SCAFFOLD_MANIFEST}"
+
+  printf '"%s" = "%s"\n' "$rel" "$adapter" >> "$file"
+}
+
 # init_project <dir> <name>
 init_project() {
   local dir="$1" name="$2"
