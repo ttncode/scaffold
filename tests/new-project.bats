@@ -105,6 +105,7 @@ teardown() {
 @test "register_config_root is idempotent" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   register_config_root "$PROJECT" "apps/api"
@@ -115,6 +116,7 @@ teardown() {
 @test "sync_ci_roots writes the roots as a JSON array" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   sync_ci_roots "$PROJECT"
@@ -135,6 +137,7 @@ teardown() {
 @test "register, collect and sync agree on two roots" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT"
   register_config_root "$PROJECT" "apps/api"
   register_config_root "$PROJECT" "apps/web"
@@ -206,6 +209,7 @@ teardown() {
 collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   collect_config_roots "$1"
 }
 
@@ -267,7 +271,7 @@ collect_roots() {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = ["docs"]\n\n[tasks.checklist]\nrun = [{ task = "//docs:checklist" }]\n' \
     > "${p}/mise.toml"
 
-  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; register_config_root '$p' apps/web"
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/manifest.sh'; register_config_root '$p' apps/web"
   [ "$status" -ne 0 ]
   [[ "$output" == *"config_roots"* ]]
 }

@@ -31,6 +31,7 @@ teardown() {
 @test "config roots land in the order the calls actually produce" {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
+  source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT" --api nestjs --web nextjs
 
   run collect_config_roots "$PROJECT"

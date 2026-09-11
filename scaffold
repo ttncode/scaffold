@@ -22,6 +22,10 @@ source "${SCAFFOLD_ROOT}/lib/wizard.sh"
 source "${SCAFFOLD_ROOT}/lib/tui.sh"
 # shellcheck source=lib/project.sh
 source "${SCAFFOLD_ROOT}/lib/project.sh"
+# shellcheck source=lib/pnpm.sh
+source "${SCAFFOLD_ROOT}/lib/pnpm.sh"
+# shellcheck source=lib/manifest.sh
+source "${SCAFFOLD_ROOT}/lib/manifest.sh"
 # shellcheck source=lib/update.sh
 source "${SCAFFOLD_ROOT}/lib/update.sh"
 # shellcheck source=lib/publish.sh
@@ -278,68 +282,27 @@ cmd_new() {
     done
   fi
 
-  # This decides one thing only: whether a shared packages/types is possible,
-  # which needs every app to be TypeScript. It used to decide whether the root
-  # pnpm-workspace.yaml survived as well — so one PHP app deleted the file
-  # carrying ADR-0017's allowBuilds, and with it the policy protecting the
-  # TypeScript app beside it. The file now stays either way.
+  # One question, not two: a shared packages/types needs every application to
+  # be TypeScript. It used to decide whether the root pnpm-workspace.yaml
+  # survived as well — so one PHP app deleted the file carrying ADR-0017's
+  # allowBuilds, and with it the policy protecting the TypeScript app beside
+  # it. The file now stays either way.
   local all_typescript=1
   for entry in "${requested[@]}"; do
     adapter_is_typescript "${entry#*:}" || all_typescript=0
   done
 
+  # <rel>:<adapter>, the shape both branches below want: one needs the path,
+  # the other needs to ask the adapter whether it is typescript.
+  local -a apps=()
+  for entry in ${requested[@]+"${requested[@]}"}; do
+    apps+=("$(role_path "${entry%%:*}"):${entry#*:}")
+  done
+
   if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
-    enable_typescript_workspace "$target"
-    # docs ships its own standalone pnpm-workspace.yaml/pnpm-lock.yaml for a
-    # project with no typescript adapter; here it joins the real workspace
-    # instead, so its own copies would only sit there unused at best, and
-    # shadow the root pnpm-workspace.yaml for docs' own tasks at worst.
-    rm -f "${target}/docs/pnpm-workspace.yaml" "${target}/docs/pnpm-lock.yaml"
-    sync_workspace_lockfile "$target"
-    resolve_minimum_release_age "$target"
-
-    # Every requested role just lost its own package.json/lockfile to the
-    # workspace above — apply_adapter's standalone Dockerfile assumed it had
-    # one. finalize_app_dockerfile swaps in the workspace-flavored Dockerfile
-    # each typescript adapter ships beside it; point the image build at the
-    # workspace root too, the only place those apps' manifests are reachable
-    # from now.
-    for entry in "${requested[@]}"; do
-      finalize_app_dockerfile "$target" "$(role_path "${entry%%:*}")"
-    done
+    join_typescript_workspace "$target" "${apps[@]}"
   else
-    rm -rf "${target}/packages-types"
-
-    # No shared workspace without a fully TypeScript project, so the packages
-    # list goes — but the file stays either way. It carries ADR-0017's
-    # allowBuilds, which applies to any node install here, including the root
-    # package.json a php-only project still needs for commitlint. Deleting it
-    # left that project with no recorded build-script decision at all.
-    yq --inplace 'del(.packages)' "${target}/pnpm-workspace.yaml"
-    # The root package.json still needs installing on its own — commitlint
-    # backs lefthook's commit-msg hook, which must work in a php-only
-    # project (docs/decisions/0007).
-    #
-    pnpm_install "$target" "installing the project root's own tooling dependencies"
-    # pnpm_install above installed at full strength (minimum-release-age=0),
-    # so a violation among commitlint's own dependencies never surfaced —
-    # the loop below resolves each app's lockfile but never the root's, and
-    # the root's is the one the commit-msg hook installs from.
-    resolve_minimum_release_age "$target"
-
-    # Each app here stands alone rather than joining a workspace, so each owns
-    # a lockfile the policy will re-check forever. Same reason as cmd_add's
-    # else branch.
-    local generated
-    for generated in "${requested[@]}"; do
-      adapter_is_typescript "${generated#*:}" \
-        && sync_standalone_build_policy "${target}/$(role_path "${generated%%:*}")" "$target"
-      # the standalone Dockerfile above is the one this shape builds from;
-      # a typescript adapter's workspace-flavored sibling never applies here
-      # and would otherwise ship unused.
-      finalize_app_dockerfile "$target" "$(role_path "${generated%%:*}")"
-      resolve_minimum_release_age "${target}/$(role_path "${generated%%:*}")"
-    done
+    keep_apps_standalone "$target" ${apps[@]+"${apps[@]}"}
   fi
 
   # Last, because a build context depends on the workspace decision both
