@@ -24,6 +24,8 @@ source "${SCAFFOLD_ROOT}/lib/tui.sh"
 source "${SCAFFOLD_ROOT}/lib/project.sh"
 # shellcheck source=lib/update.sh
 source "${SCAFFOLD_ROOT}/lib/update.sh"
+# shellcheck source=lib/publish.sh
+source "${SCAFFOLD_ROOT}/lib/publish.sh"
 
 usage() {
   cat <<'EOF'
@@ -33,6 +35,7 @@ usage:
                       [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
   scaffold update [dir] [--dry-run]
+  scaffold publish [dir] [--public] [--no-protect] [--dry-run]
   scaffold list [--adapters] [--services]
   scaffold lint
   scaffold --version
@@ -661,6 +664,117 @@ cmd_update() {
   return "$status"
 }
 
+# cmd_publish [dir] [--public] [--no-protect] [--dry-run]
+#
+# Idempotent: every step checks whether it has already been done, so running
+# this against a repository that exists only fills in the settings. That
+# matters more than it sounds — the settings are the half people forget, and
+# nothing in the project's files says whether they were applied.
+cmd_publish() {
+  local rel="" visibility=private protect=1 dry_run=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --public) visibility=public; shift ;;
+      --private) visibility=private; shift ;;
+      --no-protect) protect=0; shift ;;
+      --dry-run) dry_run=1; shift ;;
+      -*) die "unknown option: ${1}" ;;
+      *)
+        [ -z "$rel" ] || die "publish takes at most one directory"
+        rel="$1"; shift ;;
+    esac
+  done
+
+  command -v gh >/dev/null 2>&1 \
+    || die "publish needs the GitHub CLI: install gh and run 'gh auth login'"
+  gh auth status >/dev/null 2>&1 \
+    || die "not signed in to GitHub: run 'gh auth login'"
+
+  local project
+  if [ -n "$rel" ]; then
+    project="$(cd "$rel" 2>/dev/null && pwd)" || die "no such directory: ${rel}"
+  else
+    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+      || die "not inside a git repository: run 'scaffold publish' from inside a project created by 'scaffold new', or give its path"
+  fi
+
+  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+    || die "not a scaffold project (${project})"
+
+  local slug; slug="$(repo_slug "$project")"
+  local exists=0; gh_repo_exists "$slug" && exists=1
+
+  # Only while the repository is about to be created: `gh repo create --push`
+  # pushes the checked-out branch and makes it the default, so publishing from
+  # a feature branch leaves the project with no main and a default nobody
+  # wants. Once the repository exists this command touches no branch at all.
+  if [ "$exists" -eq 0 ]; then
+    local branch; branch="$(git -C "$project" rev-parse --abbrev-ref HEAD)"
+    [ "$branch" = main ] \
+      || die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
+    [ -z "$(git -C "$project" status --porcelain)" ] \
+      || die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
+  fi
+
+  if [ "$dry_run" -eq 1 ]; then
+    if [ "$exists" -eq 1 ]; then
+      log "would leave ${slug} alone: it already exists"
+    else
+      log "would create ${slug} (${visibility}) and push main"
+    fi
+
+    log "would allow Actions to open pull requests on ${slug}"
+
+    if [ "$protect" -eq 1 ]; then
+      if main_is_protected "$slug"; then
+        log "would leave main's protection alone: a ruleset named main already exists"
+      else
+        log "would protect main on ${slug}: pull request required, no force-push, no deletion"
+      fi
+    fi
+
+    if [ -n "${RELEASE_APP_ID:-}" ] && [ -n "${RELEASE_APP_PRIVATE_KEY:-}" ]; then
+      log "would set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
+    else
+      log "would skip the release app secrets: they are not in the environment"
+    fi
+    return 0
+  fi
+
+  if [ "$exists" -eq 1 ]; then
+    log "${slug} already exists — applying settings only"
+  else
+    create_repo "$project" "$slug" "$visibility"
+    log "created ${slug} (${visibility}) and pushed main"
+  fi
+
+  allow_actions_to_open_pull_requests "$slug"
+  log "Actions may open pull requests (Release Please needs this)"
+
+  if [ "$protect" -eq 1 ]; then
+    if main_is_protected "$slug"; then
+      log "main already has a ruleset — left alone"
+    else
+      local protect_status=0
+      protect_main "$slug" || protect_status=$?
+      case "$protect_status" in
+        0) log "protected main: pull request required, no force-push, no deletion" ;;
+        2) warn "main is unprotected: this account's plan does not allow rulesets on a private repository. Make it public, or upgrade, then run this again — ADR-0004 counts branch protection as one of four guardrails, and it is the only one that is not a file" ;;
+        *) die "could not protect main on ${slug}" ;;
+      esac
+    fi
+  fi
+
+  if set_release_secrets "$slug"; then
+    log "set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
+  else
+    warn "no RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY in the environment — Release Please will open its pull request as GITHUB_TOKEN, whose checks sit at 'Action required' and then expire red. Merging it still releases."
+  fi
+
+  log "https://github.com/${slug}"
+}
+
 # _wizard_select_or_cancel <prompt> <option>... — tui_select, with
 # Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
 # design rules out back navigation; re-run is the only way out either way.
@@ -761,6 +875,7 @@ main() {
     new) cmd_new "$@" ;;
     add) cmd_add "$@" ;;
     update) cmd_update "$@" ;;
+    publish) cmd_publish "$@" ;;
     list) cmd_list "$@" ;;
     lint) cmd_lint "$@" ;;
     -h|--help) usage ;;

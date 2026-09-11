@@ -179,30 +179,28 @@ Expect: rejected, naming the convention.
 
 ## 8. Push and open a pull request
 
-Create the repository **from `main`**, not from the feature branch:
-
 ```sh
 git checkout main
-gh repo create ttncode/demo-app --private --source=. --remote=origin --push
+scaffold publish
 ```
 
-`gh repo create --push` pushes whatever branch is checked out and makes it the
-repository's default. Run from the feature branch, that leaves `main` absent
-from the remote and a feature branch as the default — after which
-`gh pr create` refuses, saying the head branch is the same as the base branch,
-which does not say what to fix, and CI's `changes` job fails trying to fetch a
-`main` that is not there. Two red runs and a dead end, none of it about your
-code.
+Expect: it creates the ttncode/demo-app repository — the one the project's own
+`compose.yaml`, `install.sh` and workflows already name — pushes `main`,
+allows Actions to open pull requests, and protects `main`. It says what it did
+and what it skipped. `scaffold publish --dry-run` prints that list without
+doing any of it. See
+[ADR-0024](../decisions/0024-publishing-a-project-is-part-of-generating-it.md).
 
 Expect this step to take about ninety seconds. The push runs the pre-push
 hook, which runs the whole checklist — every config root's `ci-unit` and
 `build`. It looks like a hang and is not.
 
-```sh
-gh api -X PUT repos/ttncode/demo-app/actions/permissions/workflow \
-  -f default_workflow_permissions=read \
-  -F can_approve_pull_request_reviews=true
+Expect a warning about `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY` unless both
+are in your environment, and, on a free account with a private repository, a
+warning that `main` could not be protected — rulesets need GitHub Pro there.
+Both are findings to act on, not failures.
 
+```sh
 git checkout feat/health
 git push -u origin feat/health
 gh pr create --fill
@@ -223,9 +221,11 @@ there is a finding, not the normal state. How many checks there are depends on
 the project: six named jobs plus one `ci (<root>)` for each config root the
 commit touched, so this project has seven and an api-only one has six.
 
-The `gh api` call is required, not optional: without it Release Please cannot
-open its pull request later, and the failure appears several steps away from
-this one.
+Allowing Actions to open pull requests is required, not optional: without it
+Release Please cannot open its pull request later, and the failure appears
+several steps away — as "GitHub Actions is not permitted to create or approve
+pull requests", on the release job. `scaffold publish` sets it every time it
+runs, including against a repository that already exists.
 
 ## 9. Merge, and let the release happen
 
