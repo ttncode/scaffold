@@ -5,7 +5,7 @@
 `scaffold` run with no arguments walks a user to a complete `new` command
 instead of printing usage and exiting. It only does this in a terminal:
 `main` checks `[ -t 0 ]` before calling `cmd_wizard`, and every other
-invocation — a script, CI, `mise exec -- ./scaffold list` inside this
+invocation — a script, CI, `./scaffold list` inside this
 repository's own tests — keeps exactly today's behaviour. `scaffold`
 appears in all three; a bare call that opened a menu there would hang them
 as a timeout, not fail as an error, so the TTY check is the whole safety
@@ -77,7 +77,7 @@ without needing CI's five-minute timeout to say so.
 ## Try it
 
 ```bash
-mise exec -- ./scaffold
+./scaffold
 ```
 
 Run this in an actual terminal — it opens the wizard. Piped or redirected,

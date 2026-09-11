@@ -35,6 +35,18 @@ teardown() {
   }
 }
 
+@test "a relative target is created where the command was run" {
+  # scaffold loads its own pinned toolchain through `mise env -C`, which
+  # prints the environment without moving. `mise exec -C` — what the README
+  # used to route every invocation through — moves as well, and this project
+  # then landed inside the toolbox rather than in the caller's directory.
+  cd "$WORKDIR"
+  run scaffold new demo-relative
+  assert_ok
+  [ -d "${WORKDIR}/demo-relative/.git" ]
+  [ ! -e "${SCAFFOLD_ROOT}/demo-relative" ]
+}
+
 @test "new copies the common layer" {
   scaffold new "$PROJECT"
   [ -f "${PROJECT}/lefthook.yml" ]

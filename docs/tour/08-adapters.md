@@ -90,5 +90,5 @@ had to make, the adapter simply vanished from every CI matrix with exit 0
 ## Try it
 
 ```bash
-mise exec -- ./scaffold list
+./scaffold list
 ```

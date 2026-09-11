@@ -28,8 +28,8 @@ README does not mention one.
 ## 2. Prove the toolbox runs
 
 ```sh
-mise exec -- ./scaffold list
-mise exec -- ./scaffold lint
+./scaffold list
+./scaffold lint
 ```
 
 Expect: `list` prints eight rows now, not four — every adapter and every
@@ -44,7 +44,7 @@ walkthrough here.
 ## 3. Try the wizard
 
 ```sh
-mise exec -- ./scaffold
+./scaffold
 ```
 
 Run this in an actual terminal. Expect an interactive wizard: a name prompt,
@@ -69,23 +69,22 @@ Piped, redirected, or run from a script — a closed stdin, not a terminal —
 same as before:
 
 ```sh
-printf '' | mise exec -- ./scaffold
+printf '' | ./scaffold
 ```
 
 ## 4. Make it callable from anywhere
 
-Add the shell function from the README's Install section to your shell profile,
-open a new shell, then from a directory that is **not** the toolbox:
-
 ```sh
+ln -s "$PWD/scaffold" ~/.local/bin/scaffold
 cd ~/some/other/directory
 scaffold list
 ```
 
-Expect: the same output as step 2. If it reports a missing tool, the function
-is not supplying mise's environment. If a later `scaffold new relative-name`
-lands inside the toolbox, the function used `mise exec -C` instead of
-`mise env -C`.
+Expect: the same output as step 2. A report of a missing tool means
+`hoist_toolchain` could not read this toolbox's mise environment — check
+`mise env -C <toolbox>` by hand. A later `scaffold new relative-name` that
+lands inside the toolbox rather than in the current directory is a finding:
+nothing in `scaffold` may change directory before resolving the target.
 
 ## 5. Generate a project
 

@@ -38,5 +38,5 @@ still calls a task it stopped calling months ago.
 ## Try it
 
 ```bash
-mise exec -- ./scaffold lint
+./scaffold lint
 ```

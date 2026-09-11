@@ -8,8 +8,8 @@ mise run lint           # shellcheck over scaffold, lib/, scripts/, common/
 mise run test-unit      # the offline suites
 ```
 
-Run `scaffold` through `mise exec -- ./scaffold …` from a clone; see the
-README's Install section for a shell function that works from anywhere.
+`./scaffold` loads this repository's own pinned `jq` and `yq` before it does
+anything else, so it needs no wrapper — from the clone, a symlink, or `PATH`.
 
 ## Tasks
 

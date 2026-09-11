@@ -35,8 +35,31 @@ usage:
 EOF
 }
 
-# require_tools — a green test suite under `mise exec` proves nothing about
-# running scaffold bare, so fail here, by name, before touching disk.
+# hoist_toolchain — jq and yq are pinned in this toolbox's own mise.toml, so
+# scaffold loads that environment itself rather than asking every caller to
+# wrap the command in one.
+#
+# `mise env -C`, not `mise exec -C`: exec changes directory as well, and a
+# relative target then resolves against the toolbox — `scaffold new demo`
+# created the project inside the toolbox instead of where it was run. That
+# distinction used to be a paragraph in the README explaining the shell
+# function a user had to write; it is one line here instead.
+#
+# Silent and best-effort: only require_tools reports a real absence, and it
+# names the missing tool. An untrusted or unparseable config makes `mise env`
+# fail, which is that same absence one step earlier.
+hoist_toolchain() {
+  command -v jq >/dev/null 2>&1 && command -v yq >/dev/null 2>&1 && return 0
+  command -v mise >/dev/null 2>&1 || return 0
+
+  local environment
+  environment="$(mise env -C "$SCAFFOLD_ROOT" -s bash 2>/dev/null)" || return 0
+  eval "$environment"
+}
+
+# require_tools — hoist_toolchain runs first and usually supplies jq and yq,
+# so what reaches here is a genuine absence. Fail by name, before touching
+# disk.
 require_tools() {
   local tool missing=()
 
@@ -45,7 +68,7 @@ require_tools() {
   done
 
   [ "${#missing[@]}" -eq 0 ] && return 0
-  die "missing required tool(s): ${missing[*]} — run scaffold through 'mise exec -- ./scaffold ...', or 'mise install' in the toolbox root"
+  die "missing required tool(s): ${missing[*]} — run 'mise install' in ${SCAFFOLD_ROOT}"
 }
 
 cmd_list() {
@@ -597,6 +620,7 @@ cmd_wizard() {
 SCAFFOLD_SERVICES=()
 
 main() {
+  hoist_toolchain
   require_tools
 
   # A terminal, and only a terminal: scaffold runs in scripts, in CI and in
