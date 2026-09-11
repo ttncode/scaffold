@@ -19,7 +19,16 @@ jobs:
   # headings out of the template itself rather than holding a second copy of
   # them, so editing the template changes what is enforced — the convention and
   # its enforcement cannot drift apart. Borrowed from immich's auto-close.yml.
-  body:
+  #
+  # The job's name is load-bearing: `main`'s branch protection requires a
+  # check called `pull-request-body`, and a required check that never reports
+  # blocks every merge forever. Moving the job to this workflow was safe;
+  # renaming it to `body` at the same time was not, and blocked the pull
+  # request that made the change. Renaming it means updating the repository
+  # setting first — there is no trace of that setting in this repository to
+  # remind anyone, which is ADR-0004's point about the guardrail that is not
+  # a file.
+  pull-request-body:
     runs-on: ubuntu-latest
     permissions:
       contents: read
