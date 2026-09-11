@@ -135,10 +135,15 @@ apply_adapter() {
   # Through mise exec, not a bare eval: without it, node and pnpm resolve from
   # whatever is ambient on the caller's PATH instead of the project's own
   # pin — composer stays ambient too, on purpose (docs/decisions/0016).
+  # The child's own script, held in a variable so it survives the trip through
+  # `env` intact. Its $1 and $2 are the child's to expand.
+  # shellcheck disable=SC2016
+  local in_the_app_toolchain='cd "$1" && mise exec -- bash -c "$2"'
+
   step "generating ${rel} with ${name} (a framework generator, this takes a few minutes)"
   run_quietly "generating ${rel} with ${name}" \
     env APP_DIR="$(basename "$dest")" npm_config_frozen_lockfile=false \
-    bash -c "cd \"\$1\" && mise exec -- bash -c \"\$2\"" _ "$parent" "$ADAPTER_GENERATOR"
+    bash -c "$in_the_app_toolchain" _ "$parent" "$ADAPTER_GENERATOR"
 
   verify_workspace_filter_name "$dest"
 
@@ -177,7 +182,7 @@ apply_adapter() {
     step "configuring ${rel}"
     run_quietly "configuring ${rel} after its generator ran" \
       env npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
-      bash -c "cd \"\$1\" && mise exec -- bash -c \"\$2\"" _ "$dest" "$ADAPTER_POST_GENERATE"
+      bash -c "$in_the_app_toolchain" _ "$dest" "$ADAPTER_POST_GENERATE"
   fi
 
   # After post-generate: the generator and its own follow-up have settled the

@@ -303,7 +303,12 @@ EOF
 
   SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture broken
   [ "$status" -eq 1 ]
-  [[ "$output" == *"the broken driver failed for fixture"* ]]
+  # The service and the family both have to be named: a bare "a driver failed"
+  # sends the reader to the wrong one of eight.
+  [[ "$output" == *"wiring broken into"* ]] \
+    || { echo "the failure does not name the service:"; echo "$output"; false; }
+  [[ "$output" == *"fixture driver"* ]] \
+    || { echo "the failure does not name the driver family:"; echo "$output"; false; }
   [ ! -e "${app}/installed" ]
 }
 
@@ -330,7 +335,12 @@ EOF
 
   SCAFFOLD_ROOT="$toolbox" run apply_service_drivers "$app" "$app" fixture careless
   [ "$status" -eq 1 ]
-  [[ "$output" == *"the careless driver failed for fixture"* ]]
+  # The service and the family both have to be named: a bare "a driver failed"
+  # sends the reader to the wrong one of eight.
+  [[ "$output" == *"wiring careless into"* ]] \
+    || { echo "the failure does not name the service:"; echo "$output"; false; }
+  [[ "$output" == *"fixture driver"* ]] \
+    || { echo "the failure does not name the driver family:"; echo "$output"; false; }
   [ ! -e "${app}/installed" ]
 }
 

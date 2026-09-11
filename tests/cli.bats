@@ -85,11 +85,15 @@ setup() {
   # ambient pnpm that disagrees with the project's pin; asserting the
   # invocation shape here costs nothing. Same reasoning as service.bats' "the
   # nest driver decides allowBuilds before it installs anything".
-  run grep -c 'mise exec -- bash -c "\$ADAPTER_GENERATOR"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
-  assert_ok
-  [ "$output" -eq 1 ]
+  # Asserted as a negative and a positive, so the shape can be rearranged —
+  # it has been once, when the output started being captured — without the
+  # guarantee quietly going with it. Neither value may be handed to a shell
+  # directly, and the only script that runs either goes through mise exec.
+  run grep -nE '(eval|bash -c) "\$ADAPTER_(GENERATOR|POST_GENERATE)"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
+  [ -z "$output" ] \
+    || { echo "a generator is run outside the project's toolchain:"; echo "$output"; false; }
 
-  run grep -c 'mise exec -- bash -c "\$ADAPTER_POST_GENERATE"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
+  run grep -c 'mise exec -- bash -c "\$2"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
   assert_ok
   [ "$output" -eq 1 ]
 }
