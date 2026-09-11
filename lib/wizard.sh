@@ -77,6 +77,31 @@ wizard_order_options() {
 # wizard_questions accepts only what it lists — the single place either side
 # reads, so a shape added to one and not the other fails a test instead of
 # reaching a user four screens in.
+# wizard_actions <inside-a-project:0|1>
+# What this wizard can do from where it was run. `update` and `publish` both
+# act on a project that already exists, so outside one they are not offered at
+# all — the same reason a `web` project is never asked about a database
+# (docs/tour/09-wizard.md): a refusal the user can walk into is worse than one
+# they cannot.
+wizard_actions() {
+  printf 'new\tgenerate a project\n'
+  [ "${1:-0}" = 1 ] || return 0
+  printf 'update\tbring this project up to this toolbox\n'
+  printf 'publish\tcreate its GitHub repository and apply its settings\n'
+}
+
+# The first question, asked before anything else is known.
+WIZARD_ACTION_PROMPT='What do you want to do?'
+
+# wizard_visibilities — publish's one real decision. Private first, because a
+# client's project is the case this toolbox exists for.
+wizard_visibilities() {
+  printf 'private\tonly people you add can see it\n'
+  printf 'public\tanyone can see it\n'
+}
+
+WIZARD_VISIBILITY_PROMPT='Repository visibility'
+
 wizard_shapes() {
   printf 'web+api\tseparate frontend and backend, one repository\n'
   printf 'app\tone application serving both pages and data\n'
@@ -112,6 +137,8 @@ WIZARD_SHAPE_PROMPT='What are you building?'
 # than overflowing a hand-counted constant.
 wizard_prompt_width() {
   local kind text width=${#WIZARD_SHAPE_PROMPT}
+  (( ${#WIZARD_ACTION_PROMPT} > width )) && width=${#WIZARD_ACTION_PROMPT}
+  (( ${#WIZARD_VISIBILITY_PROMPT} > width )) && width=${#WIZARD_VISIBILITY_PROMPT}
   for kind in web api app database cache; do
     text="$(wizard_prompt_for "$kind")"
     (( ${#text} > width )) && width=${#text}

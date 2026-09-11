@@ -39,9 +39,15 @@ gh_repo_exists() {
 create_repo() {
   local project="$1" slug="$2" visibility="$3"
 
+  # One `gh` call doing three things — create, add the remote, push — and a
+  # failure in the second or third leaves the first behind. Observed: adding
+  # the remote failed and the repository existed anyway, so the next run
+  # reported "already exists" about a repository this command had just made.
+  # That path is now idempotent rather than surprising, but the message has to
+  # say what may be out there.
   gh repo create "$slug" "--${visibility}" --source "$project" \
     --remote origin --push >/dev/null \
-    || die "could not create ${slug}"
+    || die "could not finish creating ${slug} — it may exist on GitHub already, with no remote or no branch pushed. Check it, then run this again: everything here is idempotent."
 }
 
 # allow_actions_to_open_pull_requests <slug>

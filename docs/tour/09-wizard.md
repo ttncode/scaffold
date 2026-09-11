@@ -11,8 +11,15 @@ appears in all three; a bare call that opened a menu there would hang them
 as a timeout, not fail as an error, so the TTY check is the whole safety
 argument.
 
-The first question is shape — `web+api`, `app`, `api`, or `web` — not
-frontend and backend separately. `laravel-inertia` sets
+The first question is what to do: `new`, and — only when the wizard was run
+from inside a project scaffold generated — `update` and `publish`. Both of
+those act on a project that already exists, so outside one they are not
+offered at all, for the same reason a `web` project is never asked about a
+database. With only one action to choose from the screen is skipped, because a
+menu with one answer asks nothing.
+
+For `new`, the next question is shape — `web+api`, `app`, `api`, or `web` —
+not frontend and backend separately. `laravel-inertia` sets
 `ADAPTER_ROLE=app`: it is one application serving both tiers, so asking
 "frontend?" then "backend?" has no honest answer for it on a two-question
 flow. Asking shape first means that combination is never assembled to
@@ -41,8 +48,9 @@ The second project from the same answers is scripted rather than clicked.
 
 ## Read this
 
-- `lib/wizard.sh` — `wizard_options`, `wizard_questions`, `wizard_prompt_for`,
-  `wizard_new_args`, `wizard_command`: pure, string-in/string-out functions
+- `lib/wizard.sh` — `wizard_actions`, `wizard_options`, `wizard_questions`,
+  `wizard_prompt_for`, `wizard_new_args`, `wizard_command`: pure,
+  string-in/string-out functions
   that hold everything that could be wrong about the wizard's logic, tested
   without a terminal at all.
 - `lib/tui.sh` — the terminal machinery: hiding and restoring the cursor,

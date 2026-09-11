@@ -411,7 +411,7 @@ cmd_add() {
   # writes and nothing else has a reason to, but that detail means nothing
   # to a user — the message stays in their terms and says what to do next,
   # like its sibling above.
-  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+  is_scaffold_project "$project" \
     || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
 
   # Same reason as cmd_new's: every mise subprocess this run makes would
@@ -594,7 +594,7 @@ cmd_update() {
       || die "not inside a git repository: run 'scaffold update' from inside a project created by 'scaffold new', or give its path"
   fi
 
-  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+  is_scaffold_project "$project" \
     || die "not a scaffold project (${project})"
 
   local from
@@ -699,7 +699,7 @@ cmd_publish() {
       || die "not inside a git repository: run 'scaffold publish' from inside a project created by 'scaffold new', or give its path"
   fi
 
-  { [ -f "${project}/mise.toml" ] && grep -q '^monorepo_root = true$' "${project}/mise.toml"; } \
+  is_scaffold_project "$project" \
     || die "not a scaffold project (${project})"
 
   local slug; slug="$(repo_slug "$project")"
@@ -715,6 +715,21 @@ cmd_publish() {
       || die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
     [ -z "$(git -C "$project" status --porcelain)" ] \
       || die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
+
+    # An origin pointing somewhere else, while ${slug} does not exist, means
+    # this project is already pushing to a repository that is not the one it
+    # names. Creating a second one beside it is the confusion this command
+    # exists to prevent, and `gh repo create --remote origin` fails on it
+    # anyway — with "Unable to add remote", which says nothing about why.
+    local origin=""
+    if origin="$(git -C "$project" remote get-url origin 2>/dev/null)"; then
+      die "$(printf '%s\n' \
+        "${project} already pushes to ${origin}, but it names ${slug}." \
+        "Publishing would create a second repository beside the one it is already using." \
+        "Point the project at the repository it has ([vars] image in mise.toml, and" \
+        "the same pair in compose.yaml, install.sh and the build workflows), or drop" \
+        "the remote with 'git -C ${project} remote remove origin'.")"
+    fi
   fi
 
   if [ "$dry_run" -eq 1 ]; then
@@ -782,6 +797,42 @@ _wizard_select_or_cancel() {
   tui_select "$@" || exit 130
 }
 
+# _wizard_confirm <prompt> — the same y/N gate cmd_wizard ends on. `y`, not
+# Enter: everything below this line changes something that already exists.
+_wizard_confirm() {
+  printf '%b' "${BOLD}${1} [y/N] ${RESET}" >&2
+  local reply=""
+  IFS= read -r reply || true
+  case "$reply" in y|Y) return 0 ;; *) return 1 ;; esac
+}
+
+# _wizard_update <project>
+_wizard_update() {
+  tui_end
+  log ""
+  wizard_echo_command "scaffold update"
+  log ""
+  _wizard_confirm "Bring ${1} up to this toolbox?" || return 0
+  [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ] && return 0
+  cmd_update "$1"
+}
+
+# _wizard_publish <project>
+_wizard_publish() {
+  local -a options
+  mapfile -t options < <(wizard_visibilities)
+  _wizard_select_or_cancel "$WIZARD_VISIBILITY_PROMPT" "${options[@]}"
+  local visibility="$TUI_CHOICE"
+
+  tui_end
+  log ""
+  wizard_echo_command "scaffold publish --${visibility}"
+  log ""
+  _wizard_confirm "Publish ${1} to GitHub?" || return 0
+  [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ] && return 0
+  cmd_publish "$1" "--${visibility}"
+}
+
 # cmd_wizard — name, shape, then one to four more screens depending on the
 # shape, from wizard_questions(shape). Ends on a summary and a confirm;
 # SCAFFOLD_WIZARD_DRY_RUN=1 stops it just before cmd_new would run, which is
@@ -790,12 +841,34 @@ _wizard_select_or_cancel() {
 cmd_wizard() {
   tui_begin
 
-  local name; name="$(tui_prompt_name)"
-  local listing; listing="$(cmd_list)"
-
-  # Read by tui_select to pad every question to one answer column.
+  # Read by tui_select to pad every question to one answer column. Set before
+  # the first screen, not after the name prompt, now that a screen comes first.
   # shellcheck disable=SC2034 # read by lib/tui.sh, not by this file
   TUI_ANSWER_COLUMN="$(wizard_prompt_width)"
+
+  # update and publish act on a project that already exists, so they are
+  # offered only from inside one.
+  local here=""
+  here="$(git rev-parse --show-toplevel 2>/dev/null)" || here=""
+  [ -n "$here" ] && is_scaffold_project "$here" || here=""
+
+  local action=new
+  local -a action_options
+  mapfile -t action_options < <(wizard_actions "$([ -n "$here" ] && printf 1 || printf 0)")
+  # Only when there is a choice: a menu with one answer asks nothing and
+  # costs a keystroke.
+  if [ "${#action_options[@]}" -gt 1 ]; then
+    _wizard_select_or_cancel "$WIZARD_ACTION_PROMPT" "${action_options[@]}"
+    action="$TUI_CHOICE"
+  fi
+
+  case "$action" in
+    update) _wizard_update "$here"; return ;;
+    publish) _wizard_publish "$here"; return ;;
+  esac
+
+  local name; name="$(tui_prompt_name)"
+  local listing; listing="$(cmd_list)"
 
   local -a shape_options
   mapfile -t shape_options < <(wizard_shapes)
@@ -827,13 +900,7 @@ cmd_wizard() {
 
   log ""
 
-  printf '%b' "${BOLD}Generate this project? [y/N] ${RESET}" >&2
-  local reply=""
-  IFS= read -r reply || true
-  case "$reply" in
-    y|Y) ;;
-    *) return 0 ;;
-  esac
+  _wizard_confirm "Generate this project?" || return 0
 
   if [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ]; then
     return 0

@@ -120,6 +120,14 @@ record_scaffold_app() {
   printf '"%s" = "%s"\n' "$rel" "$adapter" >> "$file"
 }
 
+# is_scaffold_project <dir>
+# The marker init_project writes and nothing else has a reason to. mise.toml
+# alone is not proof — any repository can carry one. Was written out three
+# times in `scaffold` before the wizard needed a fourth.
+is_scaffold_project() {
+  [ -f "${1}/mise.toml" ] && grep -q '^monorepo_root = true$' "${1}/mise.toml"
+}
+
 # init_project <dir> <name>
 init_project() {
   local dir="$1" name="$2"
