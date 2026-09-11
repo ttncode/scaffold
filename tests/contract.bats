@@ -184,29 +184,50 @@ setup() {
   assert_ok
 }
 
-@test "tests/service.bats runs in a lane" {
-  # Scoped to test-unit's own `run = ` line, not the whole file: the name
-  # also greps clean out of a comment, or out of [tasks.test]'s "tests/"
-  # (which ci.yml never invokes) — passing for a suite that never actually
-  # runs is the exact failure this test was written against.
-  local run_line
-  run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
-  [[ "$run_line" == *"tests/service.bats"* ]]
-}
-
-@test "tests/wizard.bats runs in a lane" {
+@test "every suite runs somewhere" {
   # A suite in no lane is a suite that never runs: the service branch shipped
-  # thirty tests into that state and nobody noticed until a review read
-  # mise.toml against ci.yml.
-  local run_line
-  run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
-  [[ "$run_line" == *"tests/wizard.bats"* ]]
-}
+  # thirty tests into that state, and nobody noticed until a review read
+  # mise.toml against ci.yml. Three tests used to guard this, one per suite,
+  # each added after the next suite fell through the same gap — a list that
+  # only ever grows by being wrong first. This asks the question of every
+  # suite in the directory instead, including the ones not written yet.
+  #
+  # Scoped to each lane's own `run = ` line, not the whole file: a name greps
+  # clean out of a comment, or out of [tasks.test]'s "tests/" glob, which CI
+  # never invokes — passing for a suite that never actually runs is the exact
+  # failure being guarded against.
+  local unit integration adapters provenance suite name missing=""
+  unit="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  integration="$(awk '/^\[tasks\."test-integration"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
+  [ -n "$unit" ] && [ -n "$integration" ]
 
-@test "tests/wizard-integration.bats runs in a lane" {
-  local run_line
-  run_line="$(awk '/^\[tasks\."test-integration"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
-  [[ "$run_line" == *"tests/wizard-integration.bats"* ]]
+  # The two suites that deliberately run outside the lanes, each verified
+  # rather than listed: an exemption nobody checks is how a suite stops
+  # running without anyone editing the thing that stopped it.
+  adapters="$(cat "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml")"
+  provenance="$(cat "${SCAFFOLD_ROOT}/.github/workflows/provenance.yml")"
+  [[ "$adapters" == *'bats "tests/new-${ADAPTER}.bats"'* ]] \
+    || { echo "adapters.yml no longer runs tests/new-<adapter>.bats"; false; }
+  [[ "$provenance" == *"bats tests/provenance.bats"* ]] \
+    || { echo "provenance.yml no longer runs tests/provenance.bats"; false; }
+
+  for suite in "${SCAFFOLD_ROOT}"/tests/*.bats; do
+    name="tests/$(basename "$suite")"
+    case "$name" in
+      tests/new-*.bats) continue ;;       # adapters.yml, per-adapter matrix
+      tests/provenance.bats) continue ;;  # provenance.yml, needs an upstream clone
+    esac
+    case "${unit}${integration}" in
+      *"$name"*) ;;
+      *) missing="${missing} ${name}" ;;
+    esac
+  done
+
+  [ -z "$missing" ] || {
+    echo "in no lane, so never run by CI:${missing}"
+    echo "add each to test-unit or test-integration in mise.toml"
+    false
+  }
 }
 
 @test "every adapter declares a liveness path" {
