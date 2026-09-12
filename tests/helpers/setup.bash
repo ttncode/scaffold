@@ -1,4 +1,9 @@
 # shellcheck shell=bash
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : tests/helpers/setup.bash
+# Description : Shared bats setup: an owned environment, assert_ok, copy_toolbox.
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 SCAFFOLD_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 export SCAFFOLD_ROOT
 PATH="${SCAFFOLD_ROOT}:${PATH}"

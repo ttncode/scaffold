@@ -37,7 +37,7 @@
 | `lib/log.sh` | `log`, `warn`, `die`. |
 | `lib/contract.sh` | `CONTRACT_TASKS`, `REQUIRED_ADAPTER_FILES`. The single source of truth both the linter and tests read. |
 | `lib/lint.sh` | `lint_adapters` — validates adapters against the contract. |
-| `lib/project.sh` | `init_project`, `register_config_root`, `collect_config_roots`, `sync_ci_roots`, `finalize_project`. |
+| `lib/project.sh` | `init_project`, `register_config_root`, `config_roots`, `sync_ci_roots`, `finalize_project`. |
 | `lib/adapter.sh` | `load_adapter`, `apply_adapter`, `merge_lefthook_fragment`. |
 | `adapters/<name>/` | Five files: `adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`, `lefthook.fragment.yml`. |
 | `common/` | Everything copied verbatim into a generated project. |
@@ -568,7 +568,7 @@ git commit -m "feat: add command dispatch and adapter listing"
 - Produces:
   - `init_project <dir> <name>` — creates the directory, `git init` on `main`, copies `common/`, renders the root `mise.toml` with `config_roots = ["docs"]`.
   - `register_config_root <project-dir> <relative-path>` — inserts the path into the `config_roots` array, idempotent.
-  - `collect_config_roots <project-dir>` — echoes the roots, one per line, in file order.
+  - `config_roots <project-dir>` — echoes the roots, one per line, in file order.
   - `sync_ci_roots <project-dir>` — rewrites the `roots:` input in `.github/workflows/ci.yml` from the current roots.
   - `finalize_project <project-dir>` — runs `sync_ci_roots`, then stages everything and makes the initial commit.
 
@@ -647,7 +647,7 @@ teardown() {
 collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
-  collect_config_roots "$1"
+  config_roots "$1"
 }
 ```
 
@@ -772,8 +772,8 @@ register_config_root() {
   mv "${file}.tmp" "$file"
 }
 
-# collect_config_roots <project>
-collect_config_roots() {
+# config_roots <project>
+config_roots() {
   sed -n '/^config_roots = \[$/,/^\]$/p' "${1}/mise.toml" \
     | sed -n 's/^  "\(.*\)",$/\1/p'
 }
@@ -782,7 +782,7 @@ collect_config_roots() {
 # manifest so the two can never disagree.
 sync_ci_roots() {
   local project="$1" json
-  json="$(collect_config_roots "$project" | jq -R . | jq -sc .)"
+  json="$(config_roots "$project" | jq -R . | jq -sc .)"
   sed -i.bak "s|^      roots: .*|      roots: '${json}'|" \
     "${project}/.github/workflows/ci.yml"
   rm -f "${project}/.github/workflows/ci.yml.bak"
@@ -1722,7 +1722,7 @@ teardown() {
 
 @test "the fullstack project has exactly two config roots" {
   scaffold new "$PROJECT" --app laravel-inertia
-  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; collect_config_roots '${PROJECT}' | sort | tr '\n' ' '"
+  run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/project.sh'; config_roots '${PROJECT}' | sort | tr '\n' ' '"
   [ "$output" = "apps/app docs " ]
 }
 
@@ -2285,7 +2285,7 @@ git commit -m "feat: add the compose stack and the client installer"
 - Create: `docs/decisions/0005-share-ci-through-reusable-workflows.md`, `0006-release-please-over-changesets.md`, `0010-github-token-over-a-github-app.md`, `0015-continuous-builds-separate-from-cut-releases.md`
 
 **Interfaces:**
-- Consumes: `collect_config_roots`, `sync_ci_roots`.
+- Consumes: `config_roots`, `sync_ci_roots`.
 - Produces: five `workflow_call` entrypoints. `app-ci.yml` takes one input, `roots` (a JSON array as a string). `app-build.yml` and `app-release.yml` take `image` (the `ghcr.io/...` repository, no tag).
 
 - [ ] **Step 1: Write the failing test**
@@ -3681,6 +3681,6 @@ required structure is fixed by the four headings and enforced by
 **Type consistency.** `SCAFFOLD_ROOT` is set by `scaffold` and by
 `tests/helpers/setup.bash`. `ADAPTER_*` variables are written in `adapter.env`
 and read by `load_adapter`. `apply_adapter` takes `(name, project, relative
-path)` in that order everywhere. `register_config_root`, `collect_config_roots`,
+path)` in that order everywhere. `register_config_root`, `config_roots`,
 `sync_ci_roots`, and `finalize_project` all take the project directory as their
 first argument. `role_path` is the only place a role maps to a directory.

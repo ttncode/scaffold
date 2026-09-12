@@ -89,7 +89,7 @@ teardown() {
 
   # ADR-0018's central scenario, and the one nothing covered: a project with no
   # root workspace still has to produce an app whose own contract tasks run.
-  # resolve_minimum_release_age returned early whenever the project root had no
+  # record_release_age_exceptions returned early whenever the project root had no
   # pnpm-workspace.yaml, so pnpm's default minimum-release-age policy rejected
   # the lockfile the generator had just written.
   run mise run //apps/worker:install
@@ -101,7 +101,7 @@ teardown() {
   cd "$PROJECT"
 
   # commitlint backs the commit-msg hook and installs from the project root,
-  # not from an app dir — the one place resolve_minimum_release_age used to
+  # not from an app dir — the one place record_release_age_exceptions used to
   # skip in this branch, so a violation among commitlint's own dependencies
   # (too fresh at generation time) surfaced only here, minutes later, on the
   # first commit.

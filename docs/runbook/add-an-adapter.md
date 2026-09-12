@@ -48,7 +48,7 @@ cd /tmp/probe && mise run "//apps/api:checklist"
 ```
 
 (the project root's own `mise run checklist` also runs this once
-`register_config_root` picks it up — see `lib/project.sh` — but the
+`register_config_root` picks it up — see `lib/manifest.sh` — but the
 `//apps/api:` prefix runs only the new app, without waiting on every other
 config root along with it.)
 

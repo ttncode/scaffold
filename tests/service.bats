@@ -151,12 +151,12 @@ setup() {
   done
 }
 
-@test "apply_service_setup removes the anchor when nothing was selected" {
+@test "apply_service_dockerfile removes the anchor when nothing was selected" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
   printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
 
-  run apply_service_setup "$app" ""
+  run apply_service_dockerfile "$app" ""
   assert_ok
   # exact content, not just "no anchor line" — that proxy would still pass
   # if the anchor were replaced by a blank line instead of removed
@@ -165,12 +165,12 @@ setup() {
   [ "$output" = "$(printf 'FROM scratch\nCMD ["true"]')" ]
 }
 
-@test "apply_service_setup splices in every selected service's block" {
+@test "apply_service_dockerfile splices in every selected service's block" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
   printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
 
-  run apply_service_setup "$app" "$(printf 'RUN one\nRUN two\n')"
+  run apply_service_dockerfile "$app" "$(printf 'RUN one\nRUN two\n')"
   assert_ok
   run grep -q '^RUN one$' "${app}/Dockerfile"
   assert_ok
@@ -178,24 +178,24 @@ setup() {
   assert_ok
 }
 
-@test "apply_service_setup dies when the Dockerfile has no anchor" {
+@test "apply_service_dockerfile dies when the Dockerfile has no anchor" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
   printf 'FROM scratch\nCMD ["true"]\n' > "${app}/Dockerfile"
 
-  run apply_service_setup "$app" "RUN one"
+  run apply_service_dockerfile "$app" "RUN one"
   [ "$status" -eq 1 ]
   [[ "$output" == *"no @SERVICE_SETUP@ anchor"* ]]
 }
 
-@test "apply_service_setup passes a block through without escape processing" {
+@test "apply_service_dockerfile passes a block through without escape processing" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
   printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
 
   # a literal backslash-t, two characters — awk's -v assignment does
   # C-style escape processing and would collapse this into a tab
-  run apply_service_setup "$app" 'RUN echo \t done'
+  run apply_service_dockerfile "$app" 'RUN echo \t done'
   assert_ok
   run grep -Fq 'RUN echo \t done' "${app}/Dockerfile"
   assert_ok

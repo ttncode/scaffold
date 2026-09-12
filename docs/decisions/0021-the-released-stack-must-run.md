@@ -31,7 +31,7 @@ the existing `smoke` lane:**
    declares one. `scripts/deploy-check.sh` is gate 2's implementation. It
    builds the image locally and starts the stack directly rather than
    running `common/install.sh` end to end — it does not download a
-   release, call `create_directory`, or check `check_image_configured` —
+   release, call `create_directory`, or check `require_configured_image` —
    but it does call `install.sh`'s own `generate_service_passwords` on the
    copied `.env`, so the password loop and the `APP_KEY` branch run under
    the same substitution a client's install would perform, not against

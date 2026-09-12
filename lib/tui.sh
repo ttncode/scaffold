@@ -1,9 +1,14 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : lib/tui.sh
+# Description : The interactive wizard's terminal layer: header, prompt, menu.
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck shell=bash
-# The interactive wizard's terminal layer. Adapted from
-# ~/.dotfiles/scripts/lib/menu.sh (the select loop, the echo/cursor handling)
-# and lib/banner.sh (the one-column-short row width), with that menu's
-# boolean-per-row selection removed: this is one choice per screen, so
-# SELECTED[] becomes a single cursor index and space is not a key.
+#
+# Adapted from ~/.dotfiles/scripts/lib/menu.sh (the select loop, the
+# echo/cursor handling) and lib/banner.sh (the one-column-short row width),
+# with that menu's boolean-per-row selection removed: this is one choice per
+# screen, so SELECTED[] becomes a single cursor index and space is not a key.
 
 BOLD="\033[1m"
 DIM="\033[2m"
@@ -12,13 +17,29 @@ CYAN="\033[36m"
 RED="\033[31m"
 RESET="\033[0m"
 
-# tui_begin / tui_end — take and restore the terminal for the wizard's whole
-# run, not per screen.
-#
-# `read -s` only silences the one read it wraps; a key held down keeps sending
-# bytes while a redraw is in flight, and the tty echoes them into the middle
-# of the menu. Turning echo off once, for the session, is what menu.sh does
-# instead.
+DEFAULT_TERM_COLS=80
+DEFAULT_TERM_LINES=24
+
+# Below this the header collapses to one line: a terminal that short scrolls
+# once the header and a question's screen don't both fit, and a scroll breaks
+# _tui_render's cursor-up overwrite math. menu.sh's own threshold.
+MIN_TERM_LINES_FOR_HEADER=23
+
+# An escape sequence (an arrow key) arrives as Esc plus more bytes; a bare Esc
+# arrives alone. 50ms, not 10: under autorepeat the rest of a sequence can
+# arrive late, and a truncated read reads as a bare Esc — which would cancel
+# the wizard mid-scroll.
+ESC_SEQUENCE_TIMEOUT=0.05
+
+# Autorepeat outruns the redraw loop, so a held key can leave a backlog.
+KEY_DRAIN_TIMEOUT=0.001
+
+# ─── the terminal session ──────────────────────────────────────────────────
+
+# tui_begin / tui_end take and restore the terminal for the wizard's whole run,
+# not per screen: `read -s` only silences the one read it wraps, and a key held
+# down keeps sending bytes while a redraw is in flight, which the tty echoes
+# into the middle of the menu.
 _TUI_STTY_SAVED=""
 
 tui_begin() {
@@ -35,12 +56,11 @@ tui_begin() {
 
 tui_end() {
   [ -t 0 ] || return 0
-  # Autorepeat outruns the redraw loop, so a held key can leave a backlog.
-  # Drain it here rather than let it spill into whatever the caller reads or
+  # Drained here rather than left to spill into whatever the caller reads or
   # prints next.
   local junk
   # shellcheck disable=SC2034 # junk is the read target, not read back
-  while read -rsn1 -t 0.001 junk 2>/dev/null; do :; done
+  while read -rsn1 -t "$KEY_DRAIN_TIMEOUT" junk 2>/dev/null; do :; done
   if [ -n "$_TUI_STTY_SAVED" ]; then
     stty "$_TUI_STTY_SAVED" 2>/dev/null || true
     _TUI_STTY_SAVED=""
@@ -48,31 +68,33 @@ tui_end() {
   tput cnorm 2>/dev/null || true
 }
 
-# tui_header — the wizard's title box, printed once by tui_begin and never
-# repainted: this is a transcript, not a screen, so nothing below it may ever
-# clear or scroll it away.
-#
-# Box shape, edge colour and the one-column-short width are banner.sh's,
-# reimplemented rather than sourced — scaffold has to run standalone on a
-# client machine, the same reason the select loop reimplements menu.sh's.
-#
-# Collapses to one line under menu.sh's own threshold (TERM_LINES < 23): a
-# terminal that short scrolls once the header and a question's screen don't
-# both fit, and a scroll breaks tui_select's cursor-up overwrite math.
+# ─── the header ────────────────────────────────────────────────────────────
+
+# The wordmark, in menu.sh's font: ANSI Shadow with its duplicated fourth row
+# and trailing shadow row dropped. Written out rather than generated — figlet
+# does not ship this font, and a client machine has no figlet at all.
+_TUI_LOGO=(
+  '  ███████╗ ██████╗ █████╗ ███████╗███████╗ ██████╗ ██╗     ██████╗ '
+  '  ██╔════╝██╔════╝██╔══██╗██╔════╝██╔════╝██╔═══██╗██║     ██╔══██╗'
+  '  ███████╗██║     ███████║█████╗  █████╗  ██║   ██║██║     ██║  ██║'
+  '  ███████║╚██████╗██║  ██║██║     ██║     ╚██████╔╝███████╗██████╔╝'
+)
+_TUI_LOGO_WIDTH=${#_TUI_LOGO[0]}
+
+# tui_header — printed once by tui_begin and never repainted: this is a
+# transcript, not a screen, so nothing below it may clear or scroll it away.
+# The wordmark is width-checked before it is drawn, because below that _tui_fit
+# hands back four ellipsised fragments, which reads as damage, not a logo.
 tui_header() {
-  local term_lines; term_lines="$(tput lines 2>/dev/null || echo 24)"
-  if (( term_lines < 23 )); then
+  local term_lines; term_lines="$(tput lines 2>/dev/null || echo "$DEFAULT_TERM_LINES")"
+  if (( term_lines < MIN_TERM_LINES_FOR_HEADER )); then
     echo -e "${BOLD}${GREEN}scaffold — project generator${RESET}"
     return
   fi
 
-  local cols width; cols="$(tput cols 2>/dev/null || echo 80)"
+  local cols width; cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
   width=$(( cols - 1 ))
 
-  # Blank row, the wordmark, two-space indent, one hint per line, blank row,
-  # then a blank line under the box: banner.sh's own layout, followed exactly
-  # rather than approximated, because the two are meant to be recognisably
-  # one family.
   _tui_header_edge '╭' '╮' 'Scaffold' "$width"
   _tui_header_row '' '' "$width"
   if (( width - 2 >= _TUI_LOGO_WIDTH )); then
@@ -92,28 +114,9 @@ tui_header() {
   echo
 }
 
-# The wordmark, in menu.sh's font: ANSI Shadow with its duplicated fourth row
-# and its trailing shadow row dropped, which is the same four-row compression
-# menu.sh applies to DOTFILE. Written out rather than generated — figlet
-# does not ship this font, and a client machine has no figlet at all.
-#
-# _TUI_LOGO_WIDTH is checked before the rows are drawn because this wordmark
-# is wider than DOTFILE's. banner.sh guarantees DOTFILE fits its own minimum
-# width; nothing guarantees that here, and _tui_fit would otherwise hand back
-# four separate ellipsised fragments, which reads as damage rather than as a
-# logo. Below the threshold the box simply carries no wordmark.
-_TUI_LOGO=(
-  '  ███████╗ ██████╗ █████╗ ███████╗███████╗ ██████╗ ██╗     ██████╗ '
-  '  ██╔════╝██╔════╝██╔══██╗██╔════╝██╔════╝██╔═══██╗██║     ██╔══██╗'
-  '  ███████╗██║     ███████║█████╗  █████╗  ██║   ██║██║     ██║  ██║'
-  '  ███████║╚██████╗██║  ██║██║     ██║     ╚██████╔╝███████╗██████╔╝'
-)
-_TUI_LOGO_WIDTH=${#_TUI_LOGO[0]}
-
-# _tui_header_edge <left-corner> <right-corner> <label> <width> — banner.sh's
-# _banner_edge, cut down to the one shape tui_header needs: a label centred
-# in a horizontal rule, drawn once so it carries none of banner.sh's
-# rebuild-on-resize bookkeeping.
+# _tui_header_edge <left-corner> <right-corner> <label> <width>
+# banner.sh's _banner_edge, cut down to a label centred in a horizontal rule,
+# drawn once so it carries none of that file's rebuild-on-resize bookkeeping.
 _tui_header_edge() {
   local left="$1" right="$2" label="$3" width="$4"
   local inner=$(( width - 2 ))
@@ -129,8 +132,8 @@ _tui_header_edge() {
   echo -e "${BOLD}${GREEN}${left}${l}${label}${r}${right}${RESET}"
 }
 
-# _tui_header_row [dim] <text> <width> — banner.sh's _banner_row, minus the
-# plain/bold/blank styles it never uses here.
+# _tui_header_row [dim|bold] <text> <width> — banner.sh's _banner_row, minus
+# the styles it never uses here.
 _tui_header_row() {
   local style="$1" text="$2" width="$3"
   local inner=$(( width - 2 ))
@@ -145,34 +148,25 @@ _tui_header_row() {
   echo -e "${BOLD}${GREEN}│${RESET}${styled}${pad}${BOLD}${GREEN}│${RESET}"
 }
 
-# tui_name_is_usable <name> — project_name_is_usable (lib/project.sh), so
-# the prompt can reject a bad name before the rest of the wizard's screens
-# are shown, rather than after init_project rejects it during generation.
+# ─── the name prompt ───────────────────────────────────────────────────────
+
+# The same rule init_project enforces, so the prompt rejects a bad name before
+# the wizard's remaining screens rather than after generation starts.
 tui_name_is_usable() {
   project_name_is_usable "$1"
 }
 
-# tui_prompt_name — reads a project name, re-asking until it satisfies
-# tui_name_is_usable.
-#
-# Echo stays off, as tui_begin left it: _tui_read_line prints each character
-# itself, so letting the tty echo as well would show every keystroke twice.
-# The cursor is turned back on, though — tui_begin hides it for the menu
-# screens, and a typed field needs a caret to type against.
+# tui_prompt_name — reads a project name, re-asking until it is usable. Echo
+# stays off, as tui_begin left it: _tui_read_line prints each character itself.
 tui_prompt_name() {
   local name
-  # cmd_wizard reads this function back with `name="$(tui_prompt_name)"`,
-  # capturing everything written to stdout — so tput's escape sequences go to
-  # stderr, the same fd the rest of this prompt already writes to, or they'd
-  # land inside $name instead of on the terminal.
+  # cmd_wizard captures this function's stdout, so tput's escape sequences go
+  # to stderr with the rest of the prompt, or they'd land inside $name.
   tput cnorm >&2 2>/dev/null || true
 
   while true; do
-    # Cyan opens before the read and closes after it, so the characters
-    # _tui_read_line echoes as they are typed carry the same colour the
-    # answered questions below will show. Every exit from the read closes
-    # it, including Esc — a cancelled wizard must not leave the terminal
-    # painted.
+    # Cyan opens before the read and closes after every exit from it, Esc
+    # included: a cancelled wizard must not leave the terminal painted.
     printf '%b' "${BOLD}? Project name: ${RESET}${CYAN}" >&2
     _tui_read_line || { printf '%b\n' "$RESET" >&2; exit 130; }
     printf '%b' "$RESET" >&2
@@ -181,25 +175,20 @@ tui_prompt_name() {
     printf '%b\n' "${RED}  ${PROJECT_NAME_RULE}: ${name}${RESET}" >&2
   done
 
-  # A blank line between the name and the questions that follow it, so the
-  # answered-question list below reads as its own block rather than as a
-  # continuation of the field the user just typed in.
+  # A blank line, so the answered-question list below reads as its own block
+  # rather than as a continuation of the field just typed in.
   printf '\n' >&2
 
   tput civis >&2 2>/dev/null || true
   printf '%s\n' "$name"
 }
 
-# _tui_read_line — one line of input into REPLY, byte by byte. Returns 1 on
-# Esc or EOF.
+# _tui_read_line — one line of input into REPLY, byte by byte. Returns 1 on Esc
+# or EOF.
 #
 # `read -r` cannot see Esc: the tty hands it a whole line, and Esc is just a
-# byte inside it. Reading a byte at a time is what makes the header's
-# "Press Esc to cancel" true on this screen too.
-#
-# The cost is real: this is not readline. Ctrl-W, Ctrl-U and the left/right
-# arrows do nothing, and Backspace is handled below because nothing else
-# would.
+# byte inside it. The cost is real — this is not readline: Ctrl-W, Ctrl-U and
+# the left/right arrows do nothing.
 _tui_read_line() {
   local key
   REPLY=""
@@ -213,16 +202,12 @@ _tui_read_line() {
       $'\x04')
         # Ctrl-D. Reading a byte at a time means the tty never turns it into
         # EOF the way a line-mode `read` would — it arrives as a plain 0x04,
-        # which the printable filter below would silently discard, leaving
-        # the prompt spinning. tests/wizard.bats has asserted this exit since
-        # before the byte-at-a-time read existed, and caught it immediately.
+        # which the printable filter below would discard, leaving the prompt
+        # spinning.
         return 1
         ;;
       $'\x1b')
-        # An escape sequence (an arrow key) arrives as Esc plus more bytes.
-        # Draining them distinguishes a real Esc, which arrives alone, from
-        # an arrow — the same 50ms window and the same reason as tui_select.
-        if read -rsn2 -t 0.05 key; then
+        if read -rsn2 -t "$ESC_SEQUENCE_TIMEOUT" key; then
           continue
         fi
         return 1
@@ -236,8 +221,8 @@ _tui_read_line() {
         ;;
       *)
         # Printable only. A stray control byte would otherwise be echoed and
-        # land in the name, where project_name_is_usable would reject it with
-        # a message about a character the user cannot see.
+        # land in the name, where project_name_is_usable would reject it with a
+        # message about a character the user cannot see.
         case "$key" in
           [[:print:]]) REPLY+="$key"; printf '%s' "$key" >&2 ;;
         esac
@@ -246,79 +231,12 @@ _tui_read_line() {
   done
 }
 
-# _tui_fit <text> <limit> — sets REPLY rather than echoing, so it can run once
-# per row per keypress without forking a subshell while a held key is still
-# sending bytes at the (echo-disabled) tty.
-_tui_fit() {
-  local text="$1" limit="$2"
-  if (( ${#text} <= limit )); then
-    REPLY="$text"
-  elif (( limit <= 1 )); then
-    REPLY="${text:0:limit}"
-  else
-    REPLY="${text:0:limit-1}…"
-  fi
-}
-
-# _tui_render <prompt> <cursor> <option>...
-# Every row is cut one column short of the terminal width: a row that reaches
-# the last column leaves the cursor in the terminal's pending-wrap state, and
-# resolving that costs a second screen row.
-#
-# No `clear`: this is a transcript now, not a screen, and a `clear` here
-# would take the header above it with it. The first paint of a question has
-# no block above it yet to preserve, so it prints in place; every later paint
-# (an arrow key moving the cursor) backs up over its own last block with
-# \033[<n>A and overwrites it — never touching a line outside that block.
-_TUI_RENDER_HEIGHT=0
-
-_tui_render() {
-  local prompt="$1" cursor="$2"; shift 2
-  local -a options=("$@")
-  local cols limit
-  cols="$(tput cols 2>/dev/null || echo 80)"
-  limit=$(( cols - 1 ))
-
-  (( _TUI_RENDER_HEIGHT > 0 )) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
-
-  # The blank belongs to the question, not to the transcript above it: the
-  # collapse below rewinds over everything this function printed, so the
-  # answered lines end up contiguous while the live question always has air
-  # above it.
-  echo -e "\033[K"
-  _tui_fit "$prompt" "$limit"
-  echo -e "${BOLD}? ${REPLY}${RESET}\033[K"
-
-  local i value meta pointer
-  for i in "${!options[@]}"; do
-    value="${options[$i]%%$'\t'*}"
-    meta="${options[$i]#*$'\t'}"
-    pointer=" "
-    [ "$i" -eq "$cursor" ] && pointer="»"
-
-    _tui_fit "$value" $(( limit - 4 ))
-    value="$REPLY"
-    # An empty meta means the caller had nothing to add beyond the value
-    # itself (wizard_options' database/cache rows) — "mysql ()" would say
-    # less than plain "mysql". Dim, because it qualifies the choice rather
-    # than being part of it.
-    [ -z "$meta" ] || meta="${DIM} (${meta})${RESET}"
-
-    if [ "$i" -eq "$cursor" ]; then
-      echo -e "  ${GREEN}${pointer} ${value}${RESET}${meta}\033[K"
-    else
-      echo -e "  ${pointer} ${value}${meta}\033[K"
-    fi
-  done
-
-  echo -e "\033[K"
-  _TUI_RENDER_HEIGHT=$(( ${#options[@]} + 3 ))
-}
+# ─── the select screen ─────────────────────────────────────────────────────
 
 # tui_select <prompt> <option>...
 # One single-select screen. Each <option> is value<TAB>meta. Leaves the chosen
-# value in TUI_CHOICE; returns 1 on Esc rather than dying, so the caller
-# decides what cancelling the wizard means.
+# value in TUI_CHOICE; returns 1 on Esc rather than dying, so the caller decides
+# what cancelling the wizard means.
 tui_select() {
   local prompt="$1"; shift
   local -a options=("$@")
@@ -335,10 +253,7 @@ tui_select() {
 
     case "$key" in
       $'\x1b')
-        # 50ms, not 10: under autorepeat the rest of an arrow sequence can
-        # arrive late, and a truncated read here reads as a bare Esc — which
-        # would cancel the wizard mid-scroll.
-        if read -rsn2 -t 0.05 key; then
+        if read -rsn2 -t "$ESC_SEQUENCE_TIMEOUT" key; then
           case "$key" in
             "[A") cursor=$(( (cursor - 1 + ${#options[@]}) % ${#options[@]} )) ;;
             "[B") cursor=$(( (cursor + 1) % ${#options[@]} )) ;;
@@ -351,15 +266,13 @@ tui_select() {
         # shellcheck disable=SC2034 # read by the caller
         TUI_CHOICE="${options[$cursor]%%$'\t'*}"
         # Collapse the block _tui_render just painted into the one line a
-        # normal transcript would have — the next question then prints
-        # straight underneath it instead of onto a screen it has to clear.
+        # normal transcript would have — the next question then prints straight
+        # underneath it instead of onto a screen it has to clear.
         printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
         tput ed 2>/dev/null || true
         # Padding outside the colour escapes, so no run of styled whitespace
-        # lands on the line or in the clipboard — lib/usage.sh's rule, and the
-        # reason the answers line up in one column rather than after each
-        # question's own width. TUI_ANSWER_COLUMN is set by the caller, which
-        # is the only thing that knows every question it will ask.
+        # lands on the line or in the clipboard. TUI_ANSWER_COLUMN is set by the
+        # caller, which is the only thing that knows every question it will ask.
         printf '  %b✔%b  %s%*s  %b%s%b\n' \
           "$GREEN" "$RESET" "$prompt" \
           "$(( ${TUI_ANSWER_COLUMN:-0} - ${#prompt} ))" "" \
@@ -368,11 +281,8 @@ tui_select() {
         ;;
       *)
         # Type-to-jump: the walkthrough tells a first-time reader to answer
-        # "postgres", and typing that word used to be silently discarded
-        # keystroke by keystroke, Enter then accepting whatever was already
-        # highlighted — no error, nothing on screen. One keystroke moves the
-        # cursor to the first option starting with it, so typing does what
-        # the document already led the reader to expect.
+        # "postgres", so typing that word has to move the cursor rather than be
+        # discarded keystroke by keystroke.
         for i in "${!options[@]}"; do
           value="${options[$i]%%$'\t'*}"
           if [[ "${value,,}" == "${key,,}"* ]]; then
@@ -383,4 +293,69 @@ tui_select() {
         ;;
     esac
   done
+}
+
+# _tui_render <prompt> <cursor> <option>...
+# Every row is cut one column short of the terminal width: a row reaching the
+# last column leaves the cursor in the pending-wrap state, which costs a second
+# screen row to resolve.
+#
+# No `clear` — it would take the header with it. Every paint after the first
+# backs up over its own last block with \033[<n>A and overwrites it.
+_TUI_RENDER_HEIGHT=0
+
+_tui_render() {
+  local prompt="$1" cursor="$2"; shift 2
+  local -a options=("$@")
+  local cols limit
+  cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
+  limit=$(( cols - 1 ))
+
+  (( _TUI_RENDER_HEIGHT > 0 )) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
+
+  # The blank belongs to the question, not to the transcript above it: the
+  # collapse in tui_select rewinds over everything this function printed, so the
+  # answered lines end up contiguous while the live question always has air
+  # above it.
+  echo -e "\033[K"
+  _tui_fit "$prompt" "$limit"
+  echo -e "${BOLD}? ${REPLY}${RESET}\033[K"
+
+  local i value meta pointer
+  for i in "${!options[@]}"; do
+    value="${options[$i]%%$'\t'*}"
+    meta="${options[$i]#*$'\t'}"
+    pointer=" "
+    [ "$i" -eq "$cursor" ] && pointer="»"
+
+    _tui_fit "$value" $(( limit - 4 ))
+    value="$REPLY"
+    # An empty meta means the caller had nothing to add beyond the value itself
+    # — "mysql ()" would say less than plain "mysql". Dim, because it qualifies
+    # the choice rather than being part of it.
+    [ -z "$meta" ] || meta="${DIM} (${meta})${RESET}"
+
+    if [ "$i" -eq "$cursor" ]; then
+      echo -e "  ${GREEN}${pointer} ${value}${RESET}${meta}\033[K"
+    else
+      echo -e "  ${pointer} ${value}${meta}\033[K"
+    fi
+  done
+
+  echo -e "\033[K"
+  _TUI_RENDER_HEIGHT=$(( ${#options[@]} + 3 ))
+}
+
+# _tui_fit <text> <limit> — sets REPLY rather than echoing, so it can run once
+# per row per keypress without forking a subshell while a held key is still
+# sending bytes at the (echo-disabled) tty.
+_tui_fit() {
+  local text="$1" limit="$2"
+  if (( ${#text} <= limit )); then
+    REPLY="$text"
+  elif (( limit <= 1 )); then
+    REPLY="${text:0:limit}"
+  else
+    REPLY="${text:0:limit-1}…"
+  fi
 }

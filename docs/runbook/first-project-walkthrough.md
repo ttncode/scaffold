@@ -81,7 +81,7 @@ scaffold list
 ```
 
 Expect: the same output as step 2. A report of a missing tool means
-`hoist_toolchain` could not read this toolbox's mise environment — check
+`load_toolchain_env` could not read this toolbox's mise environment — check
 `mise env -C <toolbox>` by hand. A later `scaffold new relative-name` that
 lands inside the toolbox rather than in the current directory is a finding:
 nothing in `scaffold` may change directory before resolving the target.

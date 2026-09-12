@@ -34,7 +34,7 @@ teardown() {
   source "${SCAFFOLD_ROOT}/lib/manifest.sh"
   scaffold new "$PROJECT" --api nestjs --web nextjs
 
-  run collect_config_roots "$PROJECT"
+  run config_roots "$PROJECT"
   [ "${lines[0]}" = "packages/types" ]
   [ "${lines[1]}" = "apps/web" ]
   [ "${lines[2]}" = "apps/api" ]

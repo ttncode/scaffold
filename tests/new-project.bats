@@ -131,7 +131,7 @@ teardown() {
   [[ "$output" == *"refusing to overwrite"* ]]
 }
 
-# register_config_root, collect_config_roots and sync_ci_roots must agree on
+# register_config_root, config_roots and sync_ci_roots must agree on
 # formatting (two-space indent, quoted value, trailing comma) or the ci matrix
 # silently drops entries. round-trip two roots and check every stage.
 @test "register, collect and sync agree on two roots" {
@@ -142,7 +142,7 @@ teardown() {
   register_config_root "$PROJECT" "apps/api"
   register_config_root "$PROJECT" "apps/web"
 
-  run collect_config_roots "$PROJECT"
+  run config_roots "$PROJECT"
   [ "${lines[0]}" = "apps/web" ]
   [ "${lines[1]}" = "apps/api" ]
   [ "${lines[2]}" = "docs" ]
@@ -210,7 +210,7 @@ collect_roots() {
   source "${SCAFFOLD_ROOT}/lib/log.sh"
   source "${SCAFFOLD_ROOT}/lib/project.sh"
   source "${SCAFFOLD_ROOT}/lib/manifest.sh"
-  collect_config_roots "$1"
+  config_roots "$1"
 }
 
 @test "the lockfile carries download URLs, not just versions" {

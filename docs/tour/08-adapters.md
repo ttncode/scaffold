@@ -30,7 +30,7 @@ pnpm package, a Prisma schema) and write the connection variables into
 runs against an `.env.example` the adapter already shipped. `nextjs`'s
 Dockerfile ships the anchor like every other adapter's — `tests/service.bats`
 requires it on all of them — but `ADAPTER_ROLE=web` takes no driver at all,
-so `apply_adapter` calls `apply_service_setup` with an empty block, which
+so `apply_adapter` calls `apply_service_dockerfile` with an empty block, which
 removes the anchor outright rather than replacing it. A Dockerfile that
 ships the anchor unreplaced fails to build.
 
@@ -85,7 +85,7 @@ run. The quieter failure is a typo inside a field that still parses: set
 had to make, the adapter simply vanished from every CI matrix with exit 0
 — no adapters.yml job ever mentioned it again, and nothing pointed at
 `adapter.env` as the place to look. `scripts/adapter-matrix.sh`'s
-`validate_tiers` now fails loudly, by name, on exactly that case.
+`assert_known_tiers` now fails loudly, by name, on exactly that case.
 
 ## Try it
 

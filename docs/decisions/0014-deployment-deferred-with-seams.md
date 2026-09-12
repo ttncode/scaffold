@@ -139,7 +139,7 @@ constrains them:
   the placeholder this bullet used to describe, it never was: the first
   release shipped a `compose.yaml` naming an image nothing had pushed, so
   every project needed a hand-edit and a second release before
-  `install.sh` could work at all. `check_image_configured` remains as a
+  `install.sh` could work at all. `require_configured_image` remains as a
   safety net for a copy edited back to a placeholder, or carried over from
   a project generated before this changed: it greps the downloaded
   `compose.yaml`'s image line for a bare `CHANGEME` before starting the

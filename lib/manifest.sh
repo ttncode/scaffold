@@ -1,23 +1,25 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : lib/manifest.sh
+# Description : One list of config roots and image targets, derived not copied.
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck shell=bash
 #
-# What a project publishes and what CI runs over, both derived from one list
-# rather than written twice.
-#
-# `config_roots` in mise.toml is the manifest (ADR-0013): register_config_root
-# is the single place a root enters it, and sync_ci_roots copies it into the CI
-# workflow so the two cannot disagree. register_image_target does the same job
-# for the applications a project builds images from (ADR-0022).
+# `config_roots` in mise.toml is the manifest (ADR-0013): register_config_root is
+# the single place a root enters it, and sync_ci_roots copies it into the CI
+# workflow. register_image_target does the same for images (ADR-0022).
 
-# register_config_root <project> <relative-path>
+MISE_CONFIG_FILE="mise.toml"
+CI_WORKFLOW=".github/workflows/ci.yml"
+BUILD_WORKFLOWS=(".github/workflows/build.yml" ".github/workflows/release.yml")
+
 register_config_root() {
   local project="$1" root="$2"
-  local file="${project}/mise.toml"
+  local file="${project}/${MISE_CONFIG_FILE}"
 
-  # Both halves below are anchored on the exact formatting mise.root.toml
-  # ships, and both used to no-op silently when it did not match — an inline
-  # `config_roots = ["docs"]` left the roots half untouched while the checklist
-  # half succeeded, and the project shipped a CI matrix of [] that passed green
-  # while running nothing. Verified rather than assumed, on each half.
+  # Anchored on the exact formatting mise.root.toml ships, and verified: an
+  # inline `config_roots = ["docs"]` matches neither awk, and a silent no-op
+  # here ships a CI matrix of [] that passes green while running nothing.
   if ! grep -q "^  \"${root}\",\$" "$file"; then
     awk -v root="$root" '
       { print }
@@ -28,11 +30,8 @@ register_config_root() {
       || die "could not register ${root}: no 'config_roots = [' line in ${file} — has it been reformatted?"
   fi
 
-  # the root [tasks.checklist] (pre-push's own gate) must run every config
-  # root's own checklist, not just docs' — register_config_root is the one
-  # place every config root passes through, so this stays in lockstep with
-  # config_roots itself instead of being a second list a later task forgets
-  # to update.
+  # The root [tasks.checklist] must run every config root's checklist. Kept
+  # here, the one place every root passes through, not as a second list.
   if ! grep -q "\"//${root}:checklist\"" "$file"; then
     awk -v root="$root" '
       /^\[tasks\.checklist\]$/ { in_checklist = 1 }
@@ -47,32 +46,23 @@ register_config_root() {
       || die "could not add ${root} to the root checklist in ${file} — has [tasks.checklist] been reformatted?"
   fi
 }
-# collect_config_roots <project>
-collect_config_roots() {
-  sed -n '/^config_roots = \[$/,/^\]$/p' "${1}/mise.toml" \
+
+config_roots() {
+  sed -n '/^config_roots = \[$/,/^\]$/p' "${1}/${MISE_CONFIG_FILE}" \
     | sed -n 's/^  "\(.*\)",$/\1/p'
 }
-# sync_ci_roots <project> — the ci workflow's matrix input is derived from the
-# manifest so the two can never disagree.
+
 sync_ci_roots() {
   local project="$1" json
-  json="$(collect_config_roots "$project" | jq -R . | jq -sc .)"
+  json="$(config_roots "$project" | jq -R . | jq -sc .)"
   sed -i.bak "s|^      roots: .*|      roots: '${json}'|" \
-    "${project}/.github/workflows/ci.yml"
-  rm -f "${project}/.github/workflows/ci.yml.bak"
+    "${project}/${CI_WORKFLOW}"
+  rm -f "${project}/${CI_WORKFLOW}.bak"
 }
-# register_image_target <project> <rel> — add one entry to the `images` array
-# build.yml and release.yml pass to the reusable workflow (ADR-0022).
-#
-# This replaced a pair of functions that wrote one context/dockerfile pair per
-# project: every applied adapter overwrote the previous one, so a project with
-# a web and an api application published only whichever was applied last, and
-# the other passed CI and was never built at all.
-#
-# Called after the workspace decision is settled, not during it: an
-# application's build context depends on whether it resolves through the
-# shared pnpm workspace or owns its manifests, which cmd_new decides only once
-# every adapter has been applied.
+
+# register_image_target <project> <rel> — one entry in the `images` array the
+# build workflows pass on (ADR-0022). Called after the workspace decision is
+# settled, since the build context depends on it.
 register_image_target() {
   local project="$1" rel="$2"
   local name context dockerfile image file current updated
@@ -92,8 +82,8 @@ register_image_target() {
   [ -f "${project}/${dockerfile}" ] \
     || die "no Dockerfile at ${dockerfile} to build ${name} from"
 
-  for file in "${project}/.github/workflows/build.yml" \
-              "${project}/.github/workflows/release.yml"; do
+  for file in "${BUILD_WORKFLOWS[@]}"; do
+    file="${project}/${file}"
     current="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$file")"
     updated="$(jq -c --arg image "$image" --arg context "$context" \
       --arg dockerfile "$dockerfile" \

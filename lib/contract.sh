@@ -1,16 +1,12 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : lib/contract.sh
+# Description : The contract every adapter and service satisfies (ADR-0011).
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck shell=bash
-# The contract every adapter satisfies — see docs/decisions/0011.
 # shellcheck disable=SC2034 # all read by lib/lint.sh once sourced
 
 CONTRACT_TASKS=(install format format-fix lint check test build ci-unit checklist)
-
-REQUIRED_ADAPTER_FILES=(adapter.env mise.toml Dockerfile .env.example)
-
-# apply_adapter evals ADAPTER_GENERATOR, so a missing one dies mid-generation
-# with `unbound variable` instead of failing at `scaffold lint`. ADAPTER_FAMILY
-# is the same story one step later: apply_service_drivers looks up
-# drivers/${family}.sh only once generation is already underway.
-REQUIRED_ADAPTER_VARS=(ADAPTER_NAME ADAPTER_ROLE ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_LIVENESS_PATH)
 
 READ_ONLY_TASKS=(format lint check)
 
@@ -18,8 +14,13 @@ READ_ONLY_TASKS=(format lint check)
 # tool that writes by default with no flag saying so.
 WRITING_FLAGS=(--write --fix -w --in-place --overwrite)
 
-# apply_service_drivers sources these and calls both, so a service shipping
-# neither fails at generation rather than at lint.
+REQUIRED_ADAPTER_FILES=(adapter.env mise.toml Dockerfile .env.example)
+
+# Both are read mid-generation — ADAPTER_GENERATOR by apply_adapter's eval,
+# ADAPTER_FAMILY by the drivers/ lookup — so missing, they fail there with
+# `unbound variable` instead of at `scaffold lint`.
+REQUIRED_ADAPTER_VARS=(ADAPTER_NAME ADAPTER_ROLE ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_LIVENESS_PATH)
+
 REQUIRED_SERVICE_FILES=(
   service.env
   compose.fragment.yaml
@@ -31,19 +32,17 @@ REQUIRED_SERVICE_FILES=(
 
 REQUIRED_SERVICE_VARS=(SERVICE_NAME SERVICE_KIND SERVICE_IMAGE)
 
-# apply_service_drivers calls all four, so a driver shipping fewer fails at
-# generation rather than at lint. service_driver_compose_migrate is the
-# fourth: every driver implements it, including a cache's, which has no
-# schema and prints nothing.
+# Holds the parameterised driver bodies every service sources, not a service.
+SHARED_DRIVERS_DIR=shared
+
+# A cache implements compose_migrate too: it has no schema and prints nothing.
 REQUIRED_DRIVER_FUNCTIONS=(service_driver_apply service_driver_dockerfile service_driver_compose_env service_driver_compose_migrate)
 
-# The web tier is the presentation layer and opens no connection, so it takes
-# no driver — stated once, about the role, rather than as a "not applicable"
-# entry repeated in every service.
+# The web tier opens no connection, so it takes no driver. Stated once about the
+# role rather than as a "not applicable" entry in every service.
 DRIVEN_ROLES=(api app)
 
-# The --db value cmd_new picks when a project has an api or app adapter and
-# --db was not given (docs/decisions/0020). The wizard's default ordering
-# reads this too, so a plain Enter can't drift from what an omitted flag
-# would have picked.
+# What cmd_new picks when a project has a backend and --db was not given
+# (ADR-0020). The wizard's default ordering reads this too, so a plain Enter
+# cannot drift from what an omitted flag would pick.
 DEFAULT_DATABASE_SERVICE=mysql

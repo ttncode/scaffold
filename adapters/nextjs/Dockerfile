@@ -29,22 +29,16 @@ USER node
 # nothing rewrites it — an adapter listening anywhere else publishes a dead
 # port. next's standalone server.js reads PORT itself.
 ENV PORT=8080
-# Docker sets HOSTNAME to the container's own id for every container, and
-# the standalone server.js binds to `process.env.HOSTNAME || '0.0.0.0'` — so
-# without this, it listens on that id-derived address, not 0.0.0.0. Traffic
-# from outside (compose's published port) still reaches it, since that's
-# routed to the container's real interface regardless; the HEALTHCHECK below
-# runs inside the container and dials localhost, which nothing is listening
-# on, so it fails forever while the app answers everyone else. Measured with
-# `docker run`: `ss -tlnp` showed the server bound to the bridge IP, and
-# HEALTHCHECK logged "connection refused" on every attempt, until this line.
+# Docker sets HOSTNAME to the container's own id, and the standalone
+# server.js binds to `process.env.HOSTNAME || '0.0.0.0'` — so without this it
+# listens on that id-derived address. Traffic from outside still reaches it,
+# but the HEALTHCHECK below dials localhost from inside the container and
+# fails forever while the app answers everyone else.
 ENV HOSTNAME="0.0.0.0"
 EXPOSE 8080
 # 127.0.0.1, not localhost: "0.0.0.0" above is an IPv4-only bind, but this
-# image's resolver hands wget the ::1 (IPv6) address for "localhost" first,
-# and busybox wget does not fall back to the IPv4 result — measured, this
-# still failed with "connection refused" after the HOSTNAME fix alone, even
-# though the server was listening and answering every other caller.
+# image's resolver hands wget the ::1 address for "localhost" first, and
+# busybox wget does not fall back to the IPv4 result.
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget -qO- http://127.0.0.1:8080/api/health/live || exit 1
 CMD ["node", "server.js"]
