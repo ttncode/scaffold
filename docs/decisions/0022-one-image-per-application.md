@@ -96,6 +96,13 @@ than silently preferring one.
   change is additive to the inputs, and the smoke path was run against a real
   repository before the tag moved.
 
+**Update, 2026-09-12.** `scripts/deploy-check.sh` takes a list of adapters and
+covers the multi-application shape: two images built, both containers waited
+on, each curled on its own port. Until then nothing verified the thing this
+record exists for — every deploy gate ran one adapter at a time, so a project
+with two applications was checked by no gate at all. It runs weekly rather
+than per pull request; `.github/workflows/adapters.yml`'s `deploy-multi-app`.
+
 ## Alternatives considered
 
 - **One image containing every application.** Rejected: it needs a process

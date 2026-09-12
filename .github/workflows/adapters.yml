@@ -174,6 +174,25 @@ jobs:
           ADAPTER: ${{ matrix.adapter }}
         run: ./scripts/deploy-check.sh "$ADAPTER"
 
+  deploy-multi-app:
+    # The shape every other deploy job leaves untested: deploy runs one
+    # adapter at a time, so nothing proves a project with two applications
+    # actually comes up on two images (ADR-0022). Weekly rather than per
+    # pull request, like compose below — two generations plus two image
+    # builds.
+    if: ${{ github.event.schedule == '23 2 * * 1' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: corepack enable
+      - run: ./scripts/deploy-check.sh nextjs nestjs --db postgres
+
   compose:
     # expensive relative to the other checks here, so gated on the weekly
     # schedule (not the nightly tier-a-only one) or a manual run
@@ -250,8 +269,9 @@ jobs:
       ${{ always() && github.event_name == 'schedule' &&
       (needs.smoke.result == 'failure' || needs.smoke-tier-b.result == 'failure' ||
        needs.deploy.result == 'failure' || needs.deploy-tier-b.result == 'failure' ||
+       needs.deploy-multi-app.result == 'failure' ||
        needs.compose.result == 'failure' || needs.services.result == 'failure') }}
-    needs: [smoke, smoke-tier-b, deploy, deploy-tier-b, compose, services]
+    needs: [smoke, smoke-tier-b, deploy, deploy-tier-b, deploy-multi-app, compose, services]
     runs-on: ubuntu-latest
     permissions:
       issues: write
