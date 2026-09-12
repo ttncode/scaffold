@@ -51,7 +51,7 @@ retroactively when an added adapter happens to be typescript.
   asked for.** Creating `packages/types` after the fact needs the
   `packages-types` template `scaffold new` already deleted for a mixed
   project (there is nothing to `mv`), a fresh `pnpm-workspace.yaml`,
-  `sync_workspace_lockfile`, and `resolve_minimum_release_age` — most of
+  `sync_workspace_lockfile`, and `record_release_age_exceptions` — most of
   `cmd_new`'s typescript-specific machinery, run again, to retrofit a
   feature (shared types) the caller did not request. `scaffold add`'s
   contract is "install one adapter, re-sync CI" (task 8's brief); turning

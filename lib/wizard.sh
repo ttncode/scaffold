@@ -1,11 +1,97 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : lib/wizard.sh
+# Description : What the interactive wizard asks, and the command it builds.
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck shell=bash
 
+WIZARD_ACTION_PROMPT='What do you want to do?'
+WIZARD_VISIBILITY_PROMPT='Repository visibility'
+WIZARD_SHAPE_PROMPT='What are you building?'
+
+# Every question kind wizard_questions can emit, so wizard_prompt_width can
+# measure them all.
+WIZARD_QUESTION_KINDS=(web api app database cache)
+
+# ─── what the menus offer ──────────────────────────────────────────────────
+
+# wizard_actions <inside-a-project:0|1>
+# `update` and `publish` act on a project that already exists, so outside one
+# they are not offered: a refusal the user can walk into is worse than one they
+# cannot.
+wizard_actions() {
+  printf 'new\tgenerate a project\n'
+  [ "${1:-0}" = 1 ] || return 0
+  printf 'update\tbring this project up to this toolbox\n'
+  printf 'publish\tcreate its GitHub repository and apply its settings\n'
+}
+
+# wizard_visibilities — publish's one real decision. Private first, because a
+# client's project is the case this toolbox exists for.
+wizard_visibilities() {
+  printf 'private\tonly people you add can see it\n'
+  printf 'public\tanyone can see it\n'
+}
+
+# wizard_shapes — one shape per line as name<TAB>description. wizard_questions
+# accepts only what this lists, so a shape added to one and not the other fails
+# a test instead of reaching a user four screens in.
+wizard_shapes() {
+  printf 'web+api\tseparate frontend and backend, one repository\n'
+  printf 'app\tone application serving both pages and data\n'
+  printf 'api\tbackend only\n'
+  printf 'web\tfrontend only\n'
+}
+
+# wizard_questions <shape>
+# The order the answers constrain each other in. `web` asks nothing about a
+# database because `scaffold new` refuses --db without an api or app adapter.
+wizard_questions() {
+  local shape="$1"
+
+  grep -qx "$shape" <<<"$(wizard_shapes | cut -f1)" || die "unknown project shape: ${shape}"
+
+  case "$shape" in
+    web+api) printf 'web\napi\ndatabase\ncache\n' ;;
+    app) printf 'app\ndatabase\ncache\n' ;;
+    api) printf 'api\ndatabase\ncache\n' ;;
+    web) printf 'web\n' ;;
+    *) die "wizard_shapes lists ${shape} but wizard_questions has no case for it" ;;
+  esac
+}
+
+# ─── how the questions are drawn ───────────────────────────────────────────
+
+# wizard_prompt_for <kind> — the question text tui_select shows.
+wizard_prompt_for() {
+  case "$1" in
+    web) printf 'Frontend' ;;
+    api) printf 'Backend' ;;
+    app) printf 'Fullstack framework' ;;
+    database) printf 'Database' ;;
+    cache) printf 'Cache' ;;
+    *) die "unknown question kind: ${1}" ;;
+  esac
+}
+
+# wizard_prompt_width — the widest question this wizard can ask, so every answer
+# lines up in one column. Measured from the prompts, so a new kind widens the
+# column rather than overflowing a hand-counted constant.
+wizard_prompt_width() {
+  local kind text width=${#WIZARD_SHAPE_PROMPT}
+
+  (( ${#WIZARD_ACTION_PROMPT} > width )) && width=${#WIZARD_ACTION_PROMPT}
+  (( ${#WIZARD_VISIBILITY_PROMPT} > width )) && width=${#WIZARD_VISIBILITY_PROMPT}
+  for kind in "${WIZARD_QUESTION_KINDS[@]}"; do
+    text="$(wizard_prompt_for "$kind")"
+    (( ${#text} > width )) && width=${#text}
+  done
+  printf '%s' "$width"
+}
+
 # wizard_options <listing> <kind>
-# <listing> is cmd_list's tab-separated output; every option the wizard offers
-# comes from there rather than a list of its own. A second copy of what the
-# adapters and services already declare is what broke scripts/adapter-matrix.sh
-# on the previous branch — it parsed `scaffold list` while the workflow beside
-# it carried its own list.
+# <listing> is cmd_list's tab-separated output; every option comes from there
+# rather than a second copy of what the adapters and services already declare.
 wizard_options() {
   local listing="$1" kind="$2"
 
@@ -13,20 +99,18 @@ wizard_options() {
     web|api|app)
       awk -F'\t' -v role="$kind" \
         '$2 == role { printf "%s\ttier %s\n", $1, $3 }' <<< "$listing"
-      # A shape that asked for this role wants one, but the frontend of a
-      # web+api project is still optional in a way the api is not — the flags
-      # allow it, so the wizard does too.
+      # The frontend of a web+api project is optional in a way the api is not,
+      # and the flags allow it, so the wizard does too.
       #
-      # `if`, not `&&`: this is the case branch's last command, and `&&`
-      # would make the whole function return 1 whenever kind != web.
+      # `if`, not `&&`: this is the case branch's last command, and `&&` makes
+      # the whole function return 1 whenever kind != web.
       if [ "$kind" = "web" ]; then
         printf 'none\tno frontend\n'
       fi
       ;;
     database)
       # No meta column: the kind is the only thing the listing carries per
-      # service, and the question is already titled "Database" — printing it
-      # again said nothing "mysql" didn't already.
+      # service, and the question is already titled "Database".
       awk -F'\t' '$2 == "database" { printf "%s\t\n", $1 }' <<< "$listing"
       printf 'none\tno database service\n'
       ;;
@@ -38,12 +122,9 @@ wizard_options() {
   esac
 }
 
-# wizard_order_options <kind> <listing> — wizard_options' rows for <kind>,
-# with cmd_new's own unset-flag default moved first. database and cache are
-# only ever asked where cmd_new would already default them (DEFAULT_DATABASE_
-# SERVICE once there's a backend, none otherwise), so a plain Enter picks
-# what the flags would have picked unset, instead of whatever wizard_options
-# happened to list first.
+# wizard_order_options <kind> <listing> — wizard_options' rows for <kind>, with
+# cmd_new's own unset-flag default moved first, so a plain Enter picks what the
+# flags would have picked unset.
 wizard_order_options() {
   local kind="$1" listing="$2" default="" line
 
@@ -72,92 +153,7 @@ wizard_order_options() {
   return 0
 }
 
-# wizard_shapes — the project shapes the wizard's first menu offers, one per
-# line as name<TAB>description. cmd_wizard builds its menu from this, and
-# wizard_questions accepts only what it lists — the single place either side
-# reads, so a shape added to one and not the other fails a test instead of
-# reaching a user four screens in.
-# wizard_actions <inside-a-project:0|1>
-# What this wizard can do from where it was run. `update` and `publish` both
-# act on a project that already exists, so outside one they are not offered at
-# all — the same reason a `web` project is never asked about a database
-# (docs/tour/09-wizard.md): a refusal the user can walk into is worse than one
-# they cannot.
-wizard_actions() {
-  printf 'new\tgenerate a project\n'
-  [ "${1:-0}" = 1 ] || return 0
-  printf 'update\tbring this project up to this toolbox\n'
-  printf 'publish\tcreate its GitHub repository and apply its settings\n'
-}
-
-# The first question, asked before anything else is known.
-WIZARD_ACTION_PROMPT='What do you want to do?'
-
-# wizard_visibilities — publish's one real decision. Private first, because a
-# client's project is the case this toolbox exists for.
-wizard_visibilities() {
-  printf 'private\tonly people you add can see it\n'
-  printf 'public\tanyone can see it\n'
-}
-
-WIZARD_VISIBILITY_PROMPT='Repository visibility'
-
-wizard_shapes() {
-  printf 'web+api\tseparate frontend and backend, one repository\n'
-  printf 'app\tone application serving both pages and data\n'
-  printf 'api\tbackend only\n'
-  printf 'web\tfrontend only\n'
-}
-
-# wizard_questions <shape>
-# The order the answers constrain each other in. `web` asks nothing about a
-# database because `scaffold new` refuses --db without an api or app adapter,
-# and a refusal the user can walk into is worse than one they cannot.
-wizard_questions() {
-  local shape="$1"
-
-  wizard_shapes | cut -f1 | grep -qx "$shape" || die "unknown project shape: ${shape}"
-
-  case "$shape" in
-    web+api) printf 'web\napi\ndatabase\ncache\n' ;;
-    app) printf 'app\ndatabase\ncache\n' ;;
-    api) printf 'api\ndatabase\ncache\n' ;;
-    web) printf 'web\n' ;;
-    *) die "wizard_shapes lists ${shape} but wizard_questions has no case for it" ;;
-  esac
-}
-
-# The first question, asked before wizard_questions knows the shape. Named
-# rather than inlined so wizard_prompt_width can measure it with the rest.
-WIZARD_SHAPE_PROMPT='What are you building?'
-
-# wizard_prompt_width — the widest question this wizard can ask, so every
-# answer lines up in one column instead of trailing its own question's width.
-# Measured from the prompts themselves: a new kind widens the column rather
-# than overflowing a hand-counted constant.
-wizard_prompt_width() {
-  local kind text width=${#WIZARD_SHAPE_PROMPT}
-  (( ${#WIZARD_ACTION_PROMPT} > width )) && width=${#WIZARD_ACTION_PROMPT}
-  (( ${#WIZARD_VISIBILITY_PROMPT} > width )) && width=${#WIZARD_VISIBILITY_PROMPT}
-  for kind in web api app database cache; do
-    text="$(wizard_prompt_for "$kind")"
-    (( ${#text} > width )) && width=${#text}
-  done
-  printf '%s' "$width"
-}
-
-# wizard_prompt_for <kind> — the question text tui_select shows for one of
-# wizard_questions' kinds.
-wizard_prompt_for() {
-  case "$1" in
-    web) printf 'Frontend' ;;
-    api) printf 'Backend' ;;
-    app) printf 'Fullstack framework' ;;
-    database) printf 'Database' ;;
-    cache) printf 'Cache' ;;
-    *) die "unknown question kind: ${1}" ;;
-  esac
-}
+# ─── what the answers become ───────────────────────────────────────────────
 
 # wizard_new_args <kind=value>... — cmd_new's argv, one token per line.
 wizard_new_args() {
@@ -179,23 +175,6 @@ wizard_new_args() {
   done
 }
 
-# wizard_echo_command <command-line>
-# The command, with `!` in front of it: that is how this shell runs a line
-# without leaving the prompt, so the transcript shows the thing to type
-# rather than a sentence about it. The binary and its flags carry the same
-# cyan lib/usage.sh gives `-h, --help`; the values stay plain so the two
-# halves of each pair read apart.
-wizard_echo_command() {
-  local token out="${CYAN}!${RESET}"
-  for token in $1; do
-    case "$token" in
-      --*|scaffold) out+=" ${CYAN}${token}${RESET}" ;;
-      *)            out+=" ${token}" ;;
-    esac
-  done
-  printf '%b\n' "$out" >&2
-}
-
 # wizard_command <name> <kind=value>...
 # What the answers would have been typed as. Printed before the run so the
 # second project is scripted rather than clicked.
@@ -205,4 +184,19 @@ wizard_command() {
   local out="scaffold new ${name}"
   [ "${#args[@]}" -eq 0 ] || out+=" ${args[*]}"
   printf '%s\n' "$out"
+}
+
+# wizard_echo_command <command-line>
+# With `!` in front: that is how this shell runs a line without leaving the
+# prompt, so the transcript shows the thing to type. Flags carry cyan, values
+# stay plain, so the two halves of each pair read apart.
+wizard_echo_command() {
+  local token out="${CYAN}!${RESET}"
+  for token in $1; do
+    case "$token" in
+      --*|scaffold) out+=" ${CYAN}${token}${RESET}" ;;
+      *)            out+=" ${token}" ;;
+    esac
+  done
+  printf '%b\n' "$out" >&2
 }

@@ -88,7 +88,7 @@ whether it clears the immediate failure:
   no TTY-abort) and does *not* propagate through a bare `mise exec --`
   wrapper (confirmed independently; `mise exec` does not reliably forward
   ambient environment variables to the tool it launches — a fact this
-  decision had to design around, not rely on, for `resolve_minimum_release_age`
+  decision had to design around, not rely on, for `record_release_age_exceptions`
   below).
 - **`minimumReleaseAge: 0` does not ship anywhere, ever.** Lowering it
   permanently, silently, for every client project this toolbox will ever
@@ -104,7 +104,7 @@ whether it clears the immediate failure:
   and release-age both relaxed only for this one in-process resolution,
   neither persisted — to produce a single, correct, root-level lockfile
   covering every workspace member) and then by
-  `resolve_minimum_release_age`, which repeatedly runs a real, default
+  `record_release_age_exceptions`, which repeatedly runs a real, default
   frozen install (via `mise exec`, so it is checked against the exact
   pnpm version the contract tasks themselves will use — a bare `pnpm` call
   from `scaffold`'s own process resolves a different, unpinned system
@@ -135,9 +135,9 @@ whether it clears the immediate failure:
   different exclude lists for the same adapters.
 - `scaffold new` for an all-typescript project takes longer and needs the
   network more than before: `sync_workspace_lockfile` and
-  `resolve_minimum_release_age` each run at least one more real `pnpm
+  `record_release_age_exceptions` each run at least one more real `pnpm
   install` beyond what the adapters' own generators already did.
-- `resolve_minimum_release_age`'s `mise exec` calls require `mise`
+- `record_release_age_exceptions`'s `mise exec` calls require `mise`
   to be able to install the project's pinned pnpm version on demand if it
   is not already cached locally — a cost every other pnpm invocation in
   this pipeline already pays.
@@ -161,7 +161,7 @@ whether it clears the immediate failure:
   relink the existing shared `node_modules`, which pnpm treats as a purge
   and refuses non-interactively
   (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`). `cmd_add` relaxes
-  `confirmModulesPurge` the same way `resolve_minimum_release_age` relaxes
+  `confirmModulesPurge` the same way `record_release_age_exceptions` relaxes
   minimum-release-age: appended to `pnpm-workspace.yaml` immediately before
   the adapter's generator runs, never left in the file handed to the
   caller. Removal happens at **two separate sites**, not one shared
@@ -200,7 +200,7 @@ whether it clears the immediate failure:
   append-then-strip unconditionally.
 
   `cmd_add` then runs `sync_workspace_lockfile` and
-  `resolve_minimum_release_age` again itself, so a second (or third, ...)
+  `record_release_age_exceptions` again itself, so a second (or third, ...)
   app joining the workspace gets the same lockfile reconciliation and
   minimum-release-age recording the first round of apps got from
   `scaffold new`.

@@ -1,24 +1,21 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : lib/log.sh
+# Description : Terminal output: messages, step markers and quiet command runs.
+# Author      : ttncode
+# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck shell=bash
+
 log()  { printf '%s\n' "$*" >&2; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-# step <description>
-# A line before a step that takes minutes, so a captured command does not look
-# like a hang. Numbered nothing and totalled nothing: the number of steps
-# depends on the adapters requested, and a "3 of 7" that is wrong is worse
-# than no count.
+# Marks a step that takes minutes, so a captured command does not read as a
+# hang. Unnumbered: the number of steps depends on the adapters requested.
 step() { printf '→ %s\n' "$*" >&2; }
 
 # run_quietly <what-for> <command>...
-# Runs a command with its output captured, and prints that output only if it
-# fails. `scaffold new` used to hand the terminal several minutes of a package
-# manager's progress bars, through which the one line that mattered — which
-# application is being generated — never appeared at all.
-#
-# SCAFFOLD_VERBOSE=1 passes the output straight through. The failure path
-# already prints everything, so this is for a run that hangs rather than
-# fails, where there is otherwise nothing to look at.
+# Captures output and prints it only on failure; SCAFFOLD_VERBOSE=1 passes it
+# straight through, for a run that hangs rather than fails.
 run_quietly() {
   local what="$1"; shift
   local log status=0

@@ -52,7 +52,7 @@ and `tests/service.bats` fails a fragment that pins its own.
   adapter, and ADR-0014 for the seven seams a real deploy target plugs into
   later (published image, environment-only configuration, parameterised
   `IMAGE_TAG`, health checks, and more).
-- `lib/service.sh`'s `add_app_service` and `lib/project.sh`'s
+- `lib/service.sh`'s `add_app_service` and `lib/manifest.sh`'s
   `register_image_target`: one compose service and one image per application,
   named after the application's own directory (ADR-0022). Until that ADR the
   build and release workflows named one `apps/<role>` directory per project,

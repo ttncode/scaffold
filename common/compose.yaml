@@ -1,14 +1,11 @@
-# production-like stack. clients run this file; it is attached to every
-# release so the compose file and the image always match (see the scaffold
-# toolbox's ADR-0014, not shipped here). every variable below has a default
-# so this file validates in a freshly generated project, before a .env
-# exists at all — the real values live in .env, written by install.sh from
-# example.env.
+# The production-like stack clients run. Attached to every release so the
+# compose file and the image always match (ADR-0014). Every variable below has
+# a default so this file validates in a freshly generated project, before a
+# .env exists — the real values live in .env, written by install.sh.
 #
-# nothing is here yet on purpose. scaffold merges in one service per
-# application (ADR-0022) and whichever database and cache were selected at
-# generation time (ADR-0019), so a project ships exactly what it asked for
-# rather than a service nothing opens a connection to.
+# Empty on purpose: scaffold merges in one service per application (ADR-0022)
+# and whichever database and cache were selected (ADR-0019), so a project ships
+# exactly what it asked for rather than a service nothing connects to.
 name: app
 
 services: {}

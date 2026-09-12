@@ -115,7 +115,7 @@ setup() {
 }
 
 @test "scaffold names the tool it cannot find" {
-  # A PATH with no mise on it at all: hoist_toolchain has nothing to load
+  # A PATH with no mise on it at all: load_toolchain_env has nothing to load
   # from, so require_tools is the thing under test. A green suite under
   # `mise exec` proves nothing about this path.
   run env PATH=/usr/bin:/bin "${SCAFFOLD_ROOT}/scaffold" list
@@ -135,7 +135,7 @@ setup() {
 
 @test "scaffold supplies its own jq and yq when only mise is on PATH" {
   # The state a developer is actually in after `git clone` — mise installed,
-  # nothing else. hoist_toolchain reads this toolbox's own mise environment so
+  # nothing else. load_toolchain_env reads this toolbox's own mise environment so
   # the command needs no wrapper.
   local mise_bin
   mise_bin="$(command -v mise)" || skip "mise is not on PATH"
@@ -145,7 +145,7 @@ setup() {
   ln -s "$mise_bin" "${stub}/mise"
 
   # The precondition is the whole test: require_tools demands yq by name, so
-  # a successful `scaffold list` below can only mean hoist_toolchain supplied
+  # a successful `scaffold list` below can only mean load_toolchain_env supplied
   # it. jq is not asserted absent — some systems ship one, and it would make
   # this test skip on those rather than check anything.
   if env PATH="${stub}:/usr/bin:/bin" sh -c 'command -v yq' >/dev/null 2>&1; then

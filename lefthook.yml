@@ -1,6 +1,5 @@
-# The toolbox ships lefthook and gitleaks into every generated project
-# (common/lefthook.yml) and ran neither on itself, and nothing in this
-# repository's own CI scanned for secrets at all.
+# The same two hooks the toolbox ships into every generated project
+# (common/lefthook.yml), run here on itself.
 #
 # Through `mise exec --` so only mise has to be on PATH: both tools exist only
 # in this repository's mise.toml, so calling them bare fails a plain
@@ -10,11 +9,10 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      # `mise run lint`, not a staged-files glob: shellcheck's subjects here
-      # are `scaffold` and `scripts/*.sh` as much as `lib/*.sh`, and a glob
-      # that has to name an extensionless file is a second copy of the list
-      # mise.toml's lint task already discovers with `git ls-files`. It costs
-      # a third of a second over the whole repository.
+      # `mise run lint`, not a staged-files glob: a glob that has to name an
+      # extensionless file (`scaffold`) is a second copy of the list mise.toml's
+      # lint task already discovers with `git ls-files`, for a third of a second
+      # over the whole repository.
       run: mise run lint
     gitleaks:
       run: mise exec -- gitleaks protect --staged --redact --no-banner

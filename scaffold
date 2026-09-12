@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
-# scaffold — create and extend projects that follow the task contract.
+# ═══════════════════════════════════════════════════════════════════════════
+# Script      : scaffold
+# Description : Create and extend projects that follow the task contract.
+# Author      : ttncode
+#
+# Usage:
+#   scaffold                    interactive wizard (needs a terminal)
+#   scaffold new <name> [--web|--api|--app <adapter>]... [--db|--cache <service>]
+#   scaffold add <dir> --adapter <adapter>
+#   scaffold update [dir] [--dry-run]
+#   scaffold publish [dir] [--public] [--no-protect] [--dry-run]
+#   scaffold list [--adapters] [--services]
+#   scaffold lint
+#
+# Example:
+#   scaffold new demo --web nextjs --api nestjs --db postgres
+# ═══════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
@@ -31,6 +47,12 @@ source "${SCAFFOLD_ROOT}/lib/update.sh"
 # shellcheck source=lib/publish.sh
 source "${SCAFFOLD_ROOT}/lib/publish.sh"
 
+REQUIRED_TOOLS=(git mise jq yq)
+
+# The services this run selected, read by apply_adapter. One value for the whole
+# run, and apply_adapter already takes three parameters.
+SCAFFOLD_SERVICES=()
+
 usage() {
   cat <<'EOF'
 usage:
@@ -46,20 +68,16 @@ usage:
 EOF
 }
 
-# hoist_toolchain — jq and yq are pinned in this toolbox's own mise.toml, so
-# scaffold loads that environment itself rather than asking every caller to
-# wrap the command in one.
+# ─── the toolchain ─────────────────────────────────────────────────────────
+
+# jq and yq are pinned in this toolbox's own mise.toml, so scaffold loads that
+# environment itself rather than asking every caller to wrap the command in one.
 #
-# `mise env -C`, not `mise exec -C`: exec changes directory as well, and a
-# relative target then resolves against the toolbox — `scaffold new demo`
-# created the project inside the toolbox instead of where it was run. That
-# distinction used to be a paragraph in the README explaining the shell
-# function a user had to write; it is one line here instead.
-#
-# Silent and best-effort: only require_tools reports a real absence, and it
-# names the missing tool. An untrusted or unparseable config makes `mise env`
-# fail, which is that same absence one step earlier.
-hoist_toolchain() {
+# `mise env -C`, not `mise exec -C`: exec changes directory too, and a relative
+# target then resolves against the toolbox — `scaffold new demo` lands inside
+# the toolbox instead of where it was run. Silent: require_tools reports a real
+# absence, by name.
+load_toolchain_env() {
   command -v jq >/dev/null 2>&1 && command -v yq >/dev/null 2>&1 && return 0
   command -v mise >/dev/null 2>&1 || return 0
 
@@ -68,13 +86,12 @@ hoist_toolchain() {
   eval "$environment"
 }
 
-# require_tools — hoist_toolchain runs first and usually supplies jq and yq,
-# so what reaches here is a genuine absence. Fail by name, before touching
-# disk.
+# load_toolchain_env runs first and usually supplies jq and yq, so what reaches
+# here is a genuine absence. Fail by name, before touching disk.
 require_tools() {
   local tool missing=()
 
-  for tool in git mise jq yq; do
+  for tool in "${REQUIRED_TOOLS[@]}"; do
     command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
   done
 
@@ -82,9 +99,85 @@ require_tools() {
   die "missing required tool(s): ${missing[*]} — run 'mise install' in ${SCAFFOLD_ROOT}"
 }
 
+# `mise exec` walks upward for config and permanently trusts what it finds, then
+# runs any `_.source` or `{{ exec(...) }}` in that config's [env]. Generate a
+# project inside a tree you did not write and someone else's mise.toml executes,
+# with none of the asking mise exists to do. Only `mise exec` walks.
+#
+# Set once rather than threaded through the one function somebody remembered: a
+# run spawns mise from pnpm_install, record_release_age_exceptions,
+# sync_workspace_lockfile and every generator, and must cover all of them.
+confine_mise_to() {
+  MISE_CEILING_PATHS="$(dirname "$1")"
+  export MISE_CEILING_PATHS
+}
+
+# resolve_project [dir] <command> — the project a command acts on: the given
+# directory, or the git root of wherever it was run.
+resolve_project() {
+  local rel="$1" command="$2" project
+
+  if [ -n "$rel" ]; then
+    project="$(cd "$rel" 2>/dev/null && pwd)" || die "no such directory: ${rel}"
+  else
+    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+      || die "not inside a git repository: run 'scaffold ${command}' from inside a project created by 'scaffold new', or give its path"
+  fi
+
+  is_scaffold_project "$project" || die "not a scaffold project (${project})"
+  printf '%s' "$project"
+}
+
+# ─── commands ──────────────────────────────────────────────────────────────
+
+# Filled by collect_adapter_rows / collect_service_rows, which both return 1 on
+# anything malformed so `scaffold list` still prints every good row.
+LIST_ROWS=()
+
+collect_adapter_rows() {
+  local adapter name status=0
+
+  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
+    [ -d "$adapter" ] || continue
+    name="$(basename "$adapter")"
+
+    if load_adapter "$name" 2>/dev/null; then
+      # shellcheck disable=SC2153 # ADAPTER_NAME, ADAPTER_ROLE, ADAPTER_TIER are sourced from adapter.env
+      LIST_ROWS+=("$ADAPTER_NAME"$'\t'"$ADAPTER_ROLE"$'\t'"$ADAPTER_TIER")
+    else
+      LIST_ROWS+=("[error]"$'\t'"$name"$'\t'"(malformed adapter)")
+      status=1
+    fi
+
+    unset -v ADAPTER_DIR ADAPTER_NAME ADAPTER_GENERATOR "${ADAPTER_OPTIONAL_VARS[@]}"
+  done
+
+  return "$status"
+}
+
+collect_service_rows() {
+  local service name status=0
+
+  for service in "${SCAFFOLD_ROOT}"/services/*/; do
+    [ -d "$service" ] || continue
+    name="$(basename "$service")"
+    [ "$name" = "$SHARED_DRIVERS_DIR" ] && continue
+
+    if load_service "$name" >/dev/null 2>&1; then
+      LIST_ROWS+=("$SERVICE_NAME"$'\t'"$SERVICE_KIND"$'\t'"-")
+    else
+      LIST_ROWS+=("[error]"$'\t'"$name"$'\t'"(malformed service)")
+      status=1
+    fi
+
+    unset -v SERVICE_DIR SERVICE_NAME SERVICE_KIND SERVICE_IMAGE
+  done
+
+  return "$status"
+}
+
 cmd_list() {
-  local adapter service name status=0
-  local -a output
+  local status=0
   local want_adapters=0 want_services=0
 
   while [ $# -gt 0 ]; do
@@ -101,42 +194,11 @@ cmd_list() {
     want_services=1
   fi
 
-  if [ "$want_adapters" -eq 1 ]; then
-  for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    [ -d "$adapter" ] || continue
-    name="$(basename "$adapter")"
+  LIST_ROWS=()
+  [ "$want_adapters" -eq 1 ] && { collect_adapter_rows || status=1; }
+  [ "$want_services" -eq 1 ] && { collect_service_rows || status=1; }
 
-    if load_adapter "$name" 2>/dev/null; then
-      # shellcheck disable=SC2153 # ADAPTER_NAME, ADAPTER_ROLE, ADAPTER_TIER are sourced from adapter.env
-      output+=("$ADAPTER_NAME"$'\t'"$ADAPTER_ROLE"$'\t'"$ADAPTER_TIER")
-    else
-      output+=("[error]"$'\t'"$name"$'\t'"(malformed adapter)")
-      status=1
-    fi
-
-    unset ADAPTER_DIR ADAPTER_NAME ADAPTER_ROLE ADAPTER_TIER ADAPTER_FAMILY ADAPTER_GENERATOR ADAPTER_POST_GENERATE
-  done
-  fi
-
-  if [ "$want_services" -eq 1 ]; then
-  for service in "${SCAFFOLD_ROOT}"/services/*/; do
-    [ -d "$service" ] || continue
-    name="$(basename "$service")"
-    # services/shared holds the parameterised driver bodies, not a service
-    [ "$name" = shared ] && continue
-
-    if load_service "$name" >/dev/null 2>&1; then
-      output+=("$SERVICE_NAME"$'\t'"$SERVICE_KIND"$'\t'"-")
-    else
-      output+=("[error]"$'\t'"$name"$'\t'"(malformed service)")
-      status=1
-    fi
-
-    unset SERVICE_DIR SERVICE_NAME SERVICE_KIND SERVICE_IMAGE
-  done
-  fi
-
-  printf '%s\n' "${output[@]}" | sort
+  printf '%s\n' ${LIST_ROWS[@]+"${LIST_ROWS[@]}"} | sort
   return "$status"
 }
 
@@ -161,186 +223,191 @@ cmd_new_cleanup() {
   warn "removed incomplete project: ${target}"
 }
 
-cmd_new() {
-  [ $# -gt 0 ] || die "new requires a project name"
+# Set by parse_new_flags and read by the steps below, the same way tui_select
+# returns through TUI_CHOICE.
+NEW_APPS=()
+NEW_DATABASE=""
+NEW_CACHE=""
 
-  local target="$1"; shift
-  # Absolute here, once, rather than in every consumer: apply_service_drivers
-  # exports this as SCAFFOLD_PROJECT_ROOT into a driver's child process, whose
-  # cwd is the app directory, not the caller's — a relative value would
-  # resolve against the wrong place there. cmd_add gets the same guarantee
-  # for free from `git rev-parse --show-toplevel`.
-  case "$target" in
-    /*) ;;
-    *) target="$(pwd)/${target}" ;;
-  esac
-  local name; name="$(basename "$target")"
-
-  # `mise exec` walks upward for config and trusts what it finds — persistently,
-  # in ~/.local/state/mise, and it loads the file it trusts, which means running
-  # any `_.source` or `{{ exec(...) }}` in that config's [env]. Generate a
-  # project inside a tree you did not write and someone else's mise.toml is
-  # executed and permanently trusted, with none of the asking mise exists to do.
-  # `mise trust -C` and `mise lock -C` do not walk; only `mise exec` does.
-  #
-  # Set once here rather than threaded through the one function somebody
-  # remembered: this run makes mise subprocesses from pnpm_install,
-  # resolve_minimum_release_age, sync_workspace_lockfile and every adapter
-  # generator, and the guard has to cover all of them or it covers nothing.
-  MISE_CEILING_PATHS="$(dirname "$target")"
-  export MISE_CEILING_PATHS
-
-  local -a requested=()
-  local database="" cache=""
+parse_new_flags() {
+  NEW_APPS=()
+  NEW_DATABASE=""
+  NEW_CACHE=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --web|--api|--app)
         [ $# -ge 2 ] || die "${1} requires an adapter name"
-        # each role maps to one apps/<role> directory, so a repeated flag ran a
-        # second generator against a populated tree and overlaid its files on
-        # the first — two apps' work, one broken result, and no error
-        case " ${requested[*]-} " in
+        # each role maps to one apps/<role> directory, so a repeated flag runs
+        # a second generator over the first app's files, silently
+        case " ${NEW_APPS[*]-} " in
           *" ${1#--}:"*) die "${1} given more than once" ;;
         esac
-        requested+=("${1#--}:${2}")
+        NEW_APPS+=("${1#--}:${2}")
         shift 2
         ;;
-      --db|--cache)
-        [ $# -ge 2 ] || die "${1} requires a service name"
-        case "$1" in
-          --db)
-            [ -z "$database" ] || die "--db given more than once"
-            database="$2" ;;
-          --cache)
-            [ -z "$cache" ] || die "--cache given more than once"
-            cache="$2" ;;
-        esac
+      --db)
+        [ $# -ge 2 ] || die "--db requires a service name"
+        [ -z "$NEW_DATABASE" ] || die "--db given more than once"
+        NEW_DATABASE="$2"
+        shift 2
+        ;;
+      --cache)
+        [ $# -ge 2 ] || die "--cache requires a service name"
+        [ -z "$NEW_CACHE" ] || die "--cache given more than once"
+        NEW_CACHE="$2"
         shift 2
         ;;
       *) die "unknown option: ${1}" ;;
     esac
   done
+}
 
-  # A project with no api or app adapter has nothing to connect: the web tier
-  # takes no driver, so it would get a running database, a set of variables,
-  # and no way to reach either.
-  local has_backend=0 entry
-  for entry in ${requested[@]+"${requested[@]}"}; do
-    case "$entry" in
-      api:*|app:*) has_backend=1 ;;
-    esac
+project_has_backend() {
+  local entry
+  for entry in ${NEW_APPS[@]+"${NEW_APPS[@]}"}; do
+    case "$entry" in api:*|app:*) return 0 ;; esac
   done
+  return 1
+}
 
-  if [ -z "$database" ]; then
-    [ "$has_backend" -eq 1 ] && database="$DEFAULT_DATABASE_SERVICE" || database="none"
+# assert_service_connectable <flag> <kind> <service>
+# The web tier takes no driver, so a project with no api or app adapter would
+# get a running service, a set of variables, and no way to reach either.
+assert_service_connectable() {
+  local flag="$1" kind="$2" service="$3"
+
+  [ "$service" != none ] || return 0
+  project_has_backend \
+    || die "${flag} ${service} but there is no application to connect it — add --api or --app"
+  load_service "$service"
+  [ "$SERVICE_KIND" = "$kind" ] \
+    || die "${service} is a ${SERVICE_KIND}, not a ${kind}"
+}
+
+resolve_service_selection() {
+  if [ -z "$NEW_DATABASE" ]; then
+    project_has_backend && NEW_DATABASE="$DEFAULT_DATABASE_SERVICE" || NEW_DATABASE=none
   fi
-  [ -n "$cache" ] || cache="none"
+  [ -n "$NEW_CACHE" ] || NEW_CACHE=none
 
-  local -a services=()
-  if [ "$database" != none ]; then
-    [ "$has_backend" -eq 1 ] \
-      || die "--db ${database} but there is no application to connect it — add --api or --app"
-    load_service "$database"
-    [ "$SERVICE_KIND" = database ] \
-      || die "${database} is a ${SERVICE_KIND}, not a database"
-    services+=("$database")
-  fi
-  if [ "$cache" != none ]; then
-    [ "$has_backend" -eq 1 ] \
-      || die "--cache ${cache} but there is no application to connect it — add --api or --app"
-    load_service "$cache"
-    [ "$SERVICE_KIND" = cache ] \
-      || die "${cache} is a ${SERVICE_KIND}, not a cache"
-    services+=("$cache")
-  fi
+  assert_service_connectable --db database "$NEW_DATABASE"
+  assert_service_connectable --cache cache "$NEW_CACHE"
 
-  # init_project itself arms the EXIT trap right after it creates $target,
-  # so a failure inside it is covered too; nothing to install here.
-  init_project "$target" "$name"
-  init_scaffold_manifest "$target"
-
-  SCAFFOLD_SERVICES=(${services[@]+"${services[@]}"})
-  record_services "$target" "$database" "$cache"
-  assemble_compose "$target" ${services[@]+"${services[@]}"}
-  assemble_example_env "$target" ${services[@]+"${services[@]}"}
-
-  local entry flag adapter
-  if [ "${#requested[@]}" -gt 0 ]; then
-    for entry in "${requested[@]}"; do
-      flag="${entry%%:*}"
-      adapter="${entry#*:}"
-      load_adapter "$adapter"
-      [ "$ADAPTER_ROLE" = "$flag" ] \
-        || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${flag}"
-      # Before the adapter, not after: apply_adapter runs the service drivers,
-      # and a driver's compose environment is merged into this application's
-      # own service, which has to exist by then.
-      add_app_service "$target" "$(role_path "$ADAPTER_ROLE")" "$ADAPTER_ROLE"
-      apply_adapter "$adapter" "$target" "$(role_path "$ADAPTER_ROLE")"
-      record_scaffold_app "$target" "$(role_path "$ADAPTER_ROLE")" "$adapter"
-    done
-  fi
-
-  # One question, not two: a shared packages/types needs every application to
-  # be TypeScript. It used to decide whether the root pnpm-workspace.yaml
-  # survived as well — so one PHP app deleted the file carrying ADR-0017's
-  # allowBuilds, and with it the policy protecting the TypeScript app beside
-  # it. The file now stays either way.
-  local all_typescript=1
-  for entry in "${requested[@]}"; do
-    adapter_is_typescript "${entry#*:}" || all_typescript=0
+  SCAFFOLD_SERVICES=()
+  local service
+  for service in "$NEW_DATABASE" "$NEW_CACHE"; do
+    [ "$service" != none ] && SCAFFOLD_SERVICES+=("$service")
   done
+  return 0
+}
 
-  # <rel>:<adapter>, the shape both branches below want: one needs the path,
-  # the other needs to ask the adapter whether it is typescript.
+install_adapters() {
+  local target="$1"
+  local entry role adapter rel
+
+  for entry in ${NEW_APPS[@]+"${NEW_APPS[@]}"}; do
+    role="${entry%%:*}"
+    adapter="${entry#*:}"
+    load_adapter "$adapter"
+    [ "$ADAPTER_ROLE" = "$role" ] \
+      || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${role}"
+    rel="$(role_path "$ADAPTER_ROLE")"
+    # Before the adapter: apply_adapter runs the service drivers, and a
+    # driver's compose environment merges into this app's own service.
+    add_app_service "$target" "$rel" "$ADAPTER_ROLE"
+    apply_adapter "$adapter" "$target" "$rel"
+    record_scaffold_app "$target" "$rel" "$adapter"
+  done
+}
+
+# A shared packages/types needs every application to be TypeScript. The root
+# pnpm-workspace.yaml survives either way: it carries ADR-0017's allowBuilds for
+# any node install, so one PHP app must not delete the policy protecting the
+# TypeScript app beside it.
+#
+# register_image_target runs last because a build context depends on the
+# decision above: a workspace member builds from the root, an application that
+# owns its manifests from its own directory (ADR-0022).
+settle_workspace_shape() {
+  local target="$1"
+  local entry all_typescript=1
   local -a apps=()
-  for entry in ${requested[@]+"${requested[@]}"}; do
+
+  for entry in ${NEW_APPS[@]+"${NEW_APPS[@]}"}; do
+    adapter_is_typescript "${entry#*:}" || all_typescript=0
     apps+=("$(role_path "${entry%%:*}"):${entry#*:}")
   done
 
-  if [ ${#requested[@]} -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
+  if [ "${#apps[@]}" -gt 0 ] && [ "$all_typescript" -eq 1 ]; then
     join_typescript_workspace "$target" "${apps[@]}"
   else
     keep_apps_standalone "$target" ${apps[@]+"${apps[@]}"}
   fi
 
-  # Last, because a build context depends on the workspace decision both
-  # branches above have only just made: a workspace member builds from the
-  # root, an application that owns its manifests builds from its own
-  # directory (ADR-0022).
-  for entry in ${requested[@]+"${requested[@]}"}; do
-    register_image_target "$target" "$(role_path "${entry%%:*}")"
+  local pair
+  for pair in ${apps[@]+"${apps[@]}"}; do
+    register_image_target "$target" "${pair%%:*}"
   done
+}
 
-  step "locking the toolchain and committing"
-  finalize_project "$target"
-  trap - EXIT
-
+print_next_steps() {
   log ""
-  log "created ${target}"
+  log "created ${1}"
   log ""
   log "next:"
-  log "  cd ${target}"
+  log "  cd ${1}"
   log "  mise install && mise exec -- lefthook install"
   log "  scaffold publish              # create its GitHub repository"
   log "  mise run checklist            # what CI will run"
 }
 
-# cmd_add_cleanup <target> <status> <workspace-file> — same EXIT-trap
-# technique as init_project's cmd_new_cleanup (see there): a run that fails
-# partway through installing an adapter must remove exactly the path it
-# created in a project the user already owns, not leave debris behind it —
-# including the temporary confirmModulesPurge relaxation cmd_add makes below,
-# which must not survive a failure any more than it survives success.
-# this cleanup's reach is only $target and that one line — see the trap
-# comment in cmd_add for the fuller inventory of what a failure leaves
-# behind that this function does not touch.
+cmd_new() {
+  [ $# -gt 0 ] || die "new requires a project name"
+
+  local target="$1"; shift
+  # Absolute once here: apply_service_drivers exports it as
+  # SCAFFOLD_PROJECT_ROOT into a driver's child, whose cwd is the app directory.
+  case "$target" in
+    /*) ;;
+    *) target="$(pwd)/${target}" ;;
+  esac
+
+  confine_mise_to "$target"
+  parse_new_flags "$@"
+  resolve_service_selection
+
+  # init_project arms the EXIT trap right after it creates $target, so a failure
+  # inside it is covered too.
+  init_project "$target" "$(basename "$target")"
+  init_scaffold_manifest "$target"
+
+  record_services "$target" "$NEW_DATABASE" "$NEW_CACHE"
+  assemble_compose "$target" ${SCAFFOLD_SERVICES[@]+"${SCAFFOLD_SERVICES[@]}"}
+  assemble_example_env "$target" ${SCAFFOLD_SERVICES[@]+"${SCAFFOLD_SERVICES[@]}"}
+
+  install_adapters "$target"
+  settle_workspace_shape "$target"
+
+  step "locking the toolchain and committing"
+  finalize_project "$target"
+  trap - EXIT
+
+  print_next_steps "$target"
+}
+
+# cmd_add_cleanup <target> <status> <workspace-file>
+# cmd_new_cleanup plus the workspace relaxations, which must not survive a
+# failure any more than they survive success.
+#
+# Reach is partial: a failure after apply_adapter leaves the config_roots entry,
+# the merged lefthook fragment, the rewritten lockfile and the roots: line
+# behind, all naming an app that got removed. Editing files the caller already
+# owned has no general undo.
 cmd_add_cleanup() {
   local target="$1" status="$2" workspace_file="$3"
 
-  [ -f "$workspace_file" ] \
-    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' -e '/^minimumReleaseAge: 0$/d' "$workspace_file"
+  restore_pnpm_workspace "$workspace_file"
 
   [ "$status" -eq 0 ] && return 0
   [ -n "$target" ] || return 0
@@ -349,9 +416,93 @@ cmd_add_cleanup() {
   warn "removed incomplete app: ${target}"
 }
 
-# cmd_add <dir> --adapter <adapter> — install one more adapter into a
-# project `scaffold new` already created, wherever that project's git root
-# is relative to the caller's cwd.
+# add_project_root — the project `scaffold add` acts on, resolved against the
+# git root rather than the caller's cwd so it works the same three levels down
+# inside an existing app.
+add_project_root() {
+  local project
+  project="$(git rev-parse --show-toplevel 2>/dev/null)" \
+    || die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
+  is_scaffold_project "$project" \
+    || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
+  printf '%s' "$project"
+}
+
+# Read back rather than asked for: an application added in month six wires to
+# the database the project has had since month one.
+load_recorded_services() {
+  local project="$1" kind recorded
+
+  SCAFFOLD_SERVICES=()
+  for kind in database cache; do
+    recorded="$(project_service "$project" "$kind")"
+    [ -n "$recorded" ] && SCAFFOLD_SERVICES+=("$recorded")
+  done
+  return 0
+}
+
+# joins_shared_workspace <project> <adapter> — true when this adapter will
+# resolve through the project's shared pnpm workspace.
+#
+# Keyed on a real shared workspace, not merely on the file existing: a
+# mixed-language project keeps a settings-only pnpm-workspace.yaml with no
+# `packages:`, and the reconcile branch's sync_workspace_lockfile would delete
+# every per-app lockfile and rebuild a root one covering no app.
+joins_shared_workspace() {
+  local workspace_file="${1}/${WORKSPACE_FILE}"
+
+  [ -f "$workspace_file" ] \
+    && [ "$(yq -r '.packages // "absent"' "$workspace_file")" != "absent" ] \
+    && adapter_is_typescript "$2"
+}
+
+reconcile_shared_workspace() {
+  # The new app's own generator already installed straight into the shared root
+  # lockfile; this catches anything it didn't, and records any new
+  # minimum-release-age violations the same way `scaffold new` does.
+  sync_workspace_lockfile "$1"
+  record_release_age_exceptions "$1"
+}
+
+# reconcile_standalone_app <project> <rel> <adapter>
+# `scaffold new` drops the root workspace file when nothing TypeScript is
+# requested, so adding the project's first TypeScript app brings ADR-0017's
+# build policy into scope with no file to hold it — pnpm then refuses the
+# install outright (ERR_PNPM_IGNORED_BUILDS). Restored without the packages
+# list: there is still no shared workspace here.
+reconcile_standalone_app() {
+  local project="$1" rel="$2" adapter="$3"
+  local workspace_file="${project}/${WORKSPACE_FILE}"
+
+  if adapter_is_typescript "$adapter" && [ ! -f "$workspace_file" ]; then
+    yq '{"allowBuilds": .allowBuilds}' \
+      "${SCAFFOLD_ROOT}/common/${WORKSPACE_FILE}" > "$workspace_file"
+  fi
+
+  # Install from the app, record in the root: the app is where pnpm resolves its
+  # dependencies, and the root workspace file is what pnpm reads when it walks up
+  # from there. Running both halves at the root found no violation, because the
+  # root package.json names none of the app's dependencies.
+  record_release_age_exceptions "${project}/${rel}" "$project"
+}
+
+# Only the new app is staged. Edits to files the caller already owned —
+# mise.toml, ci.yml, lefthook.yml, the lockfile — stay unstaged so `git diff`
+# shows them before they enter anyone's history. A failed `git add` is retriable
+# by hand, so it is reported, not fatal.
+stage_new_app() {
+  local project="$1" rel="$2" adapter="$3"
+
+  if git -C "$project" add -A -- "$rel"; then
+    log "added ${rel} using ${adapter}; review and commit"
+  else
+    warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
+  fi
+}
+
+# cmd_add <dir> --adapter <adapter> — install one more adapter into a project
+# `scaffold new` already created, wherever that project's git root is relative
+# to the caller's cwd.
 cmd_add() {
   [ $# -ge 3 ] || die "usage: scaffold add <dir> --adapter <adapter>"
 
@@ -371,141 +522,46 @@ cmd_add() {
 
   [ -n "$adapter" ] || die "--adapter is required"
 
-  # rel is always resolved against the project's git root, not the caller's
-  # cwd, so this works the same from the root or three levels down inside
-  # an existing app.
-  local project
-  project="$(git rev-parse --show-toplevel 2>/dev/null)" \
-    || die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
-
-  # mise.toml alone is not proof of a scaffold project — a repo can carry
-  # its own, unrelated mise.toml. monorepo_root is the marker init_project
-  # writes and nothing else has a reason to, but that detail means nothing
-  # to a user — the message stays in their terms and says what to do next,
-  # like its sibling above.
-  is_scaffold_project "$project" \
-    || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
-
-  # Same reason as cmd_new's: every mise subprocess this run makes would
-  # otherwise walk above the project and permanently trust — and execute —
-  # whatever mise.toml it found there.
-  MISE_CEILING_PATHS="$(dirname "$project")"
-  export MISE_CEILING_PATHS
-
-  # Read back rather than asked for: an application added in month six is
-  # wired to the database the project has had since month one, and a second
-  # answer to a question already settled is a way for the two to disagree.
-  local kind recorded
-  SCAFFOLD_SERVICES=()
-  for kind in database cache; do
-    recorded="$(project_service "$project" "$kind")"
-    [ -n "$recorded" ] && SCAFFOLD_SERVICES+=("$recorded")
-  done
+  local project; project="$(add_project_root)"
+  confine_mise_to "$project"
+  load_recorded_services "$project"
 
   local dest="${project}/${rel}"
   [ -e "$dest" ] && die "path already exists: ${rel}"
 
-  # Loaded here rather than left to apply_adapter's own call: add_app_service
-  # below needs the role to decide whether this application waits on the
-  # database, and apply_adapter sets ADAPTER_ROLE too late for that.
+  # Before apply_adapter's own call: add_app_service below needs the role to
+  # decide whether this application waits on the database.
   load_adapter "$adapter"
 
-  # Linking a second member into an installed workspace makes pnpm purge and
-  # relink the shared node_modules, which it refuses without a TTY
-  # (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). Relaxed for this call only —
-  # stripped at two sites, both required. See docs/decisions/0017.
-  # Keyed on a real shared workspace, not merely on the file existing: a
-  # mixed-language project keeps a settings-only pnpm-workspace.yaml with no
-  # `packages:`. Treating that as a workspace sent this down the reconcile
-  # branch, whose sync_workspace_lockfile deletes every per-app lockfile at
-  # depth 3 and rebuilds a root one covering no app — destroying a lockfile
-  # the caller already had, with no undo.
-  local workspace_file="${project}/pnpm-workspace.yaml"
-  local reconcile=""
-  if [ -f "$workspace_file" ] \
-    && [ "$(yq -r '.packages // "absent"' "$workspace_file")" != "absent" ] \
-    && adapter_is_typescript "$adapter"; then
-    reconcile="$workspace_file"
-  fi
+  local reconcile=0
+  joins_shared_workspace "$project" "$adapter" && reconcile=1
 
-  # Armed only after the guard above proves $dest is absent — earlier would
-  # risk rm -rf on a path the caller already had. Values are baked in with
-  # printf %q because the locals are gone by the time the trap fires.
-  #
-  # Reach is partial: $dest and the workspace relaxations, nothing else. A
-  # failure after apply_adapter leaves the config_roots entry, the merged
-  # lefthook fragment, the rewritten lockfile and the roots: line behind,
-  # all pointing at an app that got removed. Editing files the caller
-  # already owned has no general undo.
-  # shellcheck disable=SC2064 # $dest/$reconcile expanding now is intentional; $? is escaped and still deferred
-  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "${workspace_file}")" EXIT
+  # Armed only once the guard above proves $dest is absent, or this is rm -rf on
+  # a path the caller already had. Values baked in with printf %q, because the
+  # locals are gone by the time the trap fires.
+  local workspace_file="${project}/${WORKSPACE_FILE}"
+  # shellcheck disable=SC2064 # $dest/$workspace_file expanding now is intentional; $? is escaped and still deferred
+  trap "cmd_add_cleanup $(printf '%q' "$dest") \"\$?\" $(printf '%q' "$workspace_file")" EXIT
 
-  # frozenLockfile alongside it, and for the same reason: the generator's own
-  # `pnpm install` sees 28 dependencies in the new app's package.json that the
-  # workspace lockfile has never heard of, and refuses under a frozen lockfile
-  # ("specifiers in the lockfile don't match specifiers in package.json"). It
-  # goes in the workspace file rather than the environment because the generator
-  # spawns pnpm through several processes and npm_config_* does not survive the
-  # trip — that was tried, and only the runner disagreed.
-  # Whenever the file exists, not only when a shared workspace does: the
-  # generator writes into the root lockfile either way, so a mixed-language
-  # project hit the same frozen-lockfile refusal — but only on a runner, where
-  # CI=true turns it on. Stripped again below on the success path, and by
-  # cmd_add_cleanup on a failure.
-  # minimumReleaseAge alongside them: the generator verifies the lockfile it is
-  # about to extend, and a dependency published in the last day fails that check
-  # before scaffold gets a chance to record it. resolve_minimum_release_age
-  # below re-runs the policy at full strength and writes the exact entries.
-  [ -f "$workspace_file" ] \
-    && printf 'confirmModulesPurge: false\nfrozenLockfile: false\nminimumReleaseAge: 0\n' >> "$workspace_file"
+  relax_pnpm_workspace "$workspace_file"
 
-  # Before the adapter, for the same reason as cmd_new's: a service driver's
-  # compose environment is merged into this application's own service, which
-  # has to exist by then. load_adapter above has already resolved the role.
+  # Before the adapter, for the same reason as cmd_new's: a driver's compose
+  # environment merges into this application's own service.
   add_app_service "$project" "$rel" "$ADAPTER_ROLE"
-
   apply_adapter "$adapter" "$project" "$rel"
 
-  # apply_adapter lands both Dockerfile and Dockerfile.workspace for an
-  # adapter that ships one, same as cmd_new. This reads whether rel already
-  # falls inside pnpm-workspace.yaml's packages: globs — it does not
-  # recompute whether the project is all-typescript (docs/decisions/0018);
-  # that decision, and the workspace's own glob, are already settled by the
-  # time `scaffold add` runs.
+  # Reads whether rel already falls inside the workspace file's packages: globs.
+  # It does not recompute whether the project is all-typescript (ADR-0018).
   finalize_app_dockerfile "$project" "$rel"
 
-  # Both branches, and explicitly: the success path disarms the cleanup trap
-  # below, so relying on it left these two lines in the caller's file forever
-  # whenever there was no shared workspace to take the other branch.
-  [ -f "$workspace_file" ] \
-    && sed -i -e '/^confirmModulesPurge: false$/d' -e '/^frozenLockfile: false$/d' -e '/^minimumReleaseAge: 0$/d' "$workspace_file"
+  # On the success path too: it disarms the cleanup trap below, so leaving this
+  # to the trap keeps the relaxations in the caller's file forever.
+  restore_pnpm_workspace "$workspace_file"
 
-  if [ -n "$reconcile" ]; then
-    # the new app's own generator already installed straight into the
-    # shared root lockfile (see sync_workspace_lockfile's own comment on
-    # why not every adapter's generator can be trusted to do that cleanly);
-    # this catches anything it didn't and records any new
-    # minimum-release-age violations the same way scaffold new does for
-    # the workspace's first round of apps.
-    sync_workspace_lockfile "$project"
-    resolve_minimum_release_age "$project"
+  if [ "$reconcile" -eq 1 ]; then
+    reconcile_shared_workspace "$project"
   else
-    # Adding a TypeScript app to a project that had none turns it into a
-    # project with one, so ADR-0017's build policy applies now where it did
-    # not before — `scaffold new` drops the root pnpm-workspace.yaml when
-    # nothing TypeScript is requested. Without it pnpm refuses the install
-    # outright (ERR_PNPM_IGNORED_BUILDS), so restore the settings, without the
-    # packages list: there is still no shared workspace here.
-    if adapter_is_typescript "$adapter" && [ ! -f "$workspace_file" ]; then
-      yq '{"allowBuilds": .allowBuilds}' \
-        "${SCAFFOLD_ROOT}/common/pnpm-workspace.yaml" > "$workspace_file"
-    fi
-
-    # Install from the app, record in the root: the app is where pnpm resolves
-    # its dependencies, and the root workspace file is what pnpm reads when it
-    # walks up from there. Running both halves at the root found no violation,
-    # because the root package.json names none of the app's dependencies.
-    resolve_minimum_release_age "${project}/${rel}" "$project"
+    reconcile_standalone_app "$project" "$rel" "$adapter"
   fi
 
   sync_ci_roots "$project"
@@ -515,61 +571,14 @@ cmd_add() {
   record_scaffold_app "$project" "$rel" "$adapter"
   trap - EXIT
 
-  # packages/types and the all-typescript pnpm workspace are decided once,
-  # at `scaffold new` time, from every adapter requested then (see
-  # docs/decisions/0018-add-does-not-recompute-the-typescript-workspace.md).
-  # cmd_add leaves that decision alone: recomputing it here could delete a
-  # package an already-installed app depends on, or replay most of cmd_new's
-  # typescript-workspace pipeline for a case nobody asked for.
-
-  # Only the new app is staged. Edits to files the caller already owned —
-  # mise.toml, ci.yml, lefthook.yml, the lockfile — stay unstaged so `git diff`
-  # shows them before they enter anyone's history.
-  #
-  # Outside the cleanup net on purpose: everything above is expensive work that
-  # is already correct, and cleanup could only remove $dest anyway. A failed
-  # `git add` is retriable by hand, so it is reported, not fatal.
-  if git -C "$project" add -A -- "$rel"; then
-    log "added ${rel} using ${adapter}; review and commit"
-  else
-    warn "added ${rel} using ${adapter}, but staging failed: the app was generated and the configuration was updated, run 'git add' yourself to stage it"
-  fi
+  stage_new_app "$project" "$rel" "$adapter"
 }
 
-# cmd_update [dir] [--dry-run] — bring a project up to this toolbox.
-#
-# Applies with `git apply --reject`, not `--3way`. Measured: the blobs a
-# three-way merge needs belong to this toolbox's object database, not the
-# project's, so git falls back to a direct apply — and a direct apply is
-# atomic, so one diverged file would discard every other file's changes.
-# `--reject` is per hunk: what fits lands, what does not is written beside it
-# as a .rej file naming exactly what a human still has to place.
-cmd_update() {
-  local rel="" dry_run=0
+# update_source_commit <project> — the toolbox commit this project was
+# generated from, refused when there is nothing to diff against.
+update_source_commit() {
+  local project="$1" from
 
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --dry-run) dry_run=1; shift ;;
-      -*) die "unknown option: ${1}" ;;
-      *)
-        [ -z "$rel" ] || die "update takes at most one directory"
-        rel="$1"; shift ;;
-    esac
-  done
-
-  local project
-  if [ -n "$rel" ]; then
-    project="$(cd "$rel" 2>/dev/null && pwd)" \
-      || die "no such directory: ${rel}"
-  else
-    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
-      || die "not inside a git repository: run 'scaffold update' from inside a project created by 'scaffold new', or give its path"
-  fi
-
-  is_scaffold_project "$project" \
-    || die "not a scaffold project (${project})"
-
-  local from
   from="$(manifest_version "$project")" || die "$(printf '%s\n' \
     "no ${SCAFFOLD_MANIFEST} in ${project}, so there is nothing to update from." \
     "" \
@@ -589,6 +598,46 @@ cmd_update() {
   git -C "$SCAFFOLD_ROOT" rev-parse --verify --quiet "${from}^{commit}" >/dev/null \
     || die "this toolbox has no commit ${from} — the checkout that generated ${project} is not this one, or its history was rewritten"
 
+  printf '%s' "$from"
+}
+
+# Recorded even when hunks were rejected: the diff has been delivered, and what
+# is left is a human's to place. Re-running from the old version would offer
+# every hunk that already landed a second time.
+record_update_version() {
+  local project="$1"
+
+  sed -i.bak "s|^version = .*|version = \"$(scaffold_version)\"|" \
+    "${project}/${SCAFFOLD_MANIFEST}"
+  rm -f "${project}/${SCAFFOLD_MANIFEST}.bak"
+}
+
+report_rejected_hunks() {
+  local project="$1"
+  local -a rejected=()
+
+  mapfile -t rejected < <(cd "$project" && git ls-files --others --exclude-standard -- '*.rej')
+  [ "${#rejected[@]}" -gt 0 ] || return 0
+
+  warn "$(printf '%s\n' "${#rejected[@]} file(s) could not be applied in full:" "${rejected[@]/#/  }" \
+    "each .rej holds the hunks that did not fit — place them by hand, then delete it")"
+}
+
+cmd_update() {
+  local rel="" dry_run=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run) dry_run=1; shift ;;
+      -*) die "unknown option: ${1}" ;;
+      *)
+        [ -z "$rel" ] || die "update takes at most one directory"
+        rel="$1"; shift ;;
+    esac
+  done
+
+  local project; project="$(resolve_project "$rel" update)"
+  local from; from="$(update_source_commit "$project")"
   SCAFFOLD_UPDATE_FROM="$from"
 
   local patch; patch="$(mktemp)"
@@ -606,8 +655,8 @@ cmd_update() {
     return 0
   fi
 
-  # A dirty tree would make the result unreadable: `git diff` after this is
-  # the only review anyone gets, and it has to show this run's changes alone.
+  # A dirty tree would make the result unreadable: `git diff` after this is the
+  # only review anyone gets, and it has to show this run's changes alone.
   [ -z "$(git -C "$project" status --porcelain)" ] \
     || { rm -f "$patch"; die "${project} has uncommitted changes — commit or stash them first, so 'git diff' afterwards shows only what this brought in"; }
 
@@ -615,33 +664,62 @@ cmd_update() {
   git -C "$project" apply --reject --whitespace=nowarn "$patch" || status=$?
   rm -f "$patch"
 
-  resync_derived "$project"
-
-  # Recorded even when hunks were rejected: the diff has been delivered, and
-  # what is left is a human's to place. Re-running from the old version would
-  # offer every hunk that already landed a second time.
-  sed -i.bak "s|^version = .*|version = \"$(scaffold_version)\"|" \
-    "${project}/${SCAFFOLD_MANIFEST}"
-  rm -f "${project}/${SCAFFOLD_MANIFEST}.bak"
-
-  local -a rejected=()
-  mapfile -t rejected < <(cd "$project" && git ls-files --others --exclude-standard -- '*.rej')
+  resync_derived_files "$project"
+  record_update_version "$project"
 
   log "updated ${project} from ${from} to $(scaffold_version)"
-  if [ "${#rejected[@]}" -gt 0 ]; then
-    warn "$(printf '%s\n' "${#rejected[@]} file(s) could not be applied in full:" "${rejected[@]/#/  }" \
-      "each .rej holds the hunks that did not fit — place them by hand, then delete it")"
-  fi
+  report_rejected_hunks "$project"
   log "review with 'git -C ${project} diff' before committing"
   return "$status"
 }
 
+# apply_repo_settings <slug> <protect:0|1>
+# A setting this account's plan does not allow is a warning, not a failure:
+# refusing here would make the whole command unusable for exactly the accounts
+# that most need the steps before it.
+apply_repo_settings() {
+  local slug="$1" protect="$2" status=0
+
+  allow_actions_to_open_pull_requests "$slug"
+  log "Actions may open pull requests (Release Please needs this)"
+
+  enable_secret_scanning "$slug" || status=$?
+  case "$status" in
+    0) log "secret scanning and push protection are on" ;;
+    "$PUBLISH_UNSUPPORTED") warn "no secret scanning: it needs Advanced Security on a private repository. The CI scan still runs on every push" ;;
+    *) die "could not enable secret scanning on ${slug}" ;;
+  esac
+
+  [ "$protect" -eq 1 ] && protect_main_branch "$slug"
+
+  if set_release_secrets "$slug"; then
+    log "set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
+  else
+    warn "no RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY in the environment — Release Please will open its pull request as GITHUB_TOKEN, whose checks sit at 'Action required' and then expire red. Merging it still releases."
+  fi
+  return 0
+}
+
+protect_main_branch() {
+  local slug="$1" status=0
+
+  if main_is_protected "$slug"; then
+    log "main already has a ruleset — left alone"
+    return 0
+  fi
+
+  protect_main "$slug" || status=$?
+  case "$status" in
+    0) log "protected main: pull request required, no force-push, no deletion" ;;
+    "$PUBLISH_UNSUPPORTED") warn "main is unprotected: this account's plan does not allow rulesets on a private repository. Make it public, or upgrade, then run this again — ADR-0004 counts branch protection as one of four guardrails, and it is the only one that is not a file" ;;
+    *) die "could not protect main on ${slug}" ;;
+  esac
+}
+
 # cmd_publish [dir] [--public] [--no-protect] [--dry-run]
 #
-# Idempotent: every step checks whether it has already been done, so running
-# this against a repository that exists only fills in the settings. That
-# matters more than it sounds — the settings are the half people forget, and
-# nothing in the project's files says whether they were applied.
+# Idempotent: against a repository that exists it only fills in the settings —
+# the half people forget, and the half nothing in the project's files records.
 cmd_publish() {
   local rel="" visibility=private protect=1 dry_run=0
 
@@ -663,70 +741,15 @@ cmd_publish() {
   gh auth status >/dev/null 2>&1 \
     || die "not signed in to GitHub: run 'gh auth login'"
 
-  local project
-  if [ -n "$rel" ]; then
-    project="$(cd "$rel" 2>/dev/null && pwd)" || die "no such directory: ${rel}"
-  else
-    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
-      || die "not inside a git repository: run 'scaffold publish' from inside a project created by 'scaffold new', or give its path"
-  fi
-
-  is_scaffold_project "$project" \
-    || die "not a scaffold project (${project})"
+  local project; project="$(resolve_project "$rel" publish)"
 
   local slug; slug="$(repo_slug "$project")"
   local exists=0; gh_repo_exists "$slug" && exists=1
 
-  # Only while the repository is about to be created: `gh repo create --push`
-  # pushes the checked-out branch and makes it the default, so publishing from
-  # a feature branch leaves the project with no main and a default nobody
-  # wants. Once the repository exists this command touches no branch at all.
-  if [ "$exists" -eq 0 ]; then
-    local branch; branch="$(git -C "$project" rev-parse --abbrev-ref HEAD)"
-    [ "$branch" = main ] \
-      || die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
-    [ -z "$(git -C "$project" status --porcelain)" ] \
-      || die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
-
-    # An origin pointing somewhere else, while ${slug} does not exist, means
-    # this project is already pushing to a repository that is not the one it
-    # names. Creating a second one beside it is the confusion this command
-    # exists to prevent, and `gh repo create --remote origin` fails on it
-    # anyway — with "Unable to add remote", which says nothing about why.
-    local origin=""
-    if origin="$(git -C "$project" remote get-url origin 2>/dev/null)"; then
-      die "$(printf '%s\n' \
-        "${project} already pushes to ${origin}, but it names ${slug}." \
-        "Publishing would create a second repository beside the one it is already using." \
-        "Point the project at the repository it has ([vars] image in mise.toml, and" \
-        "the same pair in compose.yaml, install.sh and the build workflows), or drop" \
-        "the remote with 'git -C ${project} remote remove origin'.")"
-    fi
-  fi
+  [ "$exists" -eq 1 ] || assert_repo_creatable "$project" "$slug"
 
   if [ "$dry_run" -eq 1 ]; then
-    if [ "$exists" -eq 1 ]; then
-      log "would leave ${slug} alone: it already exists"
-    else
-      log "would create ${slug} (${visibility}) and push main"
-    fi
-
-    log "would allow Actions to open pull requests on ${slug}"
-    log "would enable secret scanning and push protection"
-
-    if [ "$protect" -eq 1 ]; then
-      if main_is_protected "$slug"; then
-        log "would leave main's protection alone: a ruleset named main already exists"
-      else
-        log "would protect main on ${slug}: pull request required, no force-push, no deletion"
-      fi
-    fi
-
-    if [ -n "${RELEASE_APP_ID:-}" ] && [ -n "${RELEASE_APP_PRIVATE_KEY:-}" ]; then
-      log "would set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
-    else
-      log "would skip the release app secrets: they are not in the environment"
-    fi
+    print_publish_plan "$slug" "$visibility" "$exists" "$protect"
     return 0
   fi
 
@@ -737,49 +760,75 @@ cmd_publish() {
     log "created ${slug} (${visibility}) and pushed main"
   fi
 
-  allow_actions_to_open_pull_requests "$slug"
-  log "Actions may open pull requests (Release Please needs this)"
-
-  local scanning=0
-  enable_secret_scanning "$slug" || scanning=$?
-  case "$scanning" in
-    0) log "secret scanning and push protection are on" ;;
-    2) warn "no secret scanning: it needs Advanced Security on a private repository. The CI scan still runs on every push" ;;
-    *) die "could not enable secret scanning on ${slug}" ;;
-  esac
-
-  if [ "$protect" -eq 1 ]; then
-    if main_is_protected "$slug"; then
-      log "main already has a ruleset — left alone"
-    else
-      local protect_status=0
-      protect_main "$slug" || protect_status=$?
-      case "$protect_status" in
-        0) log "protected main: pull request required, no force-push, no deletion" ;;
-        2) warn "main is unprotected: this account's plan does not allow rulesets on a private repository. Make it public, or upgrade, then run this again — ADR-0004 counts branch protection as one of four guardrails, and it is the only one that is not a file" ;;
-        *) die "could not protect main on ${slug}" ;;
-      esac
-    fi
-  fi
-
-  if set_release_secrets "$slug"; then
-    log "set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
-  else
-    warn "no RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY in the environment — Release Please will open its pull request as GITHUB_TOKEN, whose checks sit at 'Action required' and then expire red. Merging it still releases."
-  fi
+  apply_repo_settings "$slug" "$protect"
 
   log "https://github.com/${slug}"
 }
 
-# _wizard_select_or_cancel <prompt> <option>... — tui_select, with
-# Esc mapped onto the same exit tui_begin already gives Ctrl-C. §9 of the
-# design rules out back navigation; re-run is the only way out either way.
+# `gh repo create --push` pushes the checked-out branch and makes it the
+# default, so publishing from a feature branch leaves the project with no main.
+assert_repo_creatable() {
+  local project="$1" slug="$2"
+
+  local branch; branch="$(git -C "$project" rev-parse --abbrev-ref HEAD)"
+  [ "$branch" = main ] \
+    || die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
+  [ -z "$(git -C "$project" status --porcelain)" ] \
+    || die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
+
+  # An origin pointing somewhere else, while ${slug} does not exist, means this
+  # project is already pushing to a repository that is not the one it names.
+  # Creating a second one beside it is the confusion this command exists to
+  # prevent, and `gh repo create --remote origin` fails on it anyway — with
+  # "Unable to add remote", which says nothing about why.
+  local origin=""
+  if origin="$(git -C "$project" remote get-url origin 2>/dev/null)"; then
+    die "$(printf '%s\n' \
+      "${project} already pushes to ${origin}, but it names ${slug}." \
+      "Publishing would create a second repository beside the one it is already using." \
+      "Point the project at the repository it has ([vars] image in mise.toml, and" \
+      "the same pair in compose.yaml, install.sh and the build workflows), or drop" \
+      "the remote with 'git -C ${project} remote remove origin'.")"
+  fi
+}
+
+print_publish_plan() {
+  local slug="$1" visibility="$2" exists="$3" protect="$4"
+
+  if [ "$exists" -eq 1 ]; then
+    log "would leave ${slug} alone: it already exists"
+  else
+    log "would create ${slug} (${visibility}) and push main"
+  fi
+
+  log "would allow Actions to open pull requests on ${slug}"
+  log "would enable secret scanning and push protection"
+
+  if [ "$protect" -eq 1 ]; then
+    if main_is_protected "$slug"; then
+      log "would leave main's protection alone: a ruleset named main already exists"
+    else
+      log "would protect main on ${slug}: pull request required, no force-push, no deletion"
+    fi
+  fi
+
+  if [ -n "${RELEASE_APP_ID:-}" ] && [ -n "${RELEASE_APP_PRIVATE_KEY:-}" ]; then
+    log "would set RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY"
+  else
+    log "would skip the release app secrets: they are not in the environment"
+  fi
+}
+
+# ─── the wizard ────────────────────────────────────────────────────────────
+
+# _wizard_select_or_cancel <prompt> <option>... — tui_select, with Esc mapped
+# onto the same exit tui_begin gives Ctrl-C. No back navigation by design (§9).
 _wizard_select_or_cancel() {
   tui_select "$@" || exit 130
 }
 
-# _wizard_confirm <prompt> — the same y/N gate cmd_wizard ends on. `y`, not
-# Enter: everything below this line changes something that already exists.
+# _wizard_confirm <prompt> — `y`, not Enter: everything below this line changes
+# something that already exists.
 _wizard_confirm() {
   printf '%b' "${BOLD}${1} [y/N] ${RESET}" >&2
   local reply=""
@@ -787,7 +836,6 @@ _wizard_confirm() {
   case "$reply" in y|Y) return 0 ;; *) return 1 ;; esac
 }
 
-# _wizard_update <project>
 _wizard_update() {
   tui_end
   log ""
@@ -798,7 +846,6 @@ _wizard_update() {
   cmd_update "$1"
 }
 
-# _wizard_publish <project>
 _wizard_publish() {
   local -a options
   mapfile -t options < <(wizard_visibilities)
@@ -814,21 +861,41 @@ _wizard_publish() {
   cmd_publish "$1" "--${visibility}"
 }
 
-# cmd_wizard — name, shape, then one to four more screens depending on the
-# shape, from wizard_questions(shape). Ends on a summary and a confirm;
-# SCAFFOLD_WIZARD_DRY_RUN=1 stops it just before cmd_new would run, which is
-# what lets tests/wizard.bats drive the real screens through a pty without
-# generating anything.
+# ask_shape_questions <shape> <listing> — one screen per kind the shape asks
+# about, leaving `kind=value` in WIZARD_ANSWERS.
+#
+# `for` over an array, because a `while read <<< ...` shares fd0 with
+# tui_select's terminal reads: a keystroke meant for the screen would eat a byte
+# of the remaining question list.
+WIZARD_ANSWERS=()
+
+ask_shape_questions() {
+  local shape="$1" listing="$2" kind
+  local -a kinds options
+
+  WIZARD_ANSWERS=()
+  mapfile -t kinds <<< "$(wizard_questions "$shape")"
+  for kind in "${kinds[@]}"; do
+    mapfile -t options < <(wizard_order_options "$kind" "$listing")
+    _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "${options[@]}"
+    WIZARD_ANSWERS+=("${kind}=${TUI_CHOICE}")
+  done
+}
+
+# cmd_wizard — name, shape, then one to four more screens from
+# wizard_questions(shape), ending on a summary and a confirm.
+# SCAFFOLD_WIZARD_DRY_RUN=1 stops just before cmd_new, which lets
+# tests/wizard.bats drive the real screens through a pty.
 cmd_wizard() {
   tui_begin
 
-  # Read by tui_select to pad every question to one answer column. Set before
-  # the first screen, not after the name prompt, now that a screen comes first.
+  # Read by tui_select to pad every question to one answer column. Before the
+  # first screen, which is now the action menu, not the name prompt.
   # shellcheck disable=SC2034 # read by lib/tui.sh, not by this file
   TUI_ANSWER_COLUMN="$(wizard_prompt_width)"
 
-  # update and publish act on a project that already exists, so they are
-  # offered only from inside one.
+  # update and publish act on a project that already exists, so they are offered
+  # only from inside one.
   local here=""
   here="$(git rev-parse --show-toplevel 2>/dev/null)" || here=""
   [ -n "$here" ] && is_scaffold_project "$here" || here=""
@@ -836,8 +903,7 @@ cmd_wizard() {
   local action=new
   local -a action_options
   mapfile -t action_options < <(wizard_actions "$([ -n "$here" ] && printf 1 || printf 0)")
-  # Only when there is a choice: a menu with one answer asks nothing and
-  # costs a keystroke.
+  # A menu with one answer asks nothing and costs a keystroke.
   if [ "${#action_options[@]}" -gt 1 ]; then
     _wizard_select_or_cancel "$WIZARD_ACTION_PROMPT" "${action_options[@]}"
     action="$TUI_CHOICE"
@@ -856,62 +922,39 @@ cmd_wizard() {
   _wizard_select_or_cancel "$WIZARD_SHAPE_PROMPT" "${shape_options[@]}"
   local shape="$TUI_CHOICE"
 
-  local -a answers=()
-  local -a kinds
-  mapfile -t kinds <<< "$(wizard_questions "$shape")"
-  local kind
-  for kind in "${kinds[@]}"; do
-    # A `while read <<< ...` here would share fd0 with tui_select's own
-    # terminal reads below it: a keystroke meant for the screen would consume
-    # a byte of the remaining question list instead. `for` over an array
-    # never touches fd0.
-    local -a options
-    mapfile -t options < <(wizard_order_options "$kind" "$listing")
-    _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "${options[@]}"
-    answers+=("${kind}=${TUI_CHOICE}")
-  done
+  ask_shape_questions "$shape" "$listing"
 
   tui_end
 
-  # Each question already collapsed into its own "✔ question  answer" line
-  # above, so restating them here would just say it all a second time — only
-  # the command line is new information.
+  # Each question already collapsed into its own "✔ question  answer" line, so
+  # only the command line is new information.
   log ""
-  wizard_echo_command "$(wizard_command "$name" "${answers[@]}")"
-
+  wizard_echo_command "$(wizard_command "$name" "${WIZARD_ANSWERS[@]}")"
   log ""
 
   _wizard_confirm "Generate this project?" || return 0
-
-  if [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ]; then
-    return 0
-  fi
+  [ "${SCAFFOLD_WIZARD_DRY_RUN:-0}" = 1 ] && return 0
 
   local -a new_args
-  mapfile -t new_args < <(wizard_new_args "${answers[@]}")
+  mapfile -t new_args < <(wizard_new_args "${WIZARD_ANSWERS[@]}")
   cmd_new "$name" "${new_args[@]}"
 }
 
-# The services this run selected, read by apply_adapter. A global rather than
-# another apply_adapter parameter: it is one value for the whole run, and
-# apply_adapter already takes three.
-SCAFFOLD_SERVICES=()
+# ─── entry point ───────────────────────────────────────────────────────────
 
 main() {
-  # Answered before the toolchain is checked, not through the case below: the
-  # moment this question gets asked is usually the moment something is wrong
-  # with the install, and "which version is this" must not itself fail with
+  # Before the toolchain is checked: this question is usually asked because
+  # something is wrong with the install, so it must not itself fail with
   # "missing required tool(s): yq".
   case "${1:-}" in
     -v|--version) scaffold_version; printf '\n'; return ;;
   esac
 
-  hoist_toolchain
+  load_toolchain_env
   require_tools
 
-  # A terminal, and only a terminal: scaffold runs in scripts, in CI and in
-  # this repository's own tests, and a bare call that opened a menu there
-  # would hang all of them as a timeout rather than fail as an error.
+  # A terminal, and only a terminal: a bare call that opened a menu in a script,
+  # in CI or in this repository's tests would hang as a timeout, not fail.
   if [ $# -eq 0 ]; then
     [ -t 0 ] || { usage >&2; exit 1; }
     cmd_wizard

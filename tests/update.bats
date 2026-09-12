@@ -203,7 +203,7 @@ EOF
   : > "${project}/apps/api/Dockerfile"
   _commit "$project" "an application"
 
-  resync_derived "$project"
+  resync_derived_files "$project"
 
   run yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
     "${project}/.github/workflows/build.yml"
