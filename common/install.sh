@@ -220,12 +220,25 @@ start_stack() {
 # the one deploy mechanism that exists today. A project with no database
 # ships no migrate service, and `--profile` on a service that is not there
 # is not an error.
+# compose_has_service <service> [--profile <name>]
+# Captured, never piped into `grep -q`: grep closes the pipe on its first match,
+# `docker compose` then dies of SIGPIPE, and `set -o pipefail` reports the whole
+# pipeline as failed. Measured at roughly one run in seven — a stack that
+# refused to migrate, at random, with a message about a service that was there.
+compose_has_service() {
+  local service="$1"; shift
+  local services
+
+  services="$(docker compose "$@" config --services)" || return 1
+  grep -qx "$service" <<<"$services"
+}
+
 run_migrations() {
   # `docker compose config --services` (no --profile) never lists a service
   # gated behind a profile, so that guard alone always skipped the migration
   # silently — measured: plain `config --services` prints only `app`, and
   # `--profile migrate config --services` prints `migrate app`.
-  if docker compose --profile migrate config --services | grep -qx migrate; then
+  if compose_has_service migrate --profile migrate; then
     echo "running migrations..."
     docker compose --profile migrate run --rm migrate
     return
@@ -236,7 +249,7 @@ run_migrations() {
   # itself silently vanished. Returning 0 here is exactly the hole that let
   # a stack go green with unapplied schema; a project with no database at
   # all is the only case this falls through to.
-  if docker compose config --services | grep -qx database; then
+  if compose_has_service database; then
     echo "a database service exists but no migrate service was found — refusing to start with unapplied schema" >&2
     return 1
   fi

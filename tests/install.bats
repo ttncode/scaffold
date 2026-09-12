@@ -181,3 +181,34 @@ INNER_EOF
   [[ "$output" == *"read:packages"* ]]
   [[ "$output" != *"if this project is private"* ]]
 }
+
+@test "run_migrations survives a compose that is still writing when the match is found" {
+  # `docker compose ... | grep -qx migrate` reads correctly and fails about one
+  # run in seven: grep closes the pipe on its first match, compose dies of
+  # SIGPIPE, and install.sh's own `set -o pipefail` reports the pipeline as
+  # failed — so the stack refused to migrate, at random, naming a service that
+  # was there. The stub keeps writing past the match to make that deterministic.
+  mkdir -p stub6
+  cat > stub6/docker <<'INNER_EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *"config --services"*)
+    printf 'database\nmigrate\napi\n'
+    # more than one pipe buffer past the match, so a reader that closes early
+    # leaves this write to fail
+    head -c 200000 /dev/zero | tr '\0' 'x'
+    ;;
+  *) printf 'ran: %s\n' "$*" >> "${DOCKER_LOG}" ;;
+esac
+INNER_EOF
+  chmod +x stub6/docker
+
+  DOCKER_LOG="${PWD}/d6.log" PATH="${PWD}/stub6:${PATH}" run run_migrations
+  assert_ok
+  [[ "$output" == *"running migrations"* ]]
+
+  [ -f d6.log ] \
+    || { echo "the docker stub never ran the migration"; false; }
+  run cat d6.log
+  [[ "$output" == *"run --rm migrate"* ]]
+}
