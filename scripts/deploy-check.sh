@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy-check.sh <adapter> [--db <service>]
+# deploy-check.sh <adapter>... [--db <service>]
 # Proves a generated project's released stack serves HTTP and reaches its
 # database. Everything before this validated YAML; nothing started a
 # container — see docs/superpowers/plans/2026-09-06-deployable-stack.md.
@@ -22,9 +22,7 @@ source "${ROOT}/lib/adapter.sh"
 # shellcheck source=lib/service.sh
 source "${ROOT}/lib/service.sh"
 
-[ $# -ge 1 ] || die "usage: deploy-check.sh <adapter> [--db <service>]"
-
-ADAPTER="$1"; shift
+ADAPTERS=()
 DB_SERVICE=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -33,9 +31,11 @@ while [ $# -gt 0 ]; do
       DB_SERVICE="$2"
       shift 2
       ;;
-    *) die "unknown option: ${1}" ;;
+    -*) die "unknown option: ${1}" ;;
+    *) ADAPTERS+=("$1"); shift ;;
   esac
 done
+[ "${#ADAPTERS[@]}" -ge 1 ] || die "usage: deploy-check.sh <adapter>... [--db <service>]"
 
 # load_adapter is the same reader `scaffold new` itself uses — reading the
 # two paths any other way risks a second copy that drifts from the adapter's
@@ -43,36 +43,44 @@ done
 # nothing served.
 SCAFFOLD_ROOT="$ROOT"
 export SCAFFOLD_ROOT
-load_adapter "$ADAPTER" || die "unknown adapter: ${ADAPTER}"
 
-ROLE="$ADAPTER_ROLE"
+APPS=()
+declare -A ADAPTER_OF ROLE_OF LIVENESS_OF READINESS_OF TAG_OF
 
-# lib/lint.sh only checks the line is present, not that it names a route —
-# an empty path would otherwise probe "/", which nextjs happens to answer
-# 200 for reasons that have nothing to do with the adapter's real liveness.
-[ -n "$ADAPTER_LIVENESS_PATH" ] || die "${ADAPTER} declares an empty ADAPTER_LIVENESS_PATH"
-LIVENESS_PATH="$ADAPTER_LIVENESS_PATH"
+for adapter in "${ADAPTERS[@]}"; do
+  load_adapter "$adapter" || die "unknown adapter: ${adapter}"
+  app="$(app_service_key "$(role_path "$ADAPTER_ROLE")")"
 
-# `${ADAPTER_READINESS_PATH:-}` alone can't tell "not declared" (skip, and
-# say so) from "declared empty" (a malformed adapter.env — lint only greps
-# for the line's presence, not a non-empty value): both collapse to "". The
-# `+x` test keeps them apart.
-if [ -n "${ADAPTER_READINESS_PATH+x}" ]; then
-  [ -n "$ADAPTER_READINESS_PATH" ] || die "${ADAPTER} declares an empty ADAPTER_READINESS_PATH"
-  READINESS_PATH="$ADAPTER_READINESS_PATH"
-else
-  READINESS_PATH=""
-fi
+  # lib/lint.sh only checks the line is present, not that it names a route —
+  # an empty path would otherwise probe "/", which nextjs happens to answer
+  # 200 for reasons that have nothing to do with the adapter's real liveness.
+  [ -n "$ADAPTER_LIVENESS_PATH" ] || die "${adapter} declares an empty ADAPTER_LIVENESS_PATH"
 
-# A driven adapter still declares a readiness path with --db none: the route
-# ships unconditionally and correctly reports 503 (nothing to connect to),
-# but a gate that curls it expecting 200 would fail a combination the spec
-# says is fine. Skipped the same way a non-driven role's absent path is.
-[ "$DB_SERVICE" = none ] && READINESS_PATH=""
+  # `${ADAPTER_READINESS_PATH:-}` alone can't tell "not declared" (skip, and
+  # say so) from "declared empty" (a malformed adapter.env — lint only greps
+  # for the line's presence, not a non-empty value): both collapse to "". The
+  # `+x` test keeps them apart.
+  readiness=""
+  if [ -n "${ADAPTER_READINESS_PATH+x}" ]; then
+    [ -n "$ADAPTER_READINESS_PATH" ] || die "${adapter} declares an empty ADAPTER_READINESS_PATH"
+    readiness="$ADAPTER_READINESS_PATH"
+  fi
+  # A driven adapter still declares a readiness path with --db none: the route
+  # ships unconditionally and correctly reports 503 (nothing to connect to),
+  # but a gate that curls it expecting 200 would fail a combination the spec
+  # says is fine. Skipped the same way a non-driven role's absent path is.
+  [ "$DB_SERVICE" = none ] && readiness=""
+
+  APPS+=("$app")
+  ADAPTER_OF["$app"]="$adapter"
+  ROLE_OF["$app"]="$ADAPTER_ROLE"
+  LIVENESS_OF["$app"]="$ADAPTER_LIVENESS_PATH"
+  READINESS_OF["$app"]="$readiness"
+  TAG_OF["$app"]="deploy-check/${app}:local"
+done
 
 TMP_DIR="$(mktemp -d)"
 PROJECT_DIR="${TMP_DIR}/demo"
-IMAGE_TAG="deploy-check/${ADAPTER}:local"
 
 # `scaffold new` needs an account and a trust store that a runner has
 # neither of on its own — tests/helpers/setup.bash hands bats both for
@@ -101,7 +109,7 @@ fi
 # Every generated project's compose.yaml is `name: app` (common/compose.yaml)
 # — without this, a local run reconciles against, and `down -v`s, any real
 # "app" project already running on this machine, database volumes included.
-COMPOSE_PROJECT_NAME="deploy-check-${ADAPTER}"
+COMPOSE_PROJECT_NAME="deploy-check-$(IFS=-; printf '%s' "${APPS[*]}")"
 export COMPOSE_PROJECT_NAME
 
 # A trap, not a trailing cleanup line: every die() below is a plain `exit 1`,
@@ -115,64 +123,72 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-log "generating ${ADAPTER} into ${PROJECT_DIR}..."
-new_args=("$PROJECT_DIR" "--${ROLE}" "$ADAPTER")
+log "generating ${ADAPTERS[*]} into ${PROJECT_DIR}..."
+new_args=("$PROJECT_DIR")
+for app in "${APPS[@]}"; do
+  new_args+=("--${ROLE_OF[$app]}" "${ADAPTER_OF[$app]}")
+done
 [ -n "$DB_SERVICE" ] && new_args+=(--db "$DB_SERVICE")
-"${ROOT}/scaffold" new "${new_args[@]}" || die "scaffold new failed for ${ADAPTER}"
+"${ROOT}/scaffold" new "${new_args[@]}" || die "scaffold new failed for ${ADAPTERS[*]}"
 
 BUILD_YML="${PROJECT_DIR}/.github/workflows/build.yml"
 [ -f "$BUILD_YML" ] || die "generated project has no .github/workflows/build.yml"
-# One target, because this gate generates a project with exactly one adapter.
-# Read out of the `images` array all the same (ADR-0022), and asserted to hold
-# exactly one entry: a second would mean this script silently checked half of
-# what it built.
+
+# One entry per application (ADR-0022). Asserted against the applications this
+# run asked for: a target this gate does not build would come up on whatever a
+# registry publishes, and a missing one is an application that was generated
+# and never deployed — the defect ADR-0022 exists to have removed.
 IMAGES="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$BUILD_YML")"
-[ "$(jq 'length' <<<"$IMAGES")" = 1 ] \
-  || die "expected exactly one build target in ${BUILD_YML}, got: ${IMAGES}"
-CONTEXT="$(jq -r '.[0].context' <<<"$IMAGES")"
-DOCKERFILE="$(jq -r '.[0].dockerfile' <<<"$IMAGES")"
-[ -n "$CONTEXT" ] && [ "$CONTEXT" != "null" ] || die "could not read build context from ${BUILD_YML}"
-[ -n "$DOCKERFILE" ] && [ "$DOCKERFILE" != "null" ] || die "could not read dockerfile path from ${BUILD_YML}"
+[ "$(jq 'length' <<<"$IMAGES")" = "${#APPS[@]}" ] \
+  || die "expected ${#APPS[@]} build target(s) in ${BUILD_YML}, got: ${IMAGES}"
 
-# The compose service and the port variable are both named after the
-# application's own directory, which for a single-adapter project is its role.
-APP_SERVICE="$(app_service_key "$(dirname "$DOCKERFILE")")"
+while IFS=$'\t' read -r context dockerfile; do
+  app="$(app_service_key "$(dirname "$dockerfile")")"
+  [ -n "${TAG_OF[$app]:-}" ] || die "${BUILD_YML} builds ${app}, which this run did not ask for"
+  log "building ${TAG_OF[$app]} from ${dockerfile} (context: ${context})..."
+  docker build -f "${PROJECT_DIR}/${dockerfile}" -t "${TAG_OF[$app]}" "${PROJECT_DIR}/${context}" \
+    || die "docker build failed for ${ADAPTER_OF[$app]} (${dockerfile})"
+done < <(jq -r '.[] | [.context, .dockerfile] | @tsv' <<<"$IMAGES")
 
-log "building ${IMAGE_TAG} from ${DOCKERFILE} (context: ${CONTEXT})..."
-docker build -f "${PROJECT_DIR}/${DOCKERFILE}" -t "$IMAGE_TAG" "${PROJECT_DIR}/${CONTEXT}" \
-  || die "docker build failed for ${ADAPTER} (${DOCKERFILE})"
-
-# compose.yaml's application and migrate services both carry this project's own
-# ghcr.io path, written at generation time (see common/compose.yaml) — every
-# reference to it becomes the image just built, so the stack that comes up
-# next is the one that just passed this check, not whatever a registry
-# happens to publish.
+# Every ghcr.io reference becomes the image just built for that service, so
+# the stack that comes up is the one that just passed this check rather than
+# whatever a registry happens to publish. Per service now, not one tag for the
+# whole file: a project publishes one image per application (ADR-0022).
 #
-# Matched on the ghcr.io prefix rather than on the owner or project name:
-# those vary per run, while every service a fragment contributes pins
-# docker.io/library/... by digest, so the prefix selects exactly the images
-# this script built and nothing else.
-export IMAGE_TAG
-yq --inplace \
-  '(.services[] | select(.image | test("^ghcr\.io/")) | .image) = strenv(IMAGE_TAG)' \
-  "${PROJECT_DIR}/compose.yaml" || die "could not rewrite compose.yaml's image"
+# migrate is the exception — it has no application of its own and runs a driven
+# application's image, so it follows whichever one it was pointed at.
+MIGRATE_APP=""
+for app in "${APPS[@]}"; do
+  [ "${ROLE_OF[$app]}" = web ] && continue
+  MIGRATE_APP="$app"
+  break
+done
 
-# Asserting equality with the tag just built, not just "the rewrite ran": if
-# the selector above ever stops matching — a registry other than ghcr.io, a
-# renamed service — it matches nothing, yq still exits 0, and the stack would
-# come up on a *pulled* image while the one just built is discarded: a green
-# run proving nothing. This assertion is what makes that impossible, and it
-# already caught the change that moved compose.yaml off its CHANGEME
-# placeholder.
+for app in "${APPS[@]}"; do
+  TAG="${TAG_OF[$app]}" yq --inplace ".services.\"${app}\".image = strenv(TAG)" \
+    "${PROJECT_DIR}/compose.yaml" || die "could not rewrite ${app}'s image"
+done
+if [ -n "$MIGRATE_APP" ] && yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1; then
+  TAG="${TAG_OF[$MIGRATE_APP]}" yq --inplace '.services.migrate.image = strenv(TAG)' \
+    "${PROJECT_DIR}/compose.yaml" || die "could not rewrite migrate's image"
+fi
+
+# Asserting equality with the tag just built, not just "the rewrite ran": if a
+# path above ever stops matching, yq still exits 0 and the stack comes up on a
+# *pulled* image while the one just built is discarded — a green run proving
+# nothing. This already caught the change that moved compose.yaml off its
+# CHANGEME placeholder.
 assert_image_is_built_tag() {
-  local service="$1" actual
+  local service="$1" want="$2" actual
   actual="$(yq ".services.\"${service}\".image" "${PROJECT_DIR}/compose.yaml")"
-  [ "$actual" = "$IMAGE_TAG" ] \
-    || die "compose.yaml's ${service} image is ${actual}, not the image just built (${IMAGE_TAG})"
+  [ "$actual" = "$want" ] \
+    || die "compose.yaml's ${service} image is ${actual}, not the image just built (${want})"
 }
-assert_image_is_built_tag "$APP_SERVICE"
-yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1 \
-  && assert_image_is_built_tag migrate
+for app in "${APPS[@]}"; do
+  assert_image_is_built_tag "$app" "${TAG_OF[$app]}"
+done
+[ -n "$MIGRATE_APP" ] && yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1 \
+  && assert_image_is_built_tag migrate "${TAG_OF[$MIGRATE_APP]}"
 
 # common/install.sh's own generate_service_passwords, not a second copy of
 # the substitution: a gate that leaves every password at the literal
@@ -183,32 +199,36 @@ cp "${PROJECT_DIR}/example.env" "${PROJECT_DIR}/.env"
 # shellcheck source=/dev/null # path is this toolbox's own common/install.sh
 source "${ROOT}/common/install.sh"
 generate_service_passwords "${PROJECT_DIR}/.env" \
-  || die "could not generate service passwords for ${ADAPTER}"
+  || die "could not generate service passwords for ${ADAPTERS[*]}"
 
 cd "$PROJECT_DIR"
 
 log "starting the stack..."
-docker compose up -d || die "docker compose up failed for ${ADAPTER}"
+docker compose up -d || die "docker compose up failed for ${ADAPTERS[*]}"
 
-log "waiting for the ${APP_SERVICE} container to become healthy (up to ${HEALTH_TIMEOUT_SECONDS}s)..."
-health=""
-elapsed=0
-while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
-  # `docker inspect` on the container itself, not `docker compose ps
-  # --format json`: that format's shape is compose-version-dependent — a
-  # version emitting an array instead of one object per line makes `jq -r
-  # '.Health'` error, which the `|| true` this needs anyway would swallow
-  # into a false "unknown", producing a full 120s red on an actually-healthy
-  # stack. `docker inspect` on one container id has one shape.
-  health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q "$APP_SERVICE")" 2>/dev/null || true)"
-  [ "$health" = "healthy" ] && break
-  [ "$health" = "unhealthy" ] \
-    && die "${APP_SERVICE} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_PATH} is failing (see: docker compose logs ${APP_SERVICE})"
-  sleep "$HEALTH_POLL_INTERVAL_SECONDS"
-  elapsed=$((elapsed + HEALTH_POLL_INTERVAL_SECONDS))
+wait_until_healthy() {
+  local service="$1" health="" elapsed=0
+  log "waiting for the ${service} container to become healthy (up to ${HEALTH_TIMEOUT_SECONDS}s)..."
+  while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
+    # `docker inspect` on the container itself, not `docker compose ps
+    # --format json`: that format's shape is compose-version-dependent — a
+    # version emitting an array instead of one object per line makes `jq -r
+    # '.Health'` error, which the `|| true` this needs anyway would swallow
+    # into a false "unknown", producing a full 120s red on an actually-healthy
+    # stack. `docker inspect` on one container id has one shape.
+    health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q "$service")" 2>/dev/null || true)"
+    [ "$health" = "healthy" ] && return 0
+    [ "$health" = "unhealthy" ] \
+      && die "${service} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_OF[$service]} is failing (see: docker compose logs ${service})"
+    sleep "$HEALTH_POLL_INTERVAL_SECONDS"
+    elapsed=$((elapsed + HEALTH_POLL_INTERVAL_SECONDS))
+  done
+  die "${service} container did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s (last status: ${health:-unknown})"
+}
+
+for app in "${APPS[@]}"; do
+  wait_until_healthy "$app"
 done
-[ "$health" = "healthy" ] \
-  || die "${APP_SERVICE} container did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s (last status: ${health:-unknown})"
 
 # The readiness probe is `select 1` — it proves connectivity, not schema, and
 # returns 200 against an empty database. Asserting the migration's own exit
@@ -218,18 +238,18 @@ done
 # install.sh's own run_migrations runs the migration now (see
 # docs/decisions/0021-the-released-stack-must-run.md's 2026-09-07 note) — it
 # decides whether a migrate service should exist by grepping compose.yaml
-# for a "database" service, the same artifact this gate just built. ROLE and
-# DB_SERVICE are known here before the project was even generated, so this
+# for a "database" service, the same artifact this gate just built. The roles
+# and DB_SERVICE are known here before the project was even generated, so this
 # still asserts a migrate service independently of what compose.yaml says
 # now exists: a driver that drops the database and migrate services
 # together would satisfy install.sh's check and slip past unnoticed without
 # this.
-if [ "$ROLE" != "web" ] && [ "$DB_SERVICE" != "none" ]; then
+if [ -n "$MIGRATE_APP" ] && [ "$DB_SERVICE" != "none" ]; then
   docker compose --profile migrate config --services 2>/dev/null | grep -qx migrate \
-    || die "expected a migrate service for ${ADAPTER} (role=${ROLE}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
+    || die "expected a migrate service for ${ADAPTER_OF[$MIGRATE_APP]} (role=${ROLE_OF[$MIGRATE_APP]}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
 fi
 
-run_migrations || die "could not run migrations for ${ADAPTER}; check the output above"
+run_migrations || die "could not run migrations for ${ADAPTERS[*]}; check the output above"
 
 # Named after the application's own directory, the same way its compose
 # service is (ADR-0022): WEB_PORT for apps/web, API_PORT for apps/api.
@@ -237,28 +257,33 @@ run_migrations || die "could not run migrations for ${ADAPTER}; check the output
 # `|| true`: under pipefail, a .env with no such line makes grep exit 1 and,
 # unguarded, that kills the script here — silently, before the `${PORT:-8080}`
 # fallback below ever gets a chance to run.
-PORT_VARIABLE="$(app_port_variable "$APP_SERVICE")"
-PORT="$(grep "^${PORT_VARIABLE}=" .env | cut -d= -f2 || true)"
-PORT="${PORT:-8080}"
-BASE_URL="http://localhost:${PORT}"
-
 check_path() {
-  local label="$1" path="$2" code
-  code="$(curl -sS -o /dev/null -w '%{http_code}' "${BASE_URL}${path}")" \
-    || die "${label} check failed: could not reach ${BASE_URL}${path}"
-  [ "$code" = "200" ] \
-    || die "${label} check failed: ${BASE_URL}${path} returned ${code}, not 200"
-  log "${label} (${path}): ${code}"
+  local label="$1" url="$2" code
+  code="$(curl -sS -o /dev/null -w '%{http_code}' "$url")" \
+    || die "${label} check failed: could not reach ${url}"
+  [ "$code" = "200" ] || die "${label} check failed: ${url} returned ${code}, not 200"
+  log "${label} (${url}): ${code}"
 }
 
-check_path liveness "$LIVENESS_PATH"
+for app in "${APPS[@]}"; do
+  # Named after the application's own directory, the same way its compose
+  # service is (ADR-0022): WEB_PORT for apps/web, API_PORT for apps/api.
+  #
+  # `|| true`: under pipefail, a .env with no such line makes grep exit 1 and,
+  # unguarded, that kills the script here — silently, before the fallback
+  # below ever gets a chance to run.
+  port="$(grep "^$(app_port_variable "$app")=" .env | cut -d= -f2 || true)"
+  base="http://localhost:${port:-8080}"
 
-if [ -n "$READINESS_PATH" ]; then
-  check_path readiness "$READINESS_PATH"
-elif [ "$DB_SERVICE" = none ]; then
-  log "--db none — skipping readiness check"
-else
-  log "${ADAPTER} declares no readiness path — skipping readiness check"
-fi
+  check_path "${app} liveness" "${base}${LIVENESS_OF[$app]}"
 
-log "${ADAPTER} stack serves HTTP and reaches its database"
+  if [ -n "${READINESS_OF[$app]}" ]; then
+    check_path "${app} readiness" "${base}${READINESS_OF[$app]}"
+  elif [ "$DB_SERVICE" = none ]; then
+    log "${app}: --db none — skipping readiness check"
+  else
+    log "${app}: ${ADAPTER_OF[$app]} declares no readiness path — skipping readiness check"
+  fi
+done
+
+log "${ADAPTERS[*]} stack serves HTTP and reaches its database"

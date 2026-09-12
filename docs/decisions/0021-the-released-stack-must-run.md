@@ -209,11 +209,12 @@ actually ran the image.
   worth restating because gate 2 looks like it covers a project when it
   covers one image.
 
-  *Superseded 2026-09-11 by ADR-0022.* A project now publishes one image per
-  application and runs one compose service per application. The gate
-  (`scripts/deploy-check.sh`) still generates a single-adapter project and so
-  still tests one image — it asserts that, rather than assuming it — so the
-  caveat about what gate 2 covers survives the change that removed its cause.
+  *Superseded 2026-09-11 by ADR-0022, and fully retired 2026-09-12.* A project
+  publishes one image per application and runs one compose service per
+  application; `scripts/deploy-check.sh` now takes more than one adapter,
+  builds every target the project publishes, waits for each container, and
+  curls each application on its own port. Gate 2 covers a project again, not
+  one image.
 - **A readiness route is application code a client may delete.** Nothing
   detects that later. The gate tests generated projects, not a client's
   repository six months on.
