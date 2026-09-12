@@ -12,8 +12,8 @@
 #   ./scripts/deploy-check.sh nextjs nestjs --db postgres
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# Everything before this gate validated YAML; nothing started a container — see
-# docs/superpowers/plans/2026-09-06-deployable-stack.md.
+# Everything before this gate validated YAML; nothing started a container
+# (ADR-0021).
 
 set -euo pipefail
 

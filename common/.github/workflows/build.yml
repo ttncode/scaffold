@@ -8,18 +8,15 @@ concurrency:
 permissions: {}
 jobs:
   build:
-    # a called workflow cannot request more than its caller was granted, and
-    # the workflow-level `permissions: {}` above grants nothing — so this is
-    # the union of what app-build's own jobs ask for, and no more.
+    # no more than app-build's own jobs ask for; the workflow-level
+    # `permissions: {}` above grants nothing to inherit.
     permissions:
       contents: read
       packages: write
-    # `@v1` is a moving tag on purpose (ADR-0005): one fix reaches every
-    # project at once. It is also a write channel into this repository's CI
-    # that outlives the engagement — ADR-0005 states that cost in full.
+    # `@v1` moves on purpose: one fix reaches every project, and that same
+    # channel outlives the engagement (ADR-0005).
     uses: you/.github/.github/workflows/app-build.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     with:
-      # One entry per application, written by scaffold as each one is
-      # generated (ADR-0022): {image, context, dockerfile}. A project with no
-      # application publishes nothing, and this job does not run.
+      # {image, context, dockerfile} per application, written by scaffold as
+      # each is generated (ADR-0022). Empty means nothing to publish.
       images: "[]"

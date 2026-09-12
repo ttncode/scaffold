@@ -2,11 +2,14 @@
 .DS_Store
 *.swp
 
-# Neither belongs to the toolbox: a node_modules here is a stray pnpm run,
-# and tmp/ is where a probe or a hand-run script lands. Both have been
-# committed by a wide `git add -A` before — tmp/ carried a whole generated
-# Nest project for a week.
+# A node_modules anywhere here is a stray pnpm run, and tmp/ is where a probe
+# or a hand-run script lands. Both have been committed by a wide `git add -A`
+# before — tmp/ carried a whole generated Nest project for a week.
 node_modules/
 tmp/
-package.json
-pnpm-lock.yaml
+
+# Rooted, not bare: four files under common/ carry these names and ship into
+# every generated project. Unanchored, the rule matched those too, so a new
+# template beside them would be dropped by `git add -A` without a word.
+/package.json
+/pnpm-lock.yaml

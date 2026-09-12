@@ -6,12 +6,10 @@ on:
 permissions: {}
 jobs:
   docs:
-    # a called workflow cannot request more than its caller was granted, and
-    # the workflow-level `permissions: {}` above grants nothing — so this is
-    # the union of what app-docs's own jobs ask for, and no more.
+    # no more than app-docs's own jobs ask for; the workflow-level
+    # `permissions: {}` above grants nothing to inherit.
     permissions:
       contents: read
-    # `@v1` is a moving tag on purpose (ADR-0005): one fix reaches every
-    # project at once. It is also a write channel into this repository's CI
-    # that outlives the engagement — ADR-0005 states that cost in full.
+    # `@v1` moves on purpose: one fix reaches every project, and that same
+    # channel outlives the engagement (ADR-0005).
     uses: you/.github/.github/workflows/app-docs.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
