@@ -44,9 +44,9 @@ Excluded, and why:
   file-by-file origin and licence — which is what a reader who finds the
   directory will actually look at. `docs/public/logo.png` comes from the same
   repository and the same `NOTICE` covers it.
-- **`docs/decisions/`, `docs/superpowers/`** (this repository's own, at the
-  root — not `common/docs/decisions/`, which ships and is covered below).
-  These are this project's planning record, not files copied from upstream.
+- **`docs/decisions/`, `docs/superpowers/specs/`** (this repository's own, at
+  the root — not `common/docs/decisions/`, which ships and is covered below).
+  These are this project's own record, not files copied from upstream.
 - **`lib/*.sh`, `scaffold`, `scripts/*.sh`, `tests/*.bats`, `mise.toml`,
   `mise.lock`, `lefthook.yml`, `.github/workflows/*.yml`** (this repository's
   own CI and hooks, not `common/.github/workflows/` or `common/lefthook.yml`,

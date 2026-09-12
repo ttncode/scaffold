@@ -46,8 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # one full generation per test; new-nextjs/new-nestjs/new-laravel-api.bats
-    # run 5-6 tests each — bounded well under the ~25 minutes tier b costs.
+    # one full generation per test, 5-6 tests per adapter
     timeout-minutes: 15
     strategy:
       # a broken adapter must not hide the state of the others
@@ -145,10 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # same per-adapter cost as deploy (generation + image build + container
-    # start) — tier b's timeout is longer than tier a's elsewhere in this
-    # file because those jobs run more tests per adapter, not because this
-    # one does.
+    # same per-adapter cost as deploy: generation, image build, container start
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -175,11 +171,9 @@ jobs:
         run: ./scripts/deploy-check.sh "$ADAPTER"
 
   deploy-multi-app:
-    # The shape every other deploy job leaves untested: deploy runs one
-    # adapter at a time, so nothing proves a project with two applications
-    # actually comes up on two images (ADR-0022). Weekly rather than per
-    # pull request, like compose below — two generations plus two image
-    # builds.
+    # deploy runs one adapter at a time, so nothing else proves a project with
+    # two applications comes up on two images (ADR-0022). Weekly, like compose
+    # below: two generations plus two image builds.
     if: ${{ github.event.schedule == '23 2 * * 1' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
@@ -212,10 +206,8 @@ jobs:
       - run: bats tests/compose.bats
 
   services:
-    # Four databases and two caches across two families is eight combinations
-    # per adapter, and one tier a generation costs minutes — so the full grid
-    # is nightly, and every pull request gets the default cell through
-    # tests/new-*.bats instead.
+    # Eight combinations per adapter at minutes each, so the full grid is
+    # nightly; a pull request gets the default cell through tests/new-*.bats.
     if: ${{ github.event.schedule == '17 3 * * *' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
@@ -247,12 +239,9 @@ jobs:
           ADAPTER: ${{ matrix.adapter }}
           DB: ${{ matrix.db }}
           CACHE: ${{ matrix.cache }}
-          # resolve_github_owner (lib/project.sh) substitutes this for the
-          # generated workflows' placeholder `you/` account, and falls back to
-          # `gh auth login` or git's github.user before giving up — a runner
-          # has none of the three. scripts/deploy-check.sh and
-          # tests/helpers/setup.bash each set their own; this job calls
-          # `scaffold new` directly and so needs its own too.
+          # resolve_github_owner falls back to `gh auth login` or git's
+          # github.user before giving up, and a runner has neither. Every other
+          # caller sets its own; this job calls `scaffold new` directly.
           SCAFFOLD_GITHUB_OWNER: ${{ github.repository_owner }}
         run: |
           work="$(mktemp -d)"

@@ -1,4 +1,5 @@
 services:
   database:
     ports:
+      # loopback, not 0.0.0.0: docker's iptables rules bypass most host firewalls
       - '127.0.0.1:3306:3306'

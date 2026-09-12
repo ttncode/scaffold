@@ -30,6 +30,8 @@ REQUIRED_SERVICE_FILES=(
   env.fragment
 )
 
+# SERVICE_IMAGE is the one place a service's digest is written — the compose
+# fragments carry no image line, so a bump here reaches all three lanes at once.
 REQUIRED_SERVICE_VARS=(SERVICE_NAME SERVICE_KIND SERVICE_IMAGE)
 
 # Holds the parameterised driver bodies every service sources, not a service.

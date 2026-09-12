@@ -219,3 +219,14 @@ setup() {
   [[ "$output" == *"usage:"* ]]
   [[ "$output" != *"What are you building"* ]]
 }
+
+@test "no tracked file is matched by this repository's own ignore rules" {
+  # `package.json` and `pnpm-lock.yaml` were ignored unanchored, which also
+  # matched the four templates under common/ that ship into every generated
+  # project. Git keeps tracking what it already tracks, so nothing broke — but a
+  # new template beside them would be dropped by `git add -A` without a word.
+  run git -C "$SCAFFOLD_ROOT" ls-files -i -c --exclude-standard
+  assert_ok
+  [ -z "$output" ] \
+    || { echo "these ship but .gitignore matches them:"; echo "$output"; false; }
+}

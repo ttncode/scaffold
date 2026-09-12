@@ -1,8 +1,6 @@
-# local development only: throwaway services an app started outside docker
-# (mise run dev, etc.) can point at on localhost. never shipped as a release
-# asset — see compose.yaml for the stack a client actually runs. the services
-# themselves are merged in by scaffold from the selection made at generation
-# time.
+# Local development only: throwaway services an app started outside docker can
+# point at on localhost. Never shipped as a release asset — compose.yaml is the
+# stack a client runs. scaffold merges the selected services in.
 name: app-dev
 
 services: {}

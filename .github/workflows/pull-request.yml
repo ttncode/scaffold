@@ -1,9 +1,8 @@
 name: Pull request
-# Its own workflow, not a job in ci.yml, because of `edited`: a body that fails
-# this check is fixed by editing the body, and ci.yml does not run on that —
-# so the check stayed red for a fix that had already been made. Putting
-# `edited` in ci.yml instead would re-run the integration lane, twenty
-# minutes, every time somebody touched a description.
+# Its own workflow, not a job in ci.yml, because of `edited`: this check is
+# fixed by editing the body, which ci.yml does not run on — so it stayed red for
+# a fix already made. Adding `edited` to ci.yml instead would re-run the
+# twenty-minute integration lane on every description tweak.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
@@ -20,14 +19,11 @@ jobs:
   # them, so editing the template changes what is enforced — the convention and
   # its enforcement cannot drift apart. Borrowed from immich's auto-close.yml.
   #
-  # The job's name is load-bearing: `main`'s branch protection requires a
-  # check called `pull-request-body`, and a required check that never reports
-  # blocks every merge forever. Moving the job to this workflow was safe;
-  # renaming it to `body` at the same time was not, and blocked the pull
-  # request that made the change. Renaming it means updating the repository
-  # setting first — there is no trace of that setting in this repository to
-  # remind anyone, which is ADR-0004's point about the guardrail that is not
-  # a file.
+  # The job's name is load-bearing: `main`'s branch protection requires a check
+  # called `pull-request-body`, and a required check that never reports blocks
+  # every merge forever. Rename it here and the repository setting has to change
+  # first — nothing in this repository records that setting, which is ADR-0004's
+  # point about the guardrail that is not a file.
   pull-request-body:
     runs-on: ubuntu-latest
     permissions:
