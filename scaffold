@@ -712,6 +712,7 @@ cmd_publish() {
     fi
 
     log "would allow Actions to open pull requests on ${slug}"
+    log "would enable secret scanning and push protection"
 
     if [ "$protect" -eq 1 ]; then
       if main_is_protected "$slug"; then
@@ -738,6 +739,14 @@ cmd_publish() {
 
   allow_actions_to_open_pull_requests "$slug"
   log "Actions may open pull requests (Release Please needs this)"
+
+  local scanning=0
+  enable_secret_scanning "$slug" || scanning=$?
+  case "$scanning" in
+    0) log "secret scanning and push protection are on" ;;
+    2) warn "no secret scanning: it needs Advanced Security on a private repository. The CI scan still runs on every push" ;;
+    *) die "could not enable secret scanning on ${slug}" ;;
+  esac
 
   if [ "$protect" -eq 1 ]; then
     if main_is_protected "$slug"; then

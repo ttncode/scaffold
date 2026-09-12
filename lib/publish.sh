@@ -120,6 +120,31 @@ main_is_protected() {
   gh api "repos/${1}/rulesets" --jq '.[].name' 2>/dev/null | grep -qx main
 }
 
+# enable_secret_scanning <slug>
+# GitHub scans and blocks the push itself. Free on a public repository; on a
+# private one it needs Advanced Security, which answers 422 — the same shape
+# protect_main handles, and reported the same way.
+enable_secret_scanning() {
+  local response status=0
+
+  response="$(gh api -X PATCH "repos/${1}" --input - 2>&1 <<'EOF'
+{
+  "security_and_analysis": {
+    "secret_scanning": { "status": "enabled" },
+    "secret_scanning_push_protection": { "status": "enabled" }
+  }
+}
+EOF
+)" || status=$?
+
+  [ "$status" -eq 0 ] && return 0
+  case "$response" in
+    *"Advanced Security"*|*"not available"*|*"upgrade"*|*"Upgrade"*) return 2 ;;
+  esac
+  printf '%s\n' "$response" >&2
+  return 1
+}
+
 # set_release_secrets <slug>
 # Optional on both sides: the release workflow declares them optional and falls
 # back to GITHUB_TOKEN. What the fallback costs is a release pull request whose
