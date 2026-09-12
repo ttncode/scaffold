@@ -34,6 +34,10 @@ lockfile = true
 interactive = true
 run = "docker compose -f compose.dev.yaml up --remove-orphans"
 
+[tasks.secrets]
+description = "scan the whole history for secrets"
+run = "gitleaks git --redact --no-banner"
+
 [tasks."dev-down"]
 run = "docker compose -f compose.dev.yaml down --remove-orphans"
 

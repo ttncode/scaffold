@@ -17,8 +17,8 @@ teardown() {
 # creating a repository on anybody's account. Same technique as the curl and
 # docker stubs in tests/install.bats.
 #
-# GH_SCENARIO: `absent` (no such repository), `exists`, or `plan-limit` (a
-# repository that exists on an account whose plan refuses rulesets).
+# GH_SCENARIO: `absent` (no such repository), `exists`, `plan-limit` (an
+# account whose plan refuses rulesets), or `no-advanced-security`.
 _stub_gh() {
   local bin="${WORKDIR}/stub"
   mkdir -p "$bin"
@@ -38,6 +38,12 @@ esac
 # `gh api repos/<slug>/rulesets` with no -X is the listing; with -X POST it is
 # the create.
 case "$*" in
+  *"-X PATCH"*)
+    if [ "${GH_SCENARIO}" = no-advanced-security ]; then
+      echo 'gh: Advanced Security is not available for this repository (HTTP 422)' >&2
+      exit 1
+    fi
+    exit 0 ;;
   *"-X POST"*rulesets*)
     if [ "${GH_SCENARIO}" = plan-limit ]; then
       echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2
@@ -125,7 +131,7 @@ _project() {
   [[ "$output" == *"would allow Actions to open pull requests"* ]]
   [[ "$output" == *"would protect main"* ]]
 
-  run grep -cE 'repo create|-X PUT|-X POST|secret set' "$GH_LOG"
+  run grep -cE 'repo create|-X PUT|-X POST|-X PATCH|secret set' "$GH_LOG"
   [ "$output" = 0 ] || { echo "a dry run called:"; cat "$GH_LOG"; false; }
 }
 
@@ -168,6 +174,33 @@ _project() {
   [ "$output" = 1 ]
   run grep -c 'default_workflow_permissions=read' "$GH_LOG"
   [ "$output" = 1 ]
+}
+
+@test "publish turns on GitHub's own secret scanning" {
+  # The control that blocks a secret at push time, before it lands. Free on a
+  # public repository; the CI scan covers the private case.
+  _stub_gh
+  _project
+
+  GH_SCENARIO=exists run scaffold publish "$PROJECT"
+  assert_ok
+  [[ "$output" == *"secret scanning and push protection are on"* ]]
+  run grep -c -- '-X PATCH repos/acme/demo' "$GH_LOG"
+  [ "$output" = 1 ]
+
+  # The payload travels on stdin, so it is checked where it is written.
+  run bash -c "sed -n '/\"security_and_analysis\"/,/^EOF\$/p' '${SCAFFOLD_ROOT}/lib/publish.sh' \
+    | grep -c 'secret_scanning_push_protection'"
+  [ "$output" = 1 ]
+}
+
+@test "a plan without Advanced Security is a warning, not a failed publish" {
+  _stub_gh
+  _project
+
+  GH_SCENARIO=no-advanced-security run scaffold publish "$PROJECT"
+  assert_ok
+  [[ "$output" == *"no secret scanning"* ]]
 }
 
 @test "a plan that refuses rulesets is a warning, not a failed publish" {
