@@ -17,7 +17,7 @@ ADAPTER_OPTIONAL_VARS=(
 )
 
 load_adapter() {
-  local name="$1"
+  local -r name="$1"
 
   # `source` below executes whatever it reads, so the name must not leave
   # adapters/ — `--api ../../../tmp/evil` runs an arbitrary file. Checked before
@@ -26,7 +26,7 @@ load_adapter() {
     ''|*[!a-z0-9-]*|-*) die "not a usable adapter name: ${name} (run: scaffold list)" ;;
   esac
 
-  local dir="${SCAFFOLD_ROOT}/adapters/${name}"
+  local -r dir="${SCAFFOLD_ROOT}/adapters/${name}"
   [ -d "$dir" ] || die "unknown adapter: ${name} (run: scaffold list)"
 
   ADAPTER_DIR="$dir"
@@ -60,7 +60,8 @@ role_path() {
 }
 
 merge_lefthook_fragment() {
-  local fragment="$1" project="$2" rel="$3" rendered
+  local -r fragment="$1" project="$2" rel="$3"
+  local rendered
 
   [ -f "$fragment" ] || return 0
 
@@ -93,7 +94,7 @@ merge_lefthook_fragment() {
 # installed and dies steps later on a COPY of a node_modules that was never
 # created. Skipped for Laravel: composer has no --filter to miss.
 assert_workspace_filter_name() {
-  local dest="$1"
+  local -r dest="$1"
 
   [ -f "${ADAPTER_DIR}/Dockerfile.workspace" ] || return 0
 
@@ -108,8 +109,8 @@ assert_workspace_filter_name() {
 # name: `scaffold add` can place an adapter at any path, so the filter cannot be
 # baked to the role at adapter-authoring time.
 substitute_workspace_filter() {
-  local dest="$1"
-  local file="${dest}/Dockerfile.workspace"
+  local -r dest="$1"
+  local -r file="${dest}/Dockerfile.workspace"
 
   [ -f "$file" ] || return 0
 
@@ -121,7 +122,7 @@ substitute_workspace_filter() {
 # .env.example is not skipped; directories merge rather than replace, since
 # `src/` exists after the generator ran and `cp -R src dest/src` nests it.
 copy_adapter_files() {
-  local dest="$1"
+  local -r dest="$1"
   local file base dir had_dotglob=0
 
   shopt -q dotglob && had_dotglob=1
@@ -144,11 +145,11 @@ copy_adapter_files() {
 }
 
 apply_adapter() {
-  local name="$1" project="$2" rel="$3"
+  local -r name="$1" project="$2" rel="$3"
 
   load_adapter "$name"
 
-  local dest="${project}/${rel}"
+  local -r dest="${project}/${rel}"
   local parent; parent="$(dirname "$dest")"
   mkdir -p "$parent"
 

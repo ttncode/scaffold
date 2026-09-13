@@ -118,13 +118,14 @@ tui_header() {
 # banner.sh's _banner_edge, cut down to a label centred in a horizontal rule,
 # drawn once so it carries none of that file's rebuild-on-resize bookkeeping.
 _tui_header_edge() {
-  local left="$1" right="$2" label="$3" width="$4"
-  local inner=$(( width - 2 ))
+  local -r left="$1" right="$2" width="$4"
+  local label="$3"
+  local -r inner=$(( width - 2 ))
 
   _tui_fit " ${label} " "$inner"
   label="$REPLY"
-  local side=$(( (inner - ${#label}) / 2 ))
-  local extra=$(( inner - ${#label} - side * 2 ))
+  local -r side=$(( (inner - ${#label}) / 2 ))
+  local -r extra=$(( inner - ${#label} - side * 2 ))
   local l r
   printf -v l '%*s' "$side" ''; l="${l// /─}"
   printf -v r '%*s' "$(( side + extra ))" ''; r="${r// /─}"
@@ -135,8 +136,9 @@ _tui_header_edge() {
 # _tui_header_row [dim|bold] <text> <width> — banner.sh's _banner_row, minus
 # the styles it never uses here.
 _tui_header_row() {
-  local style="$1" text="$2" width="$3"
-  local inner=$(( width - 2 ))
+  local -r style="$1" width="$3"
+  local text="$2"
+  local -r inner=$(( width - 2 ))
 
   _tui_fit "$text" "$inner"
   text="$REPLY"
@@ -238,7 +240,7 @@ _tui_read_line() {
 # value in TUI_CHOICE; returns 1 on Esc rather than dying, so the caller decides
 # what cancelling the wizard means.
 tui_select() {
-  local prompt="$1"; shift
+  local -r prompt="$1"; shift
   local -a options=("$@")
   local cursor=0 key i value
 
@@ -305,7 +307,7 @@ tui_select() {
 _TUI_RENDER_HEIGHT=0
 
 _tui_render() {
-  local prompt="$1" cursor="$2"; shift 2
+  local -r prompt="$1" cursor="$2"; shift 2
   local -a options=("$@")
   local cols limit
   cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
@@ -350,7 +352,7 @@ _tui_render() {
 # per row per keypress without forking a subshell while a held key is still
 # sending bytes at the (echo-disabled) tty.
 _tui_fit() {
-  local text="$1" limit="$2"
+  local -r text="$1" limit="$2"
   if (( ${#text} <= limit )); then
     REPLY="$text"
   elif (( limit <= 1 )); then

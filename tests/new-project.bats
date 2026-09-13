@@ -246,6 +246,13 @@ collect_roots() {
   # error, so the security contact was a name that cannot receive anything.
   run grep -rn '@you\b\|you/' "$PROJECT" --include='*.yml' --include='*.md' --include='CODEOWNERS'
   [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+
+  # Absence of the placeholder is not presence of the owner: a hardcoded or
+  # mistyped account passes the grep above. tests/helpers/setup.bash exports
+  # SCAFFOLD_GITHUB_OWNER=test-owner.
+  run cat "${PROJECT}/CODEOWNERS"
+  [ "$output" = "* @test-owner" ] \
+    || { echo "CODEOWNERS says '${output}', not the account this run resolved"; false; }
 }
 
 @test "no @PROJECT_ placeholder survives into the generated project" {

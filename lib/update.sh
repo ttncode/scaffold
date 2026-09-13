@@ -28,7 +28,8 @@ COMMON_PATCH_EXCLUDES=(':(exclude)common/mise.root.toml')
 
 # manifest_version <project> — the toolbox commit a project was generated from.
 manifest_version() {
-  local file="${1}/${SCAFFOLD_MANIFEST}" version
+  local -r file="${1}/${SCAFFOLD_MANIFEST}"
+  local version
 
   [ -f "$file" ] || return 1
   version="$(yq -p toml -oy -r '.version // ""' "$file" 2>/dev/null || true)"
@@ -70,7 +71,7 @@ project_image_name() {
 # with `|` delimiting the expression sed reads that alternation as the end of
 # the pattern.
 rewrite_patch_paths() {
-  local from="$1" to="$2"
+  local -r from="$1" to="$2"
   sed -E \
     -e "s#^diff --git a/${from}#diff --git a/${to}#" \
     -e "s#^(diff --git a/[^ ]+) b/${from}#\1 b/${to}#" \
@@ -85,7 +86,7 @@ rewrite_patch_paths() {
 # about to become the project's content, and the context lines because
 # otherwise no hunk matches anything.
 substitute_placeholders() {
-  local project="$1" rel="${2:-}"
+  local -r project="$1" rel="${2:-}"
   local owner name filter
   owner="$(project_image_owner "$project")"
   name="$(project_image_name "$project")"
@@ -106,7 +107,7 @@ substitute_placeholders() {
 # ─── building the patch ────────────────────────────────────────────────────
 
 common_patch() {
-  local project="$1"
+  local -r project="$1"
 
   git -C "$SCAFFOLD_ROOT" diff "${SCAFFOLD_UPDATE_FROM}..HEAD" -- \
     common/ "${COMMON_PATCH_EXCLUDES[@]}" \
@@ -124,8 +125,8 @@ common_patch() {
 # mapped onto `Dockerfile` and the other is dropped, rather than emitting a
 # patch against a path that is not there.
 adapter_patch() {
-  local project="$1" rel="$2" adapter="$3"
-  local dir="adapters/${adapter}"
+  local -r project="$1" rel="$2" adapter="$3"
+  local -r dir="adapters/${adapter}"
   local kept dropped internal
   local -a excludes=()
 
@@ -156,7 +157,8 @@ adapter_patch() {
 # update_patch <project> — everything the project has not received, as one
 # patch against its own paths.
 update_patch() {
-  local project="$1" rel adapter
+  local -r project="$1"
+  local rel adapter
 
   common_patch "$project"
   while IFS=$'\t' read -r rel adapter; do
@@ -178,7 +180,8 @@ update_patch() {
 # Only when the value came back empty, so this never rewrites targets that were
 # already right.
 resync_derived_files() {
-  local project="$1" rel
+  local -r project="$1"
+  local rel
 
   sync_ci_roots "$project"
 

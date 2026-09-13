@@ -17,7 +17,7 @@ step() { printf '→ %s\n' "$*" >&2; }
 # Captures output and prints it only on failure; SCAFFOLD_VERBOSE=1 passes it
 # straight through, for a run that hangs rather than fails.
 run_quietly() {
-  local what="$1"; shift
+  local -r what="$1"; shift
   local log status=0
 
   if [ "${SCAFFOLD_VERBOSE:-0}" = 1 ]; then

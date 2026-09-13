@@ -35,7 +35,7 @@ gh_repo_exists() {
 }
 
 create_repo() {
-  local project="$1" slug="$2" visibility="$3"
+  local -r project="$1" slug="$2" visibility="$3"
 
   # One `gh` call doing three things — create, add the remote, push — so a
   # failure in the second or third leaves the first behind. Everything here is
@@ -72,7 +72,8 @@ main_is_protected() {
 # changes whenever an application is added. Requiring a pull request and
 # refusing force-pushes is the part that generalises.
 protect_main() {
-  local slug="$1" response status=0
+  local -r slug="$1"
+  local response status=0
 
   response="$(gh api -X POST "repos/${slug}/rulesets" --input - 2>&1 <<'EOF'
 {
@@ -138,7 +139,7 @@ EOF
 # back to GITHUB_TOKEN. What the fallback costs is a release pull request whose
 # checks sit at "Action required" and then expire red.
 set_release_secrets() {
-  local slug="$1"
+  local -r slug="$1"
 
   [ -n "${RELEASE_APP_ID:-}" ] && [ -n "${RELEASE_APP_PRIVATE_KEY:-}" ] || return 1
 

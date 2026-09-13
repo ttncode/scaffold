@@ -57,7 +57,7 @@ driver_families() {
 # any, so a caller can run them all and still fail once at the end.
 
 lint_required_files() {
-  local name="$1" dir="$2"; shift 2
+  local -r name="$1" dir="$2"; shift 2
   local file status=0
 
   for file in "$@"; do
@@ -70,7 +70,7 @@ lint_required_files() {
 }
 
 lint_adapter_env() {
-  local name="$1" file="$2"
+  local -r name="$1" file="$2"
   local var role value status=0
 
   for var in "${REQUIRED_ADAPTER_VARS[@]}"; do
@@ -113,7 +113,7 @@ lint_adapter_env() {
 }
 
 lint_adapter_tasks() {
-  local name="$1" file="$2"
+  local -r name="$1" file="$2"
   local task body flag status=0
 
   for task in "${CONTRACT_TASKS[@]}"; do
@@ -141,7 +141,7 @@ lint_adapter_tasks() {
 }
 
 lint_adapters() {
-  local dir="$1"
+  local -r dir="$1"
   local adapter name status=0
 
   for adapter in "$dir"/*/; do
@@ -157,7 +157,7 @@ lint_adapters() {
 }
 
 lint_service_env() {
-  local name="$1" file="$2"
+  local -r name="$1" file="$2"
   local var status=0
 
   for var in "${REQUIRED_SERVICE_VARS[@]}"; do
@@ -181,7 +181,7 @@ lint_service_env() {
 # it at sourcing time and finds it unbound dies under the inherited `set -u`,
 # which is not the same problem as a missing function.
 lint_driver_functions() {
-  local name="$1" family="$2" driver="$3" service_dir="$4"
+  local -r name="$1" family="$2" driver="$3" service_dir="$4"
   local fn fault status=0
 
   for fn in "${REQUIRED_DRIVER_FUNCTIONS[@]}"; do
@@ -205,7 +205,7 @@ lint_driver_functions() {
 }
 
 lint_service_drivers() {
-  local name="$1" service="$2"; shift 2
+  local -r name="$1" service="$2"; shift 2
   local family driver status=0
 
   for family in "$@"; do
@@ -225,7 +225,7 @@ lint_service_drivers() {
 # Fails when any service is incomplete, or when a family that takes a driver has
 # no driver in some service.
 lint_services() {
-  local dir="$1" adapters="$2"
+  local -r dir="$1" adapters="$2"
   local service name status=0
   local -a families=()
 
