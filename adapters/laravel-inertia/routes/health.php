@@ -16,6 +16,15 @@ Route::get('/health/ready', function () {
         // @DB_PROBE@
         throw new RuntimeException('no database is configured for this project');
     } catch (Throwable $e) {
-        return response()->json(['status' => 'unavailable', 'reason' => $e->getMessage()], 503);
+        // Logged, not returned: a driver's connection error names the host,
+        // port, user and database, and /health/ready is unauthenticated. An
+        // orchestrator reads the status code and nothing else. logger(), not
+        // the Log facade: an import here would sit between the two `use`
+        // lines services/mongodb/drivers/laravel.sh splices, and pint's
+        // ordered_imports would then fail the generated project's own format
+        // task.
+        logger()->warning('readiness probe failed: '.$e->getMessage());
+
+        return response()->json(['status' => 'unavailable'], 503);
     }
 });

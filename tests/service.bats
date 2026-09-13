@@ -151,6 +151,25 @@ setup() {
   done
 }
 
+@test "no readiness route hands its exception message to the caller" {
+  # A driver's connection error names the host, its address, the port, the user
+  # and the database, and /health/ready is unauthenticated. Every consumer of a
+  # readiness endpoint reads the status code and discards the body.
+  local file found=0
+  for file in "${SCAFFOLD_ROOT}"/adapters/*/routes/health.php \
+    "${SCAFFOLD_ROOT}"/adapters/*/src/health/health.controller.ts \
+    "${SCAFFOLD_ROOT}"/adapters/*/app/health.py; do
+    [ -f "$file" ] || continue
+    found=$((found + 1))
+    if grep -Eq "'reason' =>|reason:|reason=" "$file"; then
+      echo "${file} returns a reason field to the caller"
+      return 1
+    fi
+  done
+  # Without this the globs matching nothing would read as every route passing.
+  [ "$found" -ge 4 ]
+}
+
 @test "the nest probe guard rejects a controller whose fallback throw survived" {
   # The guard used to check for `return { status: 'ok' };`, which live() already
   # returns — so a controller with three splices applied and the fourth missed
