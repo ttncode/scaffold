@@ -5,7 +5,7 @@
 # slim-trixie, so this keeps both stages on the same Debian release.
 FROM ghcr.io/astral-sh/uv:0.12.13-python3.13-trixie-slim@sha256:c0ba49559fc5622531fd05a5747b52afb49ffa883574bbf8eb719ebd103efb84 AS deps
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev --no-install-project
 
 FROM python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285 AS runtime
@@ -14,7 +14,7 @@ WORKDIR /app
 COPY --from=deps /app/.venv ./.venv
 COPY . .
 ENV PATH="/app/.venv/bin:${PATH}"
-RUN useradd --create-home --uid 10001 app && chown -R app:app /app
+RUN useradd --create-home --uid 10001 app
 USER app
 EXPOSE 8080
 # python, not wget or curl: the slim image ships neither.
