@@ -1,4 +1,6 @@
-# copied from a pinned build stage; a host copy would overwrite it
+# only read when the build context is the project root — an all-typescript
+# project's apps/*/Dockerfile.workspace; node_modules is copied from a pinned
+# build stage, so a host copy would overwrite it
 **/node_modules
 **/.next
 **/dist

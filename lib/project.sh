@@ -21,7 +21,8 @@ PROJECT_MARKER="monorepo_root = true"
 PROJECT_COMMIT_NAME="scaffold"
 PROJECT_COMMIT_EMAIL="scaffold@scaffold.invalid"
 
-# Files carrying the `you/` placeholder, alongside every workflow.
+# Files carrying the `you/` placeholder, alongside every workflow; mise.root.toml
+# carries the registry path and must be substituted before it becomes mise.toml.
 PROJECT_OWNER_FILES=(compose.yaml install.sh README.md mise.root.toml)
 
 # Files carrying @PROJECT_NAME@; the image build.yml pushes to and the image
