@@ -42,21 +42,21 @@ strengthened so it can fail for the reason it was written.
 
 | Path | Responsibility | Task |
 | --- | --- | --- |
-| `SECURITY.md` | the toolbox's own vulnerability contact | A |
-| `CODEOWNERS` | the toolbox's own owner | A |
-| `.vscode/extensions.json` | recommend the tools `mise.toml` pins | A |
-| `.vscode/settings.json` | teach an editor that `scaffold` is bash | A |
-| `common/.github/pull_request_template.md` | ships a PR template to clients | A |
-| `common/.vscode/extensions.json` | ships editor hints to clients | A |
-| `tests/new-project.bats` | assert the owner is right, not merely non-placeholder | A |
-| `.github/workflows/*.yml` | a `name:` on all 49 steps | B |
-| `common/install.sh`, `lib/*.sh`, `services/shared/*.sh` | `local -r`, comments to their facts | C |
-| `tests/*.bats`, `tests/helpers/setup.bash` | comments to their facts | D |
-| `adapters/*/adapter.env`, `common/*ignore`, `common/example.env` | comments to their facts | D |
+| `SECURITY.md` | the toolbox's own vulnerability contact | 1 |
+| `CODEOWNERS` | the toolbox's own owner | 1 |
+| `.vscode/extensions.json` | recommend the tools `mise.toml` pins | 1 |
+| `.vscode/settings.json` | teach an editor that `scaffold` is bash | 1 |
+| `common/.github/pull_request_template.md` | ships a PR template to clients | 1 |
+| `common/.vscode/extensions.json` | ships editor hints to clients | 1 |
+| `tests/new-project.bats` | assert the owner is right, not merely non-placeholder | 1 |
+| `.github/workflows/*.yml` | a `name:` on all 49 steps | 2 |
+| `common/install.sh`, `lib/*.sh`, `services/shared/*.sh` | `local -r`, comments to their facts | 3 |
+| `tests/*.bats`, `tests/helpers/setup.bash` | comments to their facts | 4 |
+| `adapters/*/adapter.env`, `common/*ignore`, `common/example.env` | comments to their facts | 4 |
 
 ---
 
-## Task A: Files immich has and we do not
+## Task 1: Files immich has and we do not
 
 **Files:**
 - Create: `SECURITY.md`, `CODEOWNERS`, `.vscode/extensions.json`,
@@ -245,7 +245,7 @@ resolved."
 
 ---
 
-## Task B: A name on every workflow step
+## Task 2: A name on every workflow step
 
 **Files:**
 - Modify: `.github/workflows/adapters.yml`, `.github/workflows/ci.yml`,
@@ -357,7 +357,7 @@ for branch protection."
 
 ---
 
-## Task C: Scripts in immich's shape
+## Task 3: Scripts in immich's shape
 
 **Files:**
 - Modify: `common/install.sh`, `lib/*.sh`, `services/shared/laravel.sh`,
@@ -463,7 +463,7 @@ BASH_SOURCE[0]:-\$0 because a curl-piped script has none."
 
 ---
 
-## Task D: Data files and tests
+## Task 4: Data files and tests
 
 **Files:**
 - Modify: `tests/*.bats`, `tests/helpers/setup.bash`,
@@ -563,7 +563,7 @@ because a defect shipped."
 
 ---
 
-## Task E: Open the pull requests
+## Task 5: Open the pull requests
 
 **Files:** none.
 
