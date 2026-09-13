@@ -1,7 +1,15 @@
-import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 
 @Controller('health')
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   // The client field and the probe below are both written by the selected
   // service's driver: prisma has no provider-agnostic read, so a SQL
   // provider gets $queryRawUnsafe and mongodb gets $runCommandRaw. A project
@@ -33,8 +41,12 @@ export class HealthController {
       // @DB_PROBE@
       throw new Error('no database is configured for this project');
     } catch (error) {
+      // Logged, not returned: a driver's connection error names the host,
+      // port, user and database, and /health/ready is unauthenticated. An
+      // orchestrator reads the status code and nothing else.
+      this.logger.warn(`readiness probe failed: ${(error as Error).message}`);
       throw new HttpException(
-        { status: 'unavailable', reason: (error as Error).message },
+        { status: 'unavailable' },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }

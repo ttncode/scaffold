@@ -21,6 +21,9 @@ COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 # :8080 is how frankenphp listens on an unprivileged port and declines to
 # provision TLS, which belongs to whatever proxy this lands behind.
 ENV SERVER_NAME=:8080
+# laravel's default `stack` channel writes to storage/logs, which nothing
+# reads in a container; the readiness probe's failure reason is logged.
+ENV LOG_CHANNEL=stderr
 # Caddy writes here and will not start if it may not. The app tree needs the
 # same: COPY runs as root, the server runs as www-data, and the first request
 # that compiles a blade view or writes a log fails without this.

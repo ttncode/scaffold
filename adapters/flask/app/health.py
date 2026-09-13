@@ -1,4 +1,4 @@
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, current_app, jsonify
 
 # @DB_ENGINE@
 
@@ -18,4 +18,8 @@ def ready() -> Reply:
         # @DB_PROBE@
         raise RuntimeError("no database is configured for this project")
     except Exception as error:  # noqa: BLE001
-        return jsonify(status="unavailable", reason=str(error)), 503
+        # Logged, not returned: a driver's connection error names the host,
+        # port, user and database, and /health/ready is unauthenticated. An
+        # orchestrator reads the status code and nothing else.
+        current_app.logger.warning("readiness probe failed: %s", error)
+        return jsonify(status="unavailable"), 503
