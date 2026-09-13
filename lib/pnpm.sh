@@ -57,8 +57,9 @@ restore_pnpm_workspace() {
 # whether the command was `new` or `add`, decides which Dockerfile variant an
 # app needs and what its build context has to be.
 app_is_workspace_member() {
-  local project="$1" rel="$2"
-  local workspace_file="${project}/${WORKSPACE_FILE}" glob
+  local -r project="$1" rel="$2"
+  local -r workspace_file="${project}/${WORKSPACE_FILE}"
+  local glob
 
   [ -f "$workspace_file" ] || return 1
 
@@ -75,7 +76,8 @@ app_is_workspace_member() {
 # pnpm reports its failures on stdout, so silencing the install leaves a `die`
 # that names the step and proves nothing. Shown only on failure.
 pnpm_install() {
-  local dir="$1" what="$2" log status=0
+  local -r dir="$1" what="$2"
+  local log status=0
   step "$what"
   log="$(mktemp)"
 
@@ -102,7 +104,7 @@ pnpm_install() {
 # create-next-app writes its own nested pair, and pnpm's upward search finds
 # those first — so the app never resolves as part of the outer workspace.
 sync_workspace_lockfile() {
-  local project="$1"
+  local -r project="$1"
 
   find "$project" -mindepth 3 -maxdepth 3 \
     \( -name "$LOCKFILE" -o -name "$WORKSPACE_FILE" \) -delete
@@ -121,10 +123,10 @@ sync_workspace_lockfile() {
 # frozen install, not just the first, so relaxing it for one call would not
 # hold. The policy stays live for everything the project adds later.
 record_release_age_exceptions() {
-  local project="$1"
-  local settings="${2:-$1}"
+  local -r project="$1"
+  local -r settings="${2:-$1}"
   step "checking $(basename "$project")'s lockfile against the supply-chain policy"
-  local workspace_file="${settings}/${WORKSPACE_FILE}"
+  local -r workspace_file="${settings}/${WORKSPACE_FILE}"
 
   # Keyed on the lockfile pnpm will actually verify — which for an app outside
   # a workspace is the root's, found by walking up.
@@ -182,7 +184,7 @@ record_release_age_exceptions() {
 # Only called when every application is typescript; sharing types across a
 # language boundary is a different problem, solved by openapi.
 enable_typescript_workspace() {
-  local project="$1"
+  local -r project="$1"
 
   mkdir -p "${project}/packages"
   mv "${project}/packages-types" "${project}/packages/types"
@@ -195,8 +197,8 @@ enable_typescript_workspace() {
 # carrying ADR-0017's allowBuilds. Merged, not copied: common wins on a key both
 # name, the app's own generator keeps any key only it names.
 sync_standalone_build_policy() {
-  local app="$1" project="$2"
-  local file="${app}/${WORKSPACE_FILE}"
+  local -r app="$1" project="$2"
+  local -r file="${app}/${WORKSPACE_FILE}"
 
   [ -f "$file" ] || printf '{}\n' > "$file"
 
@@ -209,8 +211,8 @@ sync_standalone_build_policy() {
 # Dockerfile and Dockerfile.workspace; exactly one may survive, whichever
 # app_is_workspace_member matches.
 finalize_app_dockerfile() {
-  local project="$1" rel="$2"
-  local dir="${project}/${rel}"
+  local -r project="$1" rel="$2"
+  local -r dir="${project}/${rel}"
 
   [ -f "${dir}/Dockerfile.workspace" ] || return 0
 
@@ -225,7 +227,7 @@ finalize_app_dockerfile() {
 # Every application is TypeScript, so they share one lockfile and one
 # node_modules at the root, and a packages/types can exist between them.
 join_typescript_workspace() {
-  local project="$1"; shift
+  local -r project="$1"; shift
 
   enable_typescript_workspace "$project"
 
@@ -248,7 +250,7 @@ join_typescript_workspace() {
 # Not every application is TypeScript — or there are none — so each owns its
 # manifests and its own lockfile, and there is no shared workspace to join.
 keep_apps_standalone() {
-  local project="$1"; shift
+  local -r project="$1"; shift
 
   rm -rf "${project}/packages-types"
 

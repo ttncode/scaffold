@@ -47,7 +47,7 @@ wizard_shapes() {
 # The order the answers constrain each other in. `web` asks nothing about a
 # database because `scaffold new` refuses --db without an api or app adapter.
 wizard_questions() {
-  local shape="$1"
+  local -r shape="$1"
 
   grep -qx "$shape" <<<"$(wizard_shapes | cut -f1)" || die "unknown project shape: ${shape}"
 
@@ -93,7 +93,7 @@ wizard_prompt_width() {
 # <listing> is cmd_list's tab-separated output; every option comes from there
 # rather than a second copy of what the adapters and services already declare.
 wizard_options() {
-  local listing="$1" kind="$2"
+  local -r listing="$1" kind="$2"
 
   case "$kind" in
     web|api|app)
@@ -126,7 +126,8 @@ wizard_options() {
 # cmd_new's own unset-flag default moved first, so a plain Enter picks what the
 # flags would have picked unset.
 wizard_order_options() {
-  local kind="$1" listing="$2" default="" line
+  local -r kind="$1" listing="$2"
+  local default="" line
 
   case "$kind" in
     database) default="$DEFAULT_DATABASE_SERVICE" ;;
@@ -179,7 +180,7 @@ wizard_new_args() {
 # What the answers would have been typed as. Printed before the run so the
 # second project is scripted rather than clicked.
 wizard_command() {
-  local name="$1"; shift
+  local -r name="$1"; shift
   local -a args; mapfile -t args < <(wizard_new_args "$@")
   local out="scaffold new ${name}"
   [ "${#args[@]}" -eq 0 ] || out+=" ${args[*]}"

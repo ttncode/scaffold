@@ -11,28 +11,22 @@
 #   curl -fsSL https://github.com/you/@PROJECT_NAME@/releases/latest/download/install.sh | bash
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# Adapted from immich's install.sh
-# (https://github.com/immich-app/immich/blob/main/install.sh); this project
-# never overwrites an existing .env (see download_release_assets).
+# Adapted from immich's install.sh; unlike immich, never overwrites an existing
+# .env (see download_release_assets).
 
 set -o nounset
 set -o pipefail
 
-# Substituted at generation time from the GitHub owner scaffold resolved and
-# this project's own name, the same pair compose.yaml's image and the build
-# workflows carry. It assumes the repository is named after the project
-# directory; rename it and this line needs the new name too.
+# Substituted at generation time; assumes the repo is named after the project
+# directory.
 RepoUrl='https://github.com/you/@PROJECT_NAME@/releases/latest/download'
 TargetDir='./app'
 
-# The owner/repo pair, taken from RepoUrl so a project still edits one line.
 RepoSlug="${RepoUrl#https://github.com/}"
 RepoSlug="${RepoSlug%/releases/latest/download}"
 
-# The literal every password in the assembled example.env carries, and the
-# contract example.env's own header states. Matched on the value rather than a
-# *_PASSWORD name pattern: a service naming its variable differently (e.g.
-# RABBITMQ_DEFAULT_PASS) still needs a real value generated for it.
+# Matched on the placeholder value, not a *_PASSWORD name pattern, so a
+# differently-named variable (e.g. RABBITMQ_DEFAULT_PASS) still gets a real value.
 PasswordPlaceholder='changeme'
 PasswordBytes=32
 PasswordLength=24
@@ -41,12 +35,12 @@ PasswordLength=24
 
 # release_asset_id <name> — reads a release's JSON on stdin.
 #
-# jq, not grep: an asset's own id precedes its name while the uploader's follows
-# it, so "find the name, take the next id" returns the uploader's for every
-# asset — and that request succeeds, fetching a different valid object. Only the
-# token path needs jq, so it stays off the public path's dependencies.
+# jq, not grep: an asset's own id precedes its name while the uploader's
+# follows it, so "find the name, take the next id" returns the uploader's id —
+# and that request succeeds, fetching a different valid object.
 release_asset_id() {
-  local name="$1" id
+  local -r name="$1"
+  local id
   id="$(jq -r --arg name "$name" \
     'first(.assets[] | select(.name == $name) | .id) // empty')" || return 1
   if [ -z "$id" ]; then
@@ -59,15 +53,13 @@ release_asset_id() {
 # fetch_release_asset <name> <dest>
 #
 # Two endpoints: a private release's browser URL returns 404 both anonymously
-# and with a Bearer token, while the API asset endpoint returns 200. A token
-# alone does not fix the public URL — the URL is what has to change.
+# and with a Bearer token, while the API asset endpoint returns 200.
 fetch_release_asset() {
-  local name="$1" dest="$2" id
+  local -r name="$1" dest="$2"
+  local id
 
   if [ -z "${GITHUB_TOKEN:-}" ]; then
     curl -fsSL "${RepoUrl}/${name}" -o "$dest" && return 0
-    # A private release answers 404 to an anonymous request, which reads as "no
-    # such release" rather than "you are not signed in".
     echo "could not download ${name}; if this project is private, set GITHUB_TOKEN to a token with repo and read:packages" >&2
     return 1
   fi
@@ -82,15 +74,11 @@ fetch_release_asset() {
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
     -H 'Accept: application/octet-stream' \
     "https://api.github.com/repos/${RepoSlug}/releases/assets/${id}" -o "$dest" && return 0
-  # A token given but rejected by this endpoint is the token's problem, not its
-  # absence — this message must not repeat the no-token hint above.
   echo "could not download ${name} with the token given; it needs repo and read:packages" >&2
   return 1
 }
 
-# jq is needed only to read a release's JSON, which only the token path does.
-# Checked separately from main's curl/docker checks so a public install never
-# learns about a dependency it does not use.
+# Checked separately from main's other checks, so a public install never needs jq.
 require_private_tools() {
   [ -n "${GITHUB_TOKEN:-}" ] || return 0
   command -v jq >/dev/null || {
@@ -108,9 +96,8 @@ create_directory() {
   cd "$TargetDir" || return 1
 }
 
-# compose.yaml is always overwritten so it never drifts from the image it names.
-# .env never is: it holds this installation's real password and the operator's
-# edits. A kept .env is still checked for a password left at the placeholder.
+# compose.yaml is always overwritten; a kept .env is only checked for a
+# password left at the placeholder.
 #
 # Two cleanup mechanisms, both needed so no temp file is left holding a
 # plaintext password: the explicit `rm -f` before each `return 1`, since an EXIT
@@ -148,8 +135,6 @@ download_release_assets() {
     rm -f "$tmp_env"
     return 1
   fi
-  # Checked, like every other step here: an unchecked mv returns 0 through the
-  # trap below, reporting success and leaving the password file behind.
   if ! mv "$tmp_env" ./.env; then
     rm -f "$tmp_env"
     trap - EXIT INT TERM HUP
@@ -161,17 +146,14 @@ download_release_assets() {
 
 # ─── configuring it ────────────────────────────────────────────────────────
 
-# Fails hard if a substitution misses: a password left at the placeholder is a
-# credential defaulting to a known value.
-#
 # Known, not fixed: each password is briefly visible in sed's argv to other
-# local users. Pre-existing in the immich script this came from.
+# local users.
 generate_service_passwords() {
-  local file="$1" name password
+  local -r file="$1"
+  local name password
   while IFS= read -r name; do
     # APP_KEY is not a password: laravel decrypts with it and rejects anything
-    # that is not `base64:` plus exactly 32 bytes. Inside this loop so
-    # example.env keeps one placeholder and the existing-.env guard covers it.
+    # that is not `base64:` plus exactly 32 bytes.
     if [ "$name" = APP_KEY ]; then
       password="base64:$(head -c "$PasswordBytes" /dev/urandom | base64)"
     else
@@ -188,9 +170,8 @@ generate_service_passwords() {
   done < <(sed -n "s/^\([A-Za-z_][A-Za-z0-9_]*\)=${PasswordPlaceholder}\$/\1/p" "$file")
 }
 
-# scaffold fills the image in, so this only catches a copy hand-edited back to a
-# placeholder: docker rejects that itself, but with "invalid reference format"
-# rather than anything actionable.
+# Catches a copy hand-edited back to the placeholder; docker itself would only
+# report an unhelpful "invalid reference format".
 require_configured_image() {
   if grep -i 'image:.*CHANGEME' compose.yaml >/dev/null; then
     echo "compose.yaml's image line still has a CHANGEME placeholder; edit it to this project's real registry path, then re-run this script"
@@ -201,13 +182,9 @@ require_configured_image() {
 # ─── running it ────────────────────────────────────────────────────────────
 
 start_stack() {
-  # A package's ghcr visibility is separate from its repository's, and a private
-  # package refuses an anonymous pull with `unauthorized`. The username is not
-  # checked for a token login; RepoSlug's owner just names something the
-  # operator recognises.
-  #
-  # --password-stdin, not an argument: argv is visible to every other user on
-  # the host through the process list.
+  # ghcr package visibility is separate from repository visibility; a private
+  # package refuses an anonymous pull with `unauthorized`.
+  # --password-stdin, not an argument: argv is visible to every other user on the host.
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     printf '%s' "${GITHUB_TOKEN}" \
       | docker login ghcr.io -u "${RepoSlug%%/*}" --password-stdin >/dev/null || {
@@ -218,36 +195,29 @@ start_stack() {
   docker compose up --remove-orphans -d || return 1
 }
 
-# ADR-0014 seam 5 forbids migrations from an *entrypoint* — a container that
-# migrates every time it starts cannot be scaled or rolled back. This is a human
-# running one command on the target host.
-# compose_has_service <service> [--profile <name>]
 # Captured, never piped into `grep -q`: grep closes the pipe on its first match,
 # `docker compose` then dies of SIGPIPE, and `set -o pipefail` reports the whole
 # pipeline as failed. Measured at roughly one run in seven — a stack that
 # refused to migrate, at random, with a message about a service that was there.
 compose_has_service() {
-  local service="$1"; shift
+  local -r service="$1"; shift
   local services
 
   services="$(docker compose "$@" config --services)" || return 1
   grep -qx "$service" <<<"$services"
 }
 
+# ADR-0014 seam 5 forbids migrations from an entrypoint, so this is a human
+# running one command on the target host.
 run_migrations() {
-  # `docker compose config --services` (no --profile) never lists a service
-  # gated behind a profile, so that guard alone always skipped the migration
-  # silently — measured: plain `config --services` prints only `app`, and
-  # `--profile migrate config --services` prints `migrate app`.
+  # `config --services` with no --profile never lists a service gated behind one.
   if compose_has_service migrate --profile migrate; then
     echo "running migrations..."
     docker compose --profile migrate run --rm migrate
     return
   fi
-  # A database with no migrate service beside it is not "nothing to migrate":
-  # every database driver ships a migrate command, so this only happens if the
-  # service, its profile or the command silently vanished. A project with no
-  # database is the only case that falls through.
+  # Every database driver ships a migrate command, so a database with none means
+  # the service, its profile or the command vanished — not "nothing to migrate".
   if compose_has_service database; then
     echo "a database service exists but no migrate service was found — refusing to start with unapplied schema" >&2
     return 1
@@ -265,8 +235,8 @@ main() {
   start_stack || { echo 'could not start the stack; check the output above'; return 1; }
   run_migrations || { echo 'could not run migrations; check the output above'; return 1; }
 
-  # One line per application (ADR-0022), read out of .env so it reports the
-  # ports actually in effect, including any the operator changed.
+  # One line per application (ADR-0022), read out of .env so it reflects any
+  # port the operator changed.
   local name port
   while IFS='=' read -r name port; do
     [ -n "$port" ] || continue

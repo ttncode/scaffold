@@ -15,13 +15,13 @@
 #                       credentials left as compose interpolations
 
 service_driver_apply() {
-  # Before the installs, not after: all three packages place the query engine
-  # binary through an install-time script with no pure-js fallback, and
-  # undecided the first `pnpm add` below is refused with
+  # Before the installs, not after: prisma, its engines and its client all place
+  # the query engine binary through an install-time script with no pure-js
+  # fallback, and undecided the first `pnpm add` below is refused with
   # ERR_PNPM_IGNORED_BUILDS wherever CI=true leaves pnpm no prompt.
   #
-  # SCAFFOLD_PROJECT_ROOT, exported by apply_service_drivers: cmd_add's app
-  # directory is caller-chosen, so a fixed `../..` reaches outside the project.
+  # SCAFFOLD_PROJECT_ROOT, not a fixed `../..`: cmd_add's app directory is
+  # caller-chosen.
   if ! yq --inplace \
     '.allowBuilds.prisma = true
      | .allowBuilds."@prisma/engines" = true
@@ -32,16 +32,15 @@ service_driver_apply() {
 
   # major-pinned, not @latest: 7 dropped the datasource `url` this driver writes
   # below for a prisma.config.ts adapter, and latest resolves to an 8.x release
-  # candidate. 6 is the newest stable major that still reads `url`.
+  # candidate.
   pnpm add @prisma/client@6 || return 1
   # A regular dependency, not -D: `pnpm prune --prod` drops devDependencies, and
-  # the published image is what runs `migrate deploy`. The engines cost image
-  # size (ADR-0021).
+  # the published image is what runs `migrate deploy`.
   pnpm add prisma@6 || return 1
   mkdir -p prisma || return 1
 
-  # datasource and generator only. models describe the client's domain, which
-  # this toolbox does not know — see the spec's non-goals.
+  # datasource and generator only; models describe the client's domain, which
+  # this toolbox does not know.
   cat > prisma/schema.prisma <<EOF || return 1
 generator client {
   provider = "prisma-client-js"
@@ -55,28 +54,22 @@ EOF
 
   write_env_lines .env.example "DATABASE_URL=${PRISMA_URL}" || return 1
 
-  # prisma has no provider-agnostic read: $queryRaw is SQL-only and mongodb
-  # needs a command, so the shipped route carries exactly one probe, for the
-  # provider this project actually has — and only the one method that provider
-  # calls: a generated mongodb client has no $queryRawUnsafe and a SQL one no
-  # $runCommandRaw, and a cast naming a method the class lacks fails tsc's
-  # "sufficient overlap" check.
+  # prisma has no provider-agnostic read: $queryRaw is SQL-only, mongodb needs a
+  # command, and a generated client only has the one method its provider
+  # implies — casting to the other fails tsc's "sufficient overlap" check.
   #
-  # A dynamic import cast to an explicit method signature, not a bare
-  # `import(...).then(...)`: lint runs before the :prisma task, so
-  # @prisma/client still re-exports a generated module that does not exist yet
-  # and an untyped access to it is `any`, which @typescript-eslint's no-unsafe-*
-  # rules reject under --max-warnings 0.
+  # Cast to an explicit method signature, not a bare `import(...).then(...)`:
+  # lint runs before the :prisma task, so the generated client does not exist
+  # yet and an untyped access to it is `any`, which @typescript-eslint's
+  # no-unsafe-* rules reject under --max-warnings 0.
   #
-  # The throw is replaced in place rather than left below the probe:
-  # no-unreachable is in eslint's recommended set. A --db none project runs
-  # neither substitution and keeps the throw.
+  # The throw is replaced in place, not left below the probe: no-unreachable is
+  # in eslint's recommended set. A --db none project keeps the throw.
   #
   # The client is a field on HealthController, not a local inside ready(): a
-  # controller is a Nest singleton, so every poll after the first reuses it.
-  # Constructing a PrismaClient per request and never closing it leaks one real
-  # database connection per poll — measured exhausting Postgres's
-  # max_connections well inside an hour at a 10s probe interval.
+  # controller is a Nest singleton, and a PrismaClient built per request and
+  # never closed leaks one connection per poll — measured exhausting Postgres's
+  # max_connections inside an hour at a 10s probe interval.
   local method field preamble probe
   case "$PRISMA_PROVIDER" in
     mongodb)
@@ -97,8 +90,7 @@ EOF
     src/health/health.controller.ts || return 1
   sed -i.bak "s|throw new Error('no database is configured for this project');|return { status: 'ok' };|" \
     src/health/health.controller.ts || return 1
-  # The probe spliced above is the only thing in this method that awaits, so
-  # the adapter ships it without `async` — a --db none project would
+  # The adapter ships ready() without `async` — a --db none project would
   # otherwise fail @typescript-eslint/require-await on its own lint task.
   sed -i.bak "s|  ready(): Promise<|  async ready(): Promise<|" \
     src/health/health.controller.ts || return 1
@@ -120,35 +112,27 @@ service_driver_dockerfile() {
 }
 
 # An operator's own .env wins; otherwise compose builds the URL from the same
-# DB_* variables the database container reads, so the password lives in exactly
-# one place.
+# DB_* variables the database container reads.
 service_driver_compose_env() {
   printf 'DATABASE_URL: ${DATABASE_URL:-%s}\n' "$PRISMA_COMPOSE_URL"
 }
 
 # prisma's mongodb provider rejects `migrate deploy` — `The "mongodb" provider
-# is not supported with this command.` — and takes `db push` instead. Read off
-# PRISMA_PROVIDER rather than recorded separately.
+# is not supported with this command.` — and takes `db push` instead.
 #
 # Not `pnpm exec`: the runtime stage copies node_modules/dist alone, so pnpm is
-# not in the built image. prisma's own bin does survive `pnpm prune --prod` (it
-# is a regular dependency precisely so it would), but at one of two locations
-# depending on which Dockerfile shape wins — a decision made after this driver
-# runs: apps/<app>/node_modules/.bin for the workspace shape, node_modules/.bin
-# at the container root for the standalone one. The command tries both rather
-# than guessing, and `cd`s into whichever matched: WORKDIR stays the container
-# root either way, and prisma resolves `./prisma/schema.prisma` from its own
-# working directory, which is nested under the app directory in the workspace
-# shape (measured: `Could not find Prisma Schema` before this `cd`).
+# not in the built image. prisma's own bin survives `pnpm prune --prod`, but at
+# one of two locations depending on which Dockerfile shape wins, a decision made
+# after this driver runs — so the command tries both and `cd`s into whichever
+# matched, since prisma resolves `./prisma/schema.prisma` from its own working
+# directory (measured: `Could not find Prisma Schema` before this `cd`).
 service_driver_compose_migrate() {
   local args
   case "$PRISMA_PROVIDER" in
     mongodb) args='db push --skip-generate' ;;
     *) args='migrate deploy' ;;
   esac
-  # `$${d}`/`$$d`, not `${d}`/`$d`: compose interpolates `$var` in compose.yaml
-  # before the command reaches the container, and a single `$` resolves to an
-  # unset variable that blanks the loop out entirely. `$$` is compose's escape
-  # for a literal `$`.
+  # `$${d}`/`$$d`, not `${d}`/`$d`: compose interpolates `$var` before the
+  # command reaches the container; `$$` is compose's escape for a literal `$`.
   printf 'command: ["sh", "-c", "for d in apps/*/ ./; do [ -x $${d}node_modules/.bin/prisma ] && cd $$d && exec node_modules/.bin/prisma %s; done; echo prisma binary not found >&2; exit 1"]\n' "$args"
 }

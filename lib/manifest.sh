@@ -14,8 +14,8 @@ CI_WORKFLOW=".github/workflows/ci.yml"
 BUILD_WORKFLOWS=(".github/workflows/build.yml" ".github/workflows/release.yml")
 
 register_config_root() {
-  local project="$1" root="$2"
-  local file="${project}/${MISE_CONFIG_FILE}"
+  local -r project="$1" root="$2"
+  local -r file="${project}/${MISE_CONFIG_FILE}"
 
   # Anchored on the exact formatting mise.root.toml ships, and verified: an
   # inline `config_roots = ["docs"]` matches neither awk, and a silent no-op
@@ -53,7 +53,8 @@ config_roots() {
 }
 
 sync_ci_roots() {
-  local project="$1" json
+  local -r project="$1"
+  local json
   json="$(config_roots "$project" | jq -R . | jq -sc .)"
   sed -i.bak "s|^      roots: .*|      roots: '${json}'|" \
     "${project}/${CI_WORKFLOW}"
@@ -64,7 +65,7 @@ sync_ci_roots() {
 # build workflows pass on (ADR-0022). Called after the workspace decision is
 # settled, since the build context depends on it.
 register_image_target() {
-  local project="$1" rel="$2"
+  local -r project="$1" rel="$2"
   local name context dockerfile image file current updated
 
   name="$(app_service_key "$rel")"

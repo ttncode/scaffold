@@ -23,13 +23,13 @@ SERVICE_SETUP_ANCHOR="# @SERVICE_SETUP@"
 # Same guard as load_adapter, for the same reason: `source` below executes
 # whatever it reads, so the name must not be able to leave services/.
 load_service() {
-  local name="$1"
+  local -r name="$1"
 
   case "$name" in
     ''|*[!a-z0-9-]*|-*) die "not a usable service name: ${name} (run: scaffold list)" ;;
   esac
 
-  local dir="${SCAFFOLD_ROOT}/services/${name}"
+  local -r dir="${SCAFFOLD_ROOT}/services/${name}"
   [ -d "$dir" ] || die "unknown service: ${name} (run: scaffold list)"
 
   # shellcheck disable=SC2034 # read by the caller
@@ -54,8 +54,8 @@ service_compose_key() {
 }
 
 record_services() {
-  local project="$1" database="$2" cache="$3"
-  local file="${project}/mise.toml"
+  local -r project="$1" database="$2" cache="$3"
+  local -r file="${project}/mise.toml"
 
   sed -i.bak -e "s|@DATABASE@|${database}|" -e "s|@CACHE@|${cache}|" "$file"
   rm -f "${file}.bak"
@@ -69,7 +69,8 @@ record_services() {
 # Prints nothing for `none`, so a caller can test the value rather than compare
 # it to a word.
 project_service() {
-  local project="$1" key="$2" value
+  local -r project="$1" key="$2"
+  local value
 
   value="$(yq -p toml -oy -r ".vars.${key} // \"\"" "${project}/mise.toml" 2>/dev/null || true)"
   [ "$value" = "none" ] || [ "$value" = "null" ] && return 0
@@ -100,7 +101,8 @@ app_port_variable() {
 # the first port because yq's `max` over an empty sequence prints nothing at
 # all, which `// default` does not catch.
 next_app_port() {
-  local project="$1" highest
+  local -r project="$1"
+  local highest
   highest="$(SEED="$((FIRST_APP_PORT - 1))" yq -r '[(env(SEED) | tonumber), (.services[].ports[]?
       | capture("\{[A-Za-z0-9_]+:-(?P<port>[0-9]+)\}").port | tonumber)] | max' \
     "${project}/${COMPOSE_FILE}")"
@@ -112,7 +114,8 @@ next_app_port() {
 # application did. The build.yml fallback is what lets `scaffold update` work on
 # a project generated before [vars] image existed.
 project_image_base() {
-  local project="$1" value
+  local -r project="$1"
+  local value
 
   value="$(yq -p toml -oy -r '.vars.image // ""' "${project}/mise.toml" 2>/dev/null || true)"
   if [ -z "$value" ] || [ "$value" = null ]; then
@@ -140,7 +143,7 @@ compose_lane_file() {
 # Removes the fragment on both paths: under `set -e` a yq failure leaves
 # immediately and the temporary file would survive the run.
 merge_compose_fragment() {
-  local file="$1" fragment="$2" what="$3"
+  local -r file="$1" fragment="$2" what="$3"
 
   if ! yq eval-all --inplace 'select(fileIndex==0) * select(fileIndex==1)' \
     "$file" "$fragment"; then
@@ -155,7 +158,7 @@ merge_compose_fragment() {
 # merged in per lane. The image is injected here rather than written in a
 # fragment so a service's digest lives only in its service.env.
 assemble_compose() {
-  local project="$1"; shift
+  local -r project="$1"; shift
   local service lane file key merged
 
   for service in "$@"; do
@@ -194,7 +197,7 @@ assemble_compose() {
 # service's driver, into the app's own .env.example: DB_CONNECTION is Laravel's
 # phrasing and DATABASE_URL is Prisma's for the same server.
 assemble_example_env() {
-  local project="$1"; shift
+  local -r project="$1"; shift
   local service
 
   for service in "$@"; do
@@ -210,8 +213,8 @@ assemble_example_env() {
 # same base the build workflows get, because this is the path they push to: the
 # two cannot be written independently without drifting apart.
 add_app_service() {
-  local project="$1" rel="$2" role="$3"
-  local file="${project}/${COMPOSE_FILE}"
+  local -r project="$1" rel="$2" role="$3"
+  local -r file="${project}/${COMPOSE_FILE}"
   local key port_var port image fragment kind recorded
 
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
@@ -268,7 +271,7 @@ add_app_service() {
 # against an .env.example the adapter shipped, so appending blindly would leave
 # two values for one key and let the loser win depending on the reader.
 write_env_lines() {
-  local file="$1"; shift
+  local -r file="$1"; shift
   local line key rendered
 
   [ -f "$file" ] || : > "$file"
@@ -304,7 +307,8 @@ write_env_lines() {
 # one overwriting the other. Both Dockerfile variants get the anchor resolved:
 # cmd_new decides which survives only after this runs.
 apply_service_dockerfile() {
-  local app="$1" block="$2"
+  local -r app="$1"
+  local block="$2"
   local file found=0
 
   for file in "${app}/Dockerfile" "${app}/Dockerfile.workspace"; do
@@ -333,8 +337,9 @@ apply_service_dockerfile() {
 # block-style `KEY: value` line per driver — and -P rewrites nodes the merge
 # never touched.
 apply_service_compose_env() {
-  local project="$1" service="$2" block="$3"
-  local file="${project}/${COMPOSE_FILE}" fragment
+  local -r project="$1" service="$2" block="$3"
+  local -r file="${project}/${COMPOSE_FILE}"
+  local fragment
 
   [ -n "$block" ] || return 0
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
@@ -354,8 +359,9 @@ apply_service_compose_env() {
 # For a driver needing a whole sibling service (the migrate runner below) rather
 # than another line under one application's environment.
 apply_service_compose_service() {
-  local project="$1" block="$2"
-  local file="${project}/${COMPOSE_FILE}" fragment
+  local -r project="$1" block="$2"
+  local -r file="${project}/${COMPOSE_FILE}"
+  local fragment
 
   [ -n "$block" ] || return 0
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
@@ -371,8 +377,9 @@ apply_service_compose_service() {
 # explicitly, once, after the stack is up. An empty command (no database, or a
 # cache-only driver) merges nothing.
 apply_service_compose_migrate() {
-  local project="$1" service="$2" env_block="$3" command="$4"
-  local file="${project}/${COMPOSE_FILE}" image block
+  local -r project="$1" service="$2" env_block="$3" command="$4"
+  local -r file="${project}/${COMPOSE_FILE}"
+  local image block
 
   [ -n "$command" ] || return 0
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
@@ -411,7 +418,7 @@ apply_service_compose_migrate() {
 # the project's mise.toml does not pin, and `mise exec` resolves PATH from
 # scratch. composer stays ambient either way (ADR-0016).
 run_driver_apply() {
-  local app="$1" project="$2" family="$3" service="$4" driver="$5"
+  local -r app="$1" project="$2" family="$3" service="$4" driver="$5"
   local pnpm_bin node_bin
 
   pnpm_bin="$(dirname "$(mise which pnpm -C "$app")")"
@@ -420,7 +427,7 @@ run_driver_apply() {
   # Held in a variable so it reaches `bash -c` through `env` intact. Its
   # `$1`/`$2` and ${SCAFFOLD_ROOT} are the child's to expand.
   # shellcheck disable=SC2016
-  local driver_script='
+  local -r driver_script='
         cd "$1"
         . "${SCAFFOLD_ROOT}/lib/log.sh"
         . "${SCAFFOLD_ROOT}/lib/service.sh"
@@ -446,7 +453,7 @@ driver_output() {
 # resolve_driver <family> <service> — the driver file, by name, or die.
 resolve_driver() {
   load_service "$2"
-  local driver="${SERVICE_DIR}/drivers/${1}.sh"
+  local -r driver="${SERVICE_DIR}/drivers/${1}.sh"
   [ -f "$driver" ] || die "${2} has no driver for ${1} — run 'scaffold lint'"
   printf '%s' "$driver"
 }
@@ -458,7 +465,7 @@ resolve_driver() {
 # project-root is an argument, not `app`'s ancestor counted in `..`: cmd_new's
 # apps/<role> and cmd_add's caller-chosen directory nest at different depths.
 apply_service_drivers() {
-  local app="$1" project="$2" family="$3"; shift 3
+  local -r app="$1" project="$2" family="$3"; shift 3
   local service driver rendered
   local block="" env_block="" migrate_block=""
 
