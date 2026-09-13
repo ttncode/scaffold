@@ -9,7 +9,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 # _stub_gh — a `gh` that records what it was asked to do and answers from
