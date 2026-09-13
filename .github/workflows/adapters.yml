@@ -25,12 +25,15 @@ jobs:
       tier-a: ${{ steps.tiers.outputs.tier-a }}
       tier-b: ${{ steps.tiers.outputs.tier-b }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - id: tiers
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Discover the adapter tiers
+        id: tiers
         env:
           EVENT_NAME: ${{ github.event_name }}
           SCHEDULE_CRON: ${{ github.event.schedule }}
@@ -54,22 +57,28 @@ jobs:
       matrix:
         adapter: ${{ fromJson(needs.discover.outputs.tier-a) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - id: language
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Detect the adapter language
+        id: language
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: |
           lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
           echo "value=${lang}" >> "$GITHUB_OUTPUT"
-      - if: steps.language.outputs.value == 'php'
+      - name: Setup PHP
+        if: steps.language.outputs.value == 'php'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - env:
+      - name: Run the tier-a smoke test
+        env:
           ADAPTER: ${{ matrix.adapter }}
         run: bats "tests/new-${ADAPTER}.bats"
 
@@ -87,22 +96,28 @@ jobs:
       matrix:
         adapter: ${{ fromJson(needs.discover.outputs.tier-b) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - id: language
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Detect the adapter language
+        id: language
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: |
           lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
           echo "value=${lang}" >> "$GITHUB_OUTPUT"
-      - if: steps.language.outputs.value == 'php'
+      - name: Setup PHP
+        if: steps.language.outputs.value == 'php'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - env:
+      - name: Run the tier-b smoke test
+        env:
           ADAPTER: ${{ matrix.adapter }}
         run: bats "tests/new-${ADAPTER}.bats"
 
@@ -119,22 +134,28 @@ jobs:
       matrix:
         adapter: ${{ fromJson(needs.discover.outputs.tier-a) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - id: language
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Detect the adapter language
+        id: language
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: |
           lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
           echo "value=${lang}" >> "$GITHUB_OUTPUT"
-      - if: steps.language.outputs.value == 'php'
+      - name: Setup PHP
+        if: steps.language.outputs.value == 'php'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - env:
+      - name: Run the deploy check
+        env:
           ADAPTER: ${{ matrix.adapter }}
         run: ./scripts/deploy-check.sh "$ADAPTER"
 
@@ -151,22 +172,28 @@ jobs:
       matrix:
         adapter: ${{ fromJson(needs.discover.outputs.tier-b) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - id: language
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Detect the adapter language
+        id: language
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: |
           lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
           echo "value=${lang}" >> "$GITHUB_OUTPUT"
-      - if: steps.language.outputs.value == 'php'
+      - name: Setup PHP
+        if: steps.language.outputs.value == 'php'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - env:
+      - name: Run the deploy check
+        env:
           ADAPTER: ${{ matrix.adapter }}
         run: ./scripts/deploy-check.sh "$ADAPTER"
 
@@ -180,12 +207,16 @@ jobs:
       contents: read
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - run: ./scripts/deploy-check.sh nextjs nestjs --db postgres
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Run the deploy check for two apps
+        run: ./scripts/deploy-check.sh nextjs nestjs --db postgres
 
   compose:
     # expensive relative to the other checks here, so gated on the weekly
@@ -196,14 +227,18 @@ jobs:
       contents: read
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - run: bats tests/compose.bats
+      - name: Run the compose tests
+        run: bats tests/compose.bats
 
   services:
     # Eight combinations per adapter at minutes each, so the full grid is
@@ -220,22 +255,28 @@ jobs:
         db: [mysql, postgres, mongodb, none]
         cache: [none, redis]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - id: language
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Detect the adapter language
+        id: language
         env:
           ADAPTER: ${{ matrix.adapter }}
         run: |
           lang="$(grep '^ADAPTER_LANGUAGE=' "adapters/${ADAPTER}/adapter.env" | cut -d'"' -f2)"
           echo "value=${lang}" >> "$GITHUB_OUTPUT"
-      - if: steps.language.outputs.value == 'php'
+      - name: Setup PHP
+        if: steps.language.outputs.value == 'php'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - env:
+      - name: Generate the project and run its checklist
+        env:
           ADAPTER: ${{ matrix.adapter }}
           DB: ${{ matrix.db }}
           CACHE: ${{ matrix.cache }}
@@ -266,7 +307,8 @@ jobs:
       issues: write
     timeout-minutes: 5
     steps:
-      - env:
+      - name: Open an issue for the failed run
+        env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh issue create --repo "${{ github.repository }}"

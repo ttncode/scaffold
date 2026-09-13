@@ -22,11 +22,14 @@ jobs:
     # on a runner, which is what the timeout below leaves room around.
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: mise run ci-unit
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Run the unit lane
+        run: mise run ci-unit
 
   integration:
     runs-on: ubuntu-latest
@@ -39,7 +42,8 @@ jobs:
     # tests, not these cross-cutting mechanics suites.
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # workflows.bats walks this repository's own history to find the
           # commit that introduced an adapter, then diffs against its parent.
@@ -47,12 +51,16 @@ jobs:
           # on `unknown revision` rather than on anything it is testing.
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      - run: corepack enable
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Enable corepack
+        run: corepack enable
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
-      - run: mise run test-integration
+      - name: Run the integration lane
+        run: mise run test-integration
 
   zizmor:
     runs-on: ubuntu-latest
@@ -60,10 +68,12 @@ jobs:
       contents: read
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       # Only this repository's own workflows. common/ holds templates whose
       # `uses: you/.github/...` names no real repository, so ref-confusion
       # cannot resolve it and the audit errors out rather than reporting a
@@ -71,4 +81,5 @@ jobs:
       # What a generated project's call sites get instead is structural:
       # tests/workflows.bats asserts sha-pinned actions, closed permission
       # sets and shared-repository-only `uses:`. No audit runs on them.
-      - run: mise exec -- zizmor .github/workflows/
+      - name: Run zizmor
+        run: mise exec -- zizmor .github/workflows/
