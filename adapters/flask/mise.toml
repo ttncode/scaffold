@@ -27,10 +27,10 @@ run = "uv run pytest -q"
 run = "uv sync --locked --no-dev; status=$?; uv sync --locked --quiet; exit $status"
 
 [tasks.migrate]
-# alembic.ini exists only for postgres/mysql; mongodb ships app/migrate.py
-# instead, and --db none ships neither, matching compose.yaml's own migrate
-# service, which likewise exists for exactly those two shapes.
-run = "if [ -f alembic.ini ]; then uv run alembic upgrade head; else uv run python -m app.migrate; fi"
+# alembic.ini exists only for postgres/mysql, app/migrate.py only for mongodb;
+# --db none or a cache-only project ships neither, so this must not assume one
+# of the two is always there.
+run = "if [ -f alembic.ini ]; then uv run alembic upgrade head; elif [ -f app/migrate.py ]; then uv run python -m app.migrate; else echo 'nothing to migrate'; fi"
 
 [tasks.ci-unit]
 run = [
