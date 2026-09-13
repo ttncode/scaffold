@@ -8,7 +8,7 @@
 FLASK_DIALECT="postgresql+psycopg"
 # the [binary] extra ships a wheel with libpq inside, so the image needs no
 # system package and service_driver_dockerfile stays empty
-FLASK_PACKAGES="psycopg[binary]"
+FLASK_PACKAGE="psycopg[binary]"
 FLASK_PORT="5432"
 FLASK_COMPOSE_URL='postgresql+psycopg://${DB_USERNAME:-app}:${DB_PASSWORD}@database:5432/${DB_DATABASE:-app}'
 # shellcheck source=/dev/null
