@@ -151,6 +151,28 @@ setup() {
   done
 }
 
+@test "the nest probe guard rejects a controller whose fallback throw survived" {
+  # The guard used to check for `return { status: 'ok' };`, which live() already
+  # returns — so a controller with three splices applied and the fourth missed
+  # passed it, and the project shipped a readiness route that was permanently
+  # 503 with nothing said about it.
+  source "${SCAFFOLD_ROOT}/services/shared/nest.sh"
+
+  local file="${BATS_TEST_TMPDIR}/health.controller.ts"
+  cp "${SCAFFOLD_ROOT}/adapters/nestjs/src/health/health.controller.ts" "$file"
+  sed -i 's|// @DB_CLIENT@|private dbClient?: { $queryRawUnsafe(q: string): Promise<unknown> };|' "$file"
+  sed -i 's|// @DB_PROBE@|this.dbClient = new PrismaClient();|' "$file"
+  sed -i 's|  ready(): Promise<|  async ready(): Promise<|' "$file"
+
+  run assert_nest_probe_spliced "$file"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"has the anchor moved?"* ]]
+
+  sed -i "s|throw new Error('no database is configured for this project');|return { status: 'ok' };|" "$file"
+  run assert_nest_probe_spliced "$file"
+  assert_ok
+}
+
 @test "apply_service_dockerfile removes the anchor when nothing was selected" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
