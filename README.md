@@ -88,7 +88,7 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 
 | Tier | Adapters | CI runs it | Guarantee |
 | --- | --- | --- | --- |
-| A | `nextjs`, `nestjs`, `laravel-api` | every pull request, and nightly | stays green through every dependency bump |
+| A | `nextjs`, `nestjs`, `laravel-api`, `flask` | every pull request, and nightly | stays green through every dependency bump |
 | B | `laravel-inertia` | when `adapters/laravel-inertia/**` changes, and weekly | verified regularly, not on every push — a full generation measures ~5 minutes per test |
 | C | none currently | not automatically verified | may rot; no guarantee at all |
 
