@@ -54,3 +54,26 @@ teardown() {
   assert_ok
   [[ "$output" == *"unrs-resolver"* ]]
 }
+
+@test "the generated api passes its own ci-unit" {
+  scaffold new "$PROJECT" --api flask
+  cd "$PROJECT"
+  run mise run //apps/api:ci-unit
+  assert_ok
+}
+
+@test "the api is configured for the project's database" {
+  scaffold new "$PROJECT" --api flask
+  run grep -q '^DATABASE_URL=mysql+pymysql://' "${PROJECT}/apps/api/.env.example"
+  assert_ok
+
+  # The sentinel the unconfigured probe raises — still present means the
+  # splice silently left the readiness check permanently unavailable.
+  run grep -q 'no database is configured for this project' "${PROJECT}/apps/api/app/health.py"
+  [ "$status" -ne 0 ]
+  run grep -q 'create_engine' "${PROJECT}/apps/api/app/health.py"
+  assert_ok
+
+  run grep -q '@SERVICE_SETUP@' "${PROJECT}/apps/api/Dockerfile"
+  [ "$status" -ne 0 ]
+}
