@@ -67,10 +67,15 @@ place and `mise exec` resolves uv from it. No CI step and no ambient
 installation is required — the opposite of php, which needs `shivammathur/setup-php`
 on every job.
 
-**No MongoDB driver.** Python has no Prisma: SQLAlchemy covers postgres and
-mysql, mongodb needs pymongo, and redis needs its own client. `laravel` already
-ships exactly this subset, so the precedent and the shape both exist. A pymongo
-driver is a later addition if a project ever asks for one.
+**Four drivers, because the linter requires four.** Python has no Prisma —
+SQLAlchemy covers postgres and mysql, mongodb needs pymongo, redis needs its own
+client — so the intent was to ship the SQL pair plus redis and add mongodb
+later. `lint_services` (`lib/lint.sh:207`) forbids that: it collects every
+family declared by any adapter and fails a service that has no driver for one of
+them. Skipping mongodb would mean new mechanism for declaring a combination
+unsupported, which is more code than the driver it would save. `laravel` is the
+shape to copy exactly: a shared body for the two SQL services, and mongodb and
+redis each self-contained.
 
 **Tier A, subject to its own measurement.** `uv sync` installs about ten wheels
 and compiles nothing, so the smoke run should land well under `laravel-api`'s.
@@ -201,15 +206,17 @@ Per-service files:
 | --- | --- |
 | `services/postgres/drivers/flask.sh` | `postgresql+psycopg`, `psycopg[binary]`, 5432 |
 | `services/mysql/drivers/flask.sh` | `mysql+pymysql`, `PyMySQL`, 3306 |
+| `services/mongodb/drivers/flask.sh` | self-contained: `pymongo`, a cached `MongoClient`, `admin.command("ping")` |
 | `services/redis/drivers/flask.sh` | self-contained, as `services/redis/drivers/laravel.sh` is |
 
-`service_driver_dockerfile` prints nothing for all three: `psycopg[binary]` and
-`PyMySQL` need no system library, so there is no `apk add` counterpart to the
-Laravel drivers' `LARAVEL_SETUP`.
+`service_driver_dockerfile` prints nothing for all four. `psycopg[binary]`,
+`PyMySQL` and `pymongo` all ship wheels that need no system library, so there is
+no counterpart to the Laravel drivers' `LARAVEL_SETUP` or to the `pecl install`
+the Laravel MongoDB driver needs.
 
-`service_driver_compose_migrate` prints nothing. Flask ships no migration tool
-of its own and this adapter adds no ORM models, so there is no schema to apply —
-the same reason the redis drivers print nothing.
+`service_driver_compose_migrate` prints nothing for all four. Flask ships no
+migration tool of its own and this adapter adds no ORM models, so there is no
+schema to apply — the same reason the redis drivers print nothing.
 
 ### C — Everything outside `adapters/` and `services/`
 
@@ -238,7 +245,6 @@ speaks only about php — `mise x uv` contradicts none of them.
 
 | | Why |
 | --- | --- |
-| A mongodb driver for `flask` | pymongo is a second shared body for a combination nothing has asked for; `laravel` ships the same subset. |
 | Flask-SQLAlchemy | The extension binds an ORM to the app object; the readiness probe needs one connection and one `SELECT 1`. Plain SQLAlchemy is the smaller dependency. |
 | Alembic and a `migrate` task | ADR-0011 keeps `migrate` out of the contract, and this adapter ships no models to migrate. |
 | FastAPI as well | The request was Flask. A second Python adapter is a separate decision with its own tier cost. |
@@ -250,7 +256,7 @@ speaks only about php — `mise x uv` contradicts none of them.
 - `mise run test-runner` — both lanes
 - `scaffold lint` — the adapter and all three drivers against the contract
 - `bats tests/new-flask.bats`
-- `./scripts/deploy-check.sh flask --db postgres` and `--db mysql`
+- `./scripts/deploy-check.sh flask` against each of `postgres`, `mysql` and `mongodb`
 - `mise exec -- zizmor --min-severity medium .github/workflows/`
 - the PR's own CI, which reports the `smoke (flask)` and `deploy (flask)`
   durations that decide `ADAPTER_TIER`
