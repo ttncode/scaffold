@@ -88,7 +88,7 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 
 | Tier | Adapters | CI runs it | Guarantee |
 | --- | --- | --- | --- |
-| A | `nextjs`, `nestjs`, `laravel-api` | every pull request, and nightly | stays green through every dependency bump |
+| A | `nextjs`, `nestjs`, `laravel-api`, `flask` | every pull request, and nightly | stays green through every dependency bump |
 | B | `laravel-inertia` | when `adapters/laravel-inertia/**` changes, and weekly | verified regularly, not on every push — a full generation measures ~5 minutes per test |
 | C | none currently | not automatically verified | may rot; no guarantee at all |
 
@@ -96,7 +96,7 @@ from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
 
 A database or cache is a directory under `services/`, not an adapter — see
 [ADR-0019](docs/decisions/0019-services-are-not-adapters.md). Each ships a
-driver per adapter family (`laravel`, `nest`, `next`); `scaffold lint`
+driver per adapter family (`laravel`, `nest`, `next`, `flask`); `scaffold lint`
 requires the full matrix before an adapter in a new family can merge.
 
 | Slot | Services | Default |
