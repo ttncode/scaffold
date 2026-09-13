@@ -139,7 +139,7 @@ setup() {
 
 @test "every adapter declares a framework family" {
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    grep -Eq '^ADAPTER_FAMILY="(laravel|nest|next)"$' "${adapter}adapter.env" \
+    grep -Eq '^ADAPTER_FAMILY="(laravel|nest|next|flask)"$' "${adapter}adapter.env" \
       || { echo "no ADAPTER_FAMILY in ${adapter}adapter.env"; false; }
   done
 }

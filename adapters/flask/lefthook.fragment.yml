@@ -1,0 +1,7 @@
+pre-commit:
+  commands:
+    ruff:
+      glob: "*.py"
+      root: "@APP_ROOT@"
+      run: uv run ruff format {staged_files}
+      stage_fixed: true

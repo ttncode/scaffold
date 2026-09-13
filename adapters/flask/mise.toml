@@ -1,0 +1,39 @@
+# uv alone: uv resolves its own managed interpreter, so a `python` entry here
+# would be installed and then ignored. .python-version is the pin uv reads.
+[tools]
+uv = "0.12.13"
+
+[tasks.install]
+run = "uv sync --locked"
+
+[tasks.format]
+run = "uv run ruff format --check ."
+
+[tasks."format-fix"]
+run = "uv run ruff format ."
+
+[tasks.lint]
+run = "uv run ruff check ."
+
+[tasks.check]
+run = "uv run mypy --strict app tests"
+
+[tasks.test]
+run = "uv run pytest -q"
+
+[tasks.build]
+# The production sync drops ruff, which the pre-commit hook calls directly, so
+# the second sync puts it back; `status=$?` keeps the production exit code.
+run = "uv sync --locked --no-dev; status=$?; uv sync --locked --quiet; exit $status"
+
+[tasks.ci-unit]
+run = [
+  { task = ":install" },
+  { task = ":format" },
+  { task = ":lint" },
+  { task = ":check" },
+  { task = ":test" },
+]
+
+[tasks.checklist]
+run = [{ task = ":ci-unit" }, { task = ":build" }]
