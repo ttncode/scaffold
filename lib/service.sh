@@ -414,15 +414,18 @@ apply_service_compose_migrate() {
 # a driver runs pnpm add, and pnpm turns the frozen lockfile on whenever CI is
 # set.
 #
-# pnpm/node go in by PATH, not `mise exec -C`: this script also calls yq, which
-# the project's mise.toml does not pin, and `mise exec` resolves PATH from
-# scratch. composer stays ambient either way (ADR-0016).
+# pnpm/node/uv go in by PATH, not `mise exec -C`: this script also calls yq,
+# which the project's mise.toml does not pin, and `mise exec` resolves PATH
+# from scratch. composer stays ambient either way (ADR-0016).
 run_driver_apply() {
   local -r app="$1" project="$2" family="$3" service="$4" driver="$5"
-  local pnpm_bin node_bin
+  local pnpm_bin node_bin uv_bin=""
 
   pnpm_bin="$(dirname "$(mise which pnpm -C "$app")")"
   node_bin="$(dirname "$(mise which node -C "$app")")"
+  # uv is declared only in adapters/flask/mise.toml, not the project root's, so
+  # resolving it for every family would fail a laravel/nest/nextjs app outright.
+  [ "$family" = flask ] && uv_bin="$(dirname "$(mise which uv -C "$app")")"
 
   # Held in a variable so it reaches `bash -c` through `env` intact. Its
   # `$1`/`$2` and ${SCAFFOLD_ROOT} are the child's to expand.
@@ -437,7 +440,7 @@ run_driver_apply() {
 
   step "wiring ${service} into $(app_service_key "$app")"
   run_quietly "wiring ${service} into $(app_service_key "$app") (the ${family} driver)" \
-    env PATH="${pnpm_bin}:${node_bin}:${PATH}" \
+    env PATH="${uv_bin:+${uv_bin}:}${pnpm_bin}:${node_bin}:${PATH}" \
       npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
       SCAFFOLD_PROJECT_ROOT="$project" \
     bash -euo pipefail -c "$driver_script" _ "$app" "$driver"
