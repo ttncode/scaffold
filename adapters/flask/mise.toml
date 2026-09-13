@@ -26,6 +26,12 @@ run = "uv run pytest -q"
 # the second sync puts it back; `status=$?` keeps the production exit code.
 run = "uv sync --locked --no-dev; status=$?; uv sync --locked --quiet; exit $status"
 
+[tasks.migrate]
+# alembic.ini exists only for postgres/mysql; mongodb ships app/migrate.py
+# instead, and --db none ships neither, matching compose.yaml's own migrate
+# service, which likewise exists for exactly those two shapes.
+run = "if [ -f alembic.ini ]; then uv run alembic upgrade head; else uv run python -m app.migrate; fi"
+
 [tasks.ci-unit]
 run = [
   { task = ":install" },

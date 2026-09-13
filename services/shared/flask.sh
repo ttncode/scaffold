@@ -15,7 +15,7 @@
 #   FLASK_COMPOSE_URL  the same DSN against the compose network
 
 service_driver_apply() {
-  uv add sqlalchemy "$FLASK_PACKAGES" || return 1
+  uv add sqlalchemy alembic "$FLASK_PACKAGES" || return 1
 
   write_env_lines .env.example \
     "DATABASE_URL=${FLASK_DIALECT}://app:app@localhost:${FLASK_PORT}/app" \
@@ -33,6 +33,8 @@ def _engine() -> Engine:
     return create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)' \
     '        with _engine().connect() as connection:
             connection.execute(text("SELECT 1"))'
+
+  init_flask_alembic
 }
 
 service_driver_dockerfile() {
@@ -43,10 +45,14 @@ service_driver_compose_env() {
   printf 'DATABASE_URL: ${DATABASE_URL:-%s}\n' "$FLASK_COMPOSE_URL"
 }
 
-# this adapter ships no models and Flask has no migration tool of its own, so
-# there is no schema to apply.
+# common/install.sh's run_migrations refuses to start a project that has a
+# database service but no migrate service, so an empty command here — this
+# adapter shipping no models — is not an option; zero revisions is.
+#
+# alembic, not `mise exec -C`: the runtime image has no mise, and the
+# Dockerfile already puts /app/.venv/bin on PATH.
 service_driver_compose_migrate() {
-  :
+  printf 'command: ["alembic", "upgrade", "head"]\n'
 }
 
 # splice_flask_probe <engine-block> <probe-block>
@@ -81,4 +87,24 @@ splice_flask_probe() {
   # services/shared/nest.sh makes with prettier.
   uv run ruff check --fix "$file" || return 1
   uv run ruff format "$file" || return 1
+}
+
+# init_flask_alembic — postgres and mysql only, called from service_driver_apply
+# above. `alembic init` writes a placeholder `sqlalchemy.url` into alembic.ini;
+# that's a runtime secret, so env.py is pointed at DATABASE_URL instead, the
+# same variable the probe reads.
+init_flask_alembic() {
+  uv run alembic init migrations || return 1
+
+  sed -i.bak 's|^from logging.config import fileConfig$|import os\n\nfrom logging.config import fileConfig|' \
+    migrations/env.py || return 1
+  sed -i.bak 's|^config = context.config$|config = context.config\n\nconfig.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])|' \
+    migrations/env.py || return 1
+  rm -f migrations/env.py.bak
+
+  grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\])' migrations/env.py \
+    || die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"
+
+  uv run ruff check --fix migrations/env.py || return 1
+  uv run ruff format migrations/env.py || return 1
 }
