@@ -5,7 +5,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 @test "laravel-inertia generates a single app at apps/app" {

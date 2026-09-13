@@ -21,6 +21,11 @@ if [ -z "${GIT_CONFIG_GLOBAL:-}" ]; then
   export GIT_CONFIG_GLOBAL
   git config --global user.name "scaffold tests"
   git config --global user.email "tests@scaffold.invalid"
+  # `scaffold new` commits, and a commit can hand the repository to a detached
+  # `git gc`. That process outlives the command and keeps writing into .git,
+  # which is the likeliest thing remove_workdir below is racing. A throwaway
+  # repository has nothing worth maintaining.
+  git config --global gc.auto 0
 fi
 
 # mise records every config it trusts under its state directory, so a suite
@@ -61,4 +66,28 @@ copy_toolbox() {
   mkdir -p "$dest/docs"
   cp "${SCAFFOLD_ROOT}/docs/PROVENANCE.md" "$dest/docs/" 2>/dev/null || true
   printf '%s' "$dest"
+}
+
+# remove_workdir — teardown's `rm -rf`, retried.
+#
+# `rm -rf` reports "Directory not empty" when an entry appears after it walked
+# the directory, so a background process still writing into a generated project
+# fails a teardown that has nothing to do with what the test asserted. Seen on
+# CI against `tests/compose.bats`, which generates a project per test under
+# --jobs, and on a different test each run; never reproduced locally, and the
+# writer was never caught in the act, so this waits the race out rather than
+# naming a cause. A tree that is genuinely stuck still fails, and says what is
+# left in it.
+remove_workdir() {
+  local -r dir="$1"
+
+  for _ in 1 2 3 4 5; do
+    rm -rf "$dir" 2>/dev/null && return 0
+    sleep 1
+  done
+
+  rm -rf "$dir" && return 0
+  echo "could not remove ${dir}, left behind:" >&2
+  find "$dir" >&2
+  return 1
 }

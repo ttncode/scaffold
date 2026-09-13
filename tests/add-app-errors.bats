@@ -12,7 +12,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 @test "add refuses to run outside a git repository" {

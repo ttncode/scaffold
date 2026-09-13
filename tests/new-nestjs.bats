@@ -5,7 +5,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 @test "nestjs generates an app at apps/api" {

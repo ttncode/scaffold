@@ -5,7 +5,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 @test "nextjs generates an app at apps/web" {

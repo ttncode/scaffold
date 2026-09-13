@@ -6,7 +6,7 @@ setup() {
 }
 
 teardown() {
-  rm -rf "$WORKDIR"
+  remove_workdir "$WORKDIR"
 }
 
 @test "add installs an adapter at an arbitrary path" {
