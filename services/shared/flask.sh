@@ -102,7 +102,8 @@ init_flask_alembic() {
     migrations/env.py || return 1
   rm -f migrations/env.py.bak
 
-  grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\])' migrations/env.py \
+  grep -q '^import os$' migrations/env.py \
+    && grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\])' migrations/env.py \
     || die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"
 
   uv run ruff check --fix migrations/env.py || return 1
