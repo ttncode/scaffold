@@ -96,15 +96,24 @@ EOF
     src/health/health.controller.ts || return 1
   rm -f src/health/health.controller.ts.bak
 
-  grep -q "dbClient" src/health/health.controller.ts \
-    && grep -q "PrismaClient" src/health/health.controller.ts \
-    && grep -q "return { status: 'ok' };" src/health/health.controller.ts \
-    && grep -q "async ready(): Promise<" src/health/health.controller.ts \
-    || die "could not splice the database probe into src/health/health.controller.ts — has the anchor moved?"
+  assert_nest_probe_spliced src/health/health.controller.ts
 
   # The mongodb and SQL branches wrap differently under prettier's print width,
   # so reformat once rather than hand-matching its output per branch.
   pnpm exec prettier --write src/health/health.controller.ts || return 1
+}
+
+# The fourth check is the absence of the fallback throw, not the presence of the
+# success return: live() already returns `{ status: 'ok' };`, so a grep for that
+# matches the shipped file and passes whether or not the splice landed.
+assert_nest_probe_spliced() {
+  local -r file="$1"
+
+  grep -q "dbClient" "$file" \
+    && grep -q "PrismaClient" "$file" \
+    && grep -q "async ready(): Promise<" "$file" \
+    && ! grep -q "no database is configured for this project" "$file" \
+    || die "could not splice the database probe into ${file} — has the anchor moved?"
 }
 
 service_driver_dockerfile() {
