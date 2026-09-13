@@ -10,12 +10,12 @@
 # only for splice_flask_probe.
 #
 #   FLASK_DIALECT      the SQLAlchemy URL scheme, e.g. postgresql+psycopg
-#   FLASK_PACKAGES     the DBAPI package to `uv add` alongside sqlalchemy
+#   FLASK_PACKAGE      the DBAPI package to `uv add` alongside sqlalchemy
 #   FLASK_PORT         the host-side port written into .env.example
 #   FLASK_COMPOSE_URL  the same DSN against the compose network
 
 service_driver_apply() {
-  uv add sqlalchemy alembic "$FLASK_PACKAGES" || return 1
+  uv add sqlalchemy alembic "$FLASK_PACKAGE" || return 1
 
   write_env_lines .env.example \
     "DATABASE_URL=${FLASK_DIALECT}://app:app@localhost:${FLASK_PORT}/app" \
@@ -76,7 +76,7 @@ splice_flask_probe() {
   ' "$file" > "${file}.tmp" || return 1
   mv "${file}.tmp" "$file"
 
-  grep -q 'return jsonify(status="ok")' "$file" \
+  ! grep -q 'no database is configured for this project' "$file" \
     && ! grep -q '@DB_ENGINE@' "$file" \
     && ! grep -q '@DB_PROBE@' "$file" \
     || die "could not splice the database probe into app/health.py — has the anchor moved?"
@@ -98,12 +98,15 @@ init_flask_alembic() {
 
   sed -i.bak 's|^from logging.config import fileConfig$|import os\n\nfrom logging.config import fileConfig|' \
     migrations/env.py || return 1
-  sed -i.bak 's|^config = context.config$|config = context.config\n\nconfig.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])|' \
+  # set_main_option writes through ConfigParser.set, which applies pyformat
+  # interpolation on read — a raw % in DATABASE_URL (from DB_PASSWORD) would
+  # raise InterpolationSyntaxError on the first `alembic upgrade head`.
+  sed -i.bak 's|^config = context.config$|config = context.config\n\nconfig.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"].replace("%", "%%"))|' \
     migrations/env.py || return 1
   rm -f migrations/env.py.bak
 
   grep -q '^import os$' migrations/env.py \
-    && grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\])' migrations/env.py \
+    && grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\].replace("%", "%%"))' migrations/env.py \
     || die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"
 
   uv run ruff check --fix migrations/env.py || return 1
