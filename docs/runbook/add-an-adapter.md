@@ -17,6 +17,8 @@ ADAPTER_ROLE="api"          # web, api, or app
 ADAPTER_TIER="B"
 ADAPTER_LANGUAGE="go"       # "typescript" opts into packages/types
 ADAPTER_GENERATOR='<the framework's own generator, writing into "$APP_DIR">'
+                            # no generator? the package manager's project
+                            # init: adapters/flask uses `uv init --bare`
 # ADAPTER_POST_GENERATE='<one-time fixup for a real generator bug>'
 ```
 
@@ -26,11 +28,19 @@ generator itself gets wrong: `adapters/nestjs/adapter.env` sets it to
 un-await `bootstrap()` and run prettier once. Only reach for it once
 you've hit a real generator bug — it's a patch, not a default step.
 
+The exception is a stack whose generator writes only a manifest: there the
+dependencies are ordinary setup rather than a fixup, and `adapters/flask`
+uses this field to `uv add` them. Either way it ends in a `grep` that fails
+loudly, so a generator that reports success while writing nothing becomes a
+build failure rather than an `ImportError` at container start.
+
 ## 3. Write `mise.toml`
 
 All nine contract tasks. Declare the language in a local `[tools]` block so
-it never reaches the project root. `format`, `lint`, and `check` must not
-write.
+it never reaches the project root — or, where the language's own tooling
+owns the pin, declare the tool and let it read that pin (`adapters/flask`
+pins `uv` and leaves python to `.python-version`). `format`, `lint`, and
+`check` must not write.
 
 ## 4. Write `Dockerfile`, `.env.example`, `lefthook.fragment.yml`
 
