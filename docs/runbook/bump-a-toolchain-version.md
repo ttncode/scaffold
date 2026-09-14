@@ -9,6 +9,11 @@
 - One adapter's own language (`php`'s Composer, or the pinned Node used by
   `laravel-inertia`'s build step): that adapter's own `mise.toml`, e.g.
   `adapters/laravel-api/mise.toml`.
+- `flask`'s python is the exception, and searching the `[tools]` blocks for
+  it finds nothing: `adapters/flask/mise.toml` pins `uv` only, and the
+  interpreter is pinned in `adapters/flask/.python-version`, the file uv
+  reads. Bumping it means editing that file and the `--python` argument in
+  `adapters/flask/adapter.env`, which sets `requires-python` at generation.
 
 ## 2. Edit the version
 
