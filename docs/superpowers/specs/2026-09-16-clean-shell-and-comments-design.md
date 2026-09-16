@@ -89,8 +89,9 @@ Five pull requests, in order, each merged green before the next branches from
 `main`:
 
 1. **Tooling** — pin shfmt, widen shellcheck, fix the 30 new shellcheck
-   findings, one pure `shfmt -w` commit, blame-ignore entry.
-2. **Core** — `scaffold`, `lib/*.sh`, `scripts/*.sh`, `common/install.sh`.
+   findings, one pure `shfmt -w` commit.
+2. **Core** — `.git-blame-ignore-revs`, then `scaffold`, `lib/*.sh`,
+   `scripts/*.sh`, `common/install.sh`.
 3. **Services** — `services/**/*.sh`.
 4. **Tests** — `tests/**` shell (`.bats`, `.bash`, fixture `.sh`).
 5. **Non-shell comments** — `adapters/`, `common/`, `.github/`, root
