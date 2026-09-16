@@ -42,9 +42,8 @@ setup() {
 
 @test "test-unit's suites never run an adapter generator to completion" {
   # mise.toml's test-unit membership is an explicit file list backed by a
-  # comment claiming "no adapter generator anywhere in setup" — the same
-  # "synced by a comment, drifts silently" shape task 13's review round 1
-  # existed to fix elsewhere. this greps the claim instead of trusting it.
+  # comment claiming "no adapter generator anywhere in setup" — a claim that
+  # drifts silently if trusted, so this greps it instead.
   local run_line files f
   run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
   files="$(grep -oE 'tests/[A-Za-z0-9_-]+\.bats' <<<"$run_line")"
@@ -104,8 +103,8 @@ setup() {
   # The missing-driver fixture above proves a family with no driver file
   # fails; nothing proved the mirror case — a driver file that exists and
   # sources cleanly but omits one of REQUIRED_DRIVER_FUNCTIONS. Deleting the
-  # whole `for fn` loop in lint_services left this suite green, which is the
-  # same "gate that cannot fail" shape task 1's own ruling already named.
+  # whole `for fn` loop in lint_services would leave this suite green too: a
+  # gate that cannot fail either way.
   run lint_services \
     "${SCAFFOLD_ROOT}/tests/fixtures/lint-services/missing-driver-function" \
     "${SCAFFOLD_ROOT}/adapters"
@@ -185,12 +184,9 @@ setup() {
 }
 
 @test "every suite runs somewhere" {
-  # A suite in no lane is a suite that never runs: the service branch shipped
-  # thirty tests into that state, and nobody noticed until a review read
-  # mise.toml against ci.yml. Three tests used to guard this, one per suite,
-  # each added after the next suite fell through the same gap — a list that
-  # only ever grows by being wrong first. This asks the question of every
-  # suite in the directory instead, including the ones not written yet.
+  # A suite in no lane is a suite that never runs, so this checks every suite
+  # file in the directory against mise.toml directly rather than keeping a
+  # hardcoded list that could itself go stale.
   #
   # Scoped to each lane's own `run = ` line, not the whole file: a name greps
   # clean out of a comment, or out of [tasks.test]'s "tests/" glob, which CI
@@ -270,16 +266,10 @@ setup() {
 
 @test "every caller of scaffold new supplies the environment it demands" {
   # scaffold new refuses to run without a GitHub owner, because the workflows
-  # it generates carry a `you/` placeholder that has to be substituted. Two
-  # things in this repository call it outside the test suite:
-  #
-  #   scripts/deploy-check.sh         exports its own
-  #   .github/workflows/adapters.yml  sets it on the step
-  #
-  # The workflow was the one that did not, and it failed every scheduled run
-  # from 2026-09-05 to 2026-09-08 — the second time a caller was missed after
-  # the same defect was fixed for deploy-check.sh alone. Grepping the call
-  # sites is what makes a third one impossible to miss.
+  # it generates carry a `you/` placeholder that has to be substituted, and
+  # every caller outside the test suite must export it. Grepping the call
+  # sites, rather than checking a hardcoded list of them, is what catches a
+  # caller that forgets to.
   #
   # tests/*.bats are excluded deliberately: they reach scaffold through
   # tests/helpers/setup.bash, which exports the variable once for all of them,
