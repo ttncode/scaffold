@@ -1,9 +1,5 @@
+# PostgreSQL parameters for the shared Laravel driver.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/postgres/drivers/laravel.sh
-# Description : PostgreSQL parameters for the shared Laravel driver.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck disable=SC2034 # read by services/shared/laravel.sh, sourced below
 LARAVEL_CONNECTION="pgsql"
 LARAVEL_PORT="5432"

@@ -1,9 +1,5 @@
+# How Laravel talks to MongoDB.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/mongodb/drivers/laravel.sh
-# Description : How Laravel talks to MongoDB.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # Self-contained rather than sourcing services/shared/laravel.sh: mongodb wires
 # a DSN and a config/database.php connection instead of the decomposed
 # DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD every relational driver shares.
@@ -28,10 +24,13 @@ service_driver_apply() {
   # empty and laravel refuses to boot.
   write_env_lines "${SCAFFOLD_PROJECT_ROOT}/example.env" "APP_KEY=changeme" || return 1
 
-  # mongodb has no SQL to run a `select 1` against; ping is what
-  # laravel-mongodb exposes. The class arrives as a short name with its own
-  # `use`: pint's fully_qualified_strict_types rejects an inline FQCN once the
-  # file has imports.
+  splice_mongodb_probe || return 1
+}
+
+# mongodb has no SQL to run a `select 1` against; ping is what laravel-mongodb
+# exposes. The class arrives as a short name with its own `use`: pint's
+# fully_qualified_strict_types rejects an inline FQCN once the file has imports.
+splice_mongodb_probe() {
   sed -i.bak 's|use Illuminate\\Support\\Facades\\Route;|use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Route;|' \
     routes/health.php || return 1
   sed -i.bak 's|// @DB_PROBE@|DB::connection(\x27mongodb\x27)->getMongoDB()->command([\x27ping\x27 => 1]);|' \

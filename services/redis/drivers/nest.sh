@@ -1,9 +1,5 @@
+# How NestJS talks to Redis.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/redis/drivers/nest.sh
-# Description : How NestJS talks to Redis.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # Self-contained: redis is the only cache, so a shared body would have exactly
 # one caller. Extract one when a second cache arrives.
 service_driver_apply() {

@@ -1,14 +1,9 @@
+# How Laravel talks to Redis.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/redis/drivers/laravel.sh
-# Description : How Laravel talks to Redis.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # Self-contained: redis is the only cache, so a shared body would have exactly
 # one caller. Extract one when a second cache arrives.
 service_driver_apply() {
   # predis, not the phpredis extension: a composer package needs no build stage.
-  #
   composer require predis/predis --no-interaction || return 1
 
   write_env_lines .env.example \

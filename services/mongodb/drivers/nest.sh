@@ -1,9 +1,5 @@
+# MongoDB parameters for the shared Prisma driver.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/mongodb/drivers/nest.sh
-# Description : MongoDB parameters for the shared Prisma driver.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck disable=SC2034 # read by services/shared/nest.sh, sourced below
 PRISMA_PROVIDER="mongodb"
 # authSource=admin because the container creates the user in `admin`, and

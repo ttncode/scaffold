@@ -1,9 +1,5 @@
+# The shared Laravel SQL driver body.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/shared/laravel.sh
-# Description : The shared Laravel SQL driver body.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # A service's drivers/laravel.sh sets these and sources this. mysql and
 # postgres only — mongodb is self-contained: a DSN and a config/database.php
 # edit differ in kind from these decomposed credentials.
@@ -16,7 +12,7 @@
 #                        needs beyond DB_CONNECTION, e.g. DB_HOST/DB_PORT
 
 service_driver_apply() {
-  if [ -n "$LARAVEL_PACKAGE" ]; then
+  if [[ -n "$LARAVEL_PACKAGE" ]]; then
     composer require "$LARAVEL_PACKAGE" --no-interaction || return 1
   fi
 
@@ -36,11 +32,18 @@ service_driver_apply() {
   # empty and laravel refuses to boot.
   write_env_lines "${SCAFFOLD_PROJECT_ROOT}/example.env" "APP_KEY=changeme" || return 1
 
-  # Spliced here rather than shipped in the route, so the file carries exactly
-  # one probe, for the connection this project actually has.
-  #
-  # The class arrives as a short name with its own `use`: pint's
-  # fully_qualified_strict_types rejects an inline FQCN once the file has imports.
+  splice_laravel_probe || return 1
+}
+
+service_driver_dockerfile() {
+  [[ -z "$LARAVEL_SETUP" ]] || printf '%s\n' "$LARAVEL_SETUP"
+}
+
+# Spliced here rather than shipped in the route, so the file carries exactly
+# one probe, for the connection this project actually has. The class arrives
+# as a short name with its own `use`: pint's fully_qualified_strict_types
+# rejects an inline FQCN once the file has imports.
+splice_laravel_probe() {
   sed -i.bak 's|use Illuminate\\Support\\Facades\\Route;|use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Route;|' \
     routes/health.php || return 1
   sed -i.bak 's|// @DB_PROBE@|DB::connection()->select(\x27select 1\x27);|' \
@@ -56,10 +59,6 @@ service_driver_apply() {
   grep -q 'DB::connection()->select' routes/health.php &&
     grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php ||
     die "could not splice the database probe into routes/health.php — has the anchor moved?"
-}
-
-service_driver_dockerfile() {
-  [ -z "$LARAVEL_SETUP" ] || printf '%s\n' "$LARAVEL_SETUP"
 }
 
 # config/database.php defaults to sqlite, so DB_CONNECTION's absence is a

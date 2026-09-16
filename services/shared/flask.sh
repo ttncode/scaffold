@@ -1,9 +1,5 @@
+# The shared Flask SQLAlchemy driver body.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/shared/flask.sh
-# Description : The shared Flask SQLAlchemy driver body.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # A service's drivers/flask.sh sets these and sources this. mysql and postgres
 # only — mongodb is self-contained: pymongo has no SQLAlchemy dialect, so its
 # driver defines its own service_driver_apply after sourcing this file, kept
@@ -77,6 +73,9 @@ splice_flask_probe() {
   ' "$file" >"${file}.tmp" || return 1
   mv "${file}.tmp" "$file"
 
+  # Checks that the fallback and both anchors are gone, not that the success
+  # return exists: live() already returns jsonify(status="ok"), so a presence
+  # grep for it would pass even when the splice failed.
   # shellcheck disable=SC2015 # deliberate: die must fire when any grep fails
   ! grep -q 'no database is configured for this project' "$file" &&
     ! grep -q '@DB_ENGINE@' "$file" &&

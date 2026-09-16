@@ -1,9 +1,5 @@
+# MySQL parameters for the shared Laravel driver.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/mysql/drivers/laravel.sh
-# Description : MySQL parameters for the shared Laravel driver.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck disable=SC2034 # read by services/shared/laravel.sh, sourced below
 LARAVEL_CONNECTION="mysql"
 LARAVEL_PORT="3306"

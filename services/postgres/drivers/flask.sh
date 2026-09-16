@@ -1,9 +1,5 @@
+# PostgreSQL parameters for the shared Flask driver.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/postgres/drivers/flask.sh
-# Description : PostgreSQL parameters for the shared Flask driver.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # shellcheck disable=SC2034 # read by services/shared/flask.sh, sourced below
 FLASK_DIALECT="postgresql+psycopg"
 # the [binary] extra ships a wheel with libpq inside, so the image needs no
