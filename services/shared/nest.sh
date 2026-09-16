@@ -1,9 +1,5 @@
+# The shared Prisma driver body.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/shared/nest.sh
-# Description : The shared Prisma driver body.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # A service's drivers/nest.sh sets the parameters below and sources this. One
 # client API across every database this toolbox ships is why Prisma was chosen
 # over TypeORM — the adapter x service matrix collapses to a single code path.
@@ -17,9 +13,8 @@
 service_driver_apply() {
   # Before the installs, not after: prisma, its engines and its client all place
   # the query engine binary through an install-time script with no pure-js
-  # fallback, and undecided the first `pnpm add` below is refused with
+  # fallback, and unset the first `pnpm add` below is refused with
   # ERR_PNPM_IGNORED_BUILDS wherever CI=true leaves pnpm no prompt.
-  #
   # SCAFFOLD_PROJECT_ROOT, not a fixed `../..`: cmd_add's app directory is
   # caller-chosen.
   if ! yq --inplace \
@@ -54,22 +49,25 @@ EOF
 
   write_env_lines .env.example "DATABASE_URL=${PRISMA_URL}" || return 1
 
-  # prisma has no provider-agnostic read: $queryRaw is SQL-only, mongodb needs a
-  # command, and a generated client only has the one method its provider
-  # implies — casting to the other fails tsc's "sufficient overlap" check.
-  #
-  # Cast to an explicit method signature, not a bare `import(...).then(...)`:
-  # lint runs before the :prisma task, so the generated client does not exist
-  # yet and an untyped access to it is `any`, which @typescript-eslint's
-  # no-unsafe-* rules reject under --max-warnings 0.
-  #
-  # The throw is replaced in place, not left below the probe: no-unreachable is
-  # in eslint's recommended set. A --db none project keeps the throw.
-  #
-  # The client is a field on HealthController, not a local inside ready(): a
-  # controller is a Nest singleton, and a PrismaClient built per request and
-  # never closed leaks one connection per poll — measured exhausting Postgres's
-  # max_connections inside an hour at a 10s probe interval.
+  splice_nest_probe || return 1
+}
+
+# prisma has no provider-agnostic read: $queryRaw is SQL-only, mongodb needs a
+# command, and a generated client only has the one method its provider
+# implies — casting to the other fails tsc's "sufficient overlap" check. Cast
+# to an explicit method signature, not a bare `import(...).then(...)`: lint
+# runs before the :prisma task, so the generated client does not exist yet and
+# an untyped access to it is `any`, which @typescript-eslint's no-unsafe-*
+# rules reject under --max-warnings 0.
+#
+# The throw is replaced in place, not left below the probe: no-unreachable is
+# in eslint's recommended set. A --db none project keeps the throw.
+#
+# The client is a field on HealthController, not a local inside ready(): a
+# controller is a Nest singleton, and a PrismaClient built per request and
+# never closed leaks one connection per poll — measured exhausting Postgres's
+# max_connections inside an hour at a 10s probe interval.
+splice_nest_probe() {
   local method field preamble probe
   # shellcheck disable=SC2016 # literal TypeScript spliced into the generated controller
   case "$PRISMA_PROVIDER" in

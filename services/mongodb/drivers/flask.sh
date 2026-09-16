@@ -1,9 +1,5 @@
+# How Flask talks to MongoDB.
 # shellcheck shell=bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : services/mongodb/drivers/flask.sh
-# Description : How Flask talks to MongoDB.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
 # Self-contained, like services/mongodb/drivers/laravel.sh: a DSN, not
 # decomposed credentials. Sources services/shared/flask.sh only to reuse
 # splice_flask_probe, then overrides service_driver_apply,
