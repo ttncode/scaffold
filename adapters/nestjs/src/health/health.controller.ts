@@ -19,7 +19,6 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  // Reuses the singleton's client: readiness is polled every few seconds.
   // Not `async`: with --db none, require-await fails lint; the driver adds it.
   @Get('ready')
   ready(): Promise<{ status: string }> {

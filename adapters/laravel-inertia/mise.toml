@@ -44,6 +44,7 @@ run = [
 run = "php artisan migrate --force"
 
 [tasks.ci-unit]
+# :lint repeats :format's pint call on purpose: every adapter runs all five.
 run = [
   { task = ":install" },
   { task = ":format" },

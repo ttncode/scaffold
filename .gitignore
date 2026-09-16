@@ -5,6 +5,6 @@
 node_modules/
 tmp/
 
-# Rooted: files under common/ with these names ship into generated projects.
+# Rooted: unanchored, `git add -A` would silently drop common/'s same-named templates.
 /package.json
 /pnpm-lock.yaml
