@@ -25,6 +25,7 @@ teardown() {
 }
 
 @test "the path check fails on a path that does not exist" {
+  # shellcheck disable=SC2016 # literal markdown backticks written into index.md, not expanded
   echo 'See `docs/nope-does-not-exist.md`.' >> "${PROJECT}/docs/index.md"
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
@@ -141,6 +142,7 @@ EOF
 }
 
 @test "a broken path surfaces as a failing docs:check" {
+  # shellcheck disable=SC2016 # literal markdown backticks written into index.md, not expanded
   echo 'See `docs/nope-does-not-exist.md`.' >> "${PROJECT}/docs/index.md"
   cd "$PROJECT"
   run mise run //docs:check

@@ -233,7 +233,7 @@ strip_ansi() {
   # The wizard's own version of the test that keeps adapters.yml honest: an
   # adapter or service nobody can select is invisible, and nothing else would
   # say so.
-  local row name reachable
+  local name reachable
   while IFS=$'\t' read -r name _ _; do
     reachable=0
     for kind in web api app database cache; do

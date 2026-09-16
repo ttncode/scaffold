@@ -1,6 +1,7 @@
 [tools]
 bats = "1.13.0"
 shellcheck = "0.11.0"
+shfmt = "3.14.1"
 yq = "4.48.1"
 jq = "1.8.1"
 zizmor = "1.29.0"
@@ -18,9 +19,7 @@ lockfile = true
 [tasks.lint]
 # discovers tracked shell files rather than listing them, so a new one is
 # caught automatically; xargs -r skips the run when nothing matches yet.
-# common/*.sh (install.sh) is included: it ships into every generated
-# project, so it is linted here same as the toolbox's own scripts.
-run = "git ls-files -- scaffold 'lib/*.sh' 'scripts/*.sh' 'common/*.sh' | xargs -r shellcheck"
+run = "git ls-files -z -- scaffold '*.sh' '*.bash' '*.bats' | xargs -0 -r shellcheck"
 
 [tasks.test]
 # --jobs changes no isolation: bats already gives every test its own process

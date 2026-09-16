@@ -206,6 +206,7 @@ setup() {
   # running without anyone editing the thing that stopped it.
   adapters="$(cat "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml")"
   provenance="$(cat "${SCAFFOLD_ROOT}/.github/workflows/provenance.yml")"
+  # shellcheck disable=SC2016 # literal text matched against adapters.yml, not expanded
   [[ "$adapters" == *'bats "tests/new-${ADAPTER}.bats"'* ]] \
     || { echo "adapters.yml no longer runs tests/new-<adapter>.bats"; false; }
   [[ "$provenance" == *"bats tests/provenance.bats"* ]] \

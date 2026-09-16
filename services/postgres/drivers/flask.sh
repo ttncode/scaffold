@@ -10,6 +10,7 @@ FLASK_DIALECT="postgresql+psycopg"
 # system package and service_driver_dockerfile stays empty
 FLASK_PACKAGE="psycopg[binary]"
 FLASK_PORT="5432"
+# shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
 FLASK_COMPOSE_URL='postgresql+psycopg://${DB_USERNAME:-app}:${DB_PASSWORD}@database:5432/${DB_DATABASE:-app}'
 # shellcheck source=/dev/null
 . "${SCAFFOLD_ROOT}/services/shared/flask.sh"

@@ -71,6 +71,7 @@ EOF
   # never closed leaks one connection per poll — measured exhausting Postgres's
   # max_connections inside an hour at a 10s probe interval.
   local method field preamble probe
+  # shellcheck disable=SC2016 # literal TypeScript spliced into the generated controller
   case "$PRISMA_PROVIDER" in
     mongodb)
       method='$runCommandRaw(command: object): Promise<unknown>'
@@ -109,6 +110,7 @@ EOF
 assert_nest_probe_spliced() {
   local -r file="$1"
 
+  # shellcheck disable=SC2015 # deliberate: die must fire when any check fails
   grep -q "dbClient" "$file" \
     && grep -q "PrismaClient" "$file" \
     && grep -q "async ready(): Promise<" "$file" \
@@ -123,6 +125,7 @@ service_driver_dockerfile() {
 # An operator's own .env wins; otherwise compose builds the URL from the same
 # DB_* variables the database container reads.
 service_driver_compose_env() {
+  # shellcheck disable=SC2016 # literal ${DATABASE_URL} written into compose.yaml, not expanded here
   printf 'DATABASE_URL: ${DATABASE_URL:-%s}\n' "$PRISMA_COMPOSE_URL"
 }
 
@@ -143,5 +146,6 @@ service_driver_compose_migrate() {
   esac
   # `$${d}`/`$$d`, not `${d}`/`$d`: compose interpolates `$var` before the
   # command reaches the container; `$$` is compose's escape for a literal `$`.
+  # shellcheck disable=SC2016 # literal shell text written into compose.yaml, not expanded here
   printf 'command: ["sh", "-c", "for d in apps/*/ ./; do [ -x $${d}node_modules/.bin/prisma ] && cd $$d && exec node_modules/.bin/prisma %s; done; echo prisma binary not found >&2; exit 1"]\n' "$args"
 }

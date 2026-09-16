@@ -18,6 +18,7 @@ teardown() {
 }
 
 @test "the application image tag is parameterised" {
+  # shellcheck disable=SC2016 # literal pattern matched against compose.yaml, not expanded
   run grep 'image:.*\${IMAGE_TAG' "${PROJECT}/compose.yaml"
   assert_ok
 }
