@@ -1,8 +1,6 @@
 [tasks.install]
-# packages/types joins the workspace only after this app's own generator
-# has already installed once, so this is always the first frozen install
-# to see both together; pnpm needs to relink node_modules for that and
-# must not stop to ask — every contract task runs non-interactively.
+# The first frozen install after packages/types joins the workspace relinks
+# node_modules, and pnpm must not stop to ask.
 env = { npm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 
@@ -16,17 +14,11 @@ run = "pnpm exec prettier --write ."
 run = "pnpm exec eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0"
 
 [tasks.prisma]
-# prisma writes the client that tsc type-checks against, so it has to run
-# before check and before build — the same shape as the nextjs adapter's
-# `next typegen`. A project generated with --db none has no schema and no
-# prisma, and this does nothing; a real prisma failure still fails.
+# tsc checks against the generated client; a --db none project has no schema.
 run = "if [ -f prisma/schema.prisma ]; then pnpm exec prisma generate; fi"
 
 [tasks.migrate]
-# prisma's mongodb provider rejects `migrate deploy` outright — measured:
-# `The "mongodb" provider is not supported with this command.` — and takes
-# `db push` instead. Branching on the schema rather than on a recorded value
-# keeps this true for a project whose provider changes.
+# prisma's mongodb provider rejects `migrate deploy` and takes `db push`.
 run = """
 if ! [ -f prisma/schema.prisma ]; then exit 0; fi
 if grep -q 'provider *= *"mongodb"' prisma/schema.prisma; then

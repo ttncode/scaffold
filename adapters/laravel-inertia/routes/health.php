@@ -2,27 +2,17 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Registered from bootstrap/app.php's withRouting(then: ...) — laravel loads
-// only routes/web.php and routes/api.php on its own, so a file dropped here
-// with nothing pointing at it would 404 forever.
-//
-// The probe is written by the selected service's driver: laravel has no
-// provider-agnostic read, so a SQL connection gets `select 1` and mongodb
-// gets a ping command. A project generated with --db none keeps the
-// anchor's fallback and reports 503, because there is nothing here that
-// could honestly report ready.
+// Loaded by bootstrap/app.php's withRouting(then: ...); laravel loads only
+// web.php and api.php itself. The database driver splices in the probe; with
+// --db none the throw stands and readiness reports 503.
 Route::get('/health/ready', function () {
     try {
         // @DB_PROBE@
         throw new RuntimeException('no database is configured for this project');
     } catch (Throwable $e) {
-        // Logged, not returned: a driver's connection error names the host,
-        // port, user and database, and /health/ready is unauthenticated. An
-        // orchestrator reads the status code and nothing else. logger(), not
-        // the Log facade: an import here would sit between the two `use`
-        // lines services/mongodb/drivers/laravel.sh splices, and pint's
-        // ordered_imports would then fail the generated project's own format
-        // task.
+        // Logged, not returned: the error names host and user, and this route is
+        // unauthenticated. logger(), not Log: another `use` breaks pint's import
+        // order once the driver splices in DB.
         logger()->warning('readiness probe failed: '.$e->getMessage());
 
         return response()->json(['status' => 'unavailable'], 503);

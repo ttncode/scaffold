@@ -10,11 +10,8 @@ import {
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
 
-  // The client field and the probe below are both written by the selected
-  // service's driver: prisma has no provider-agnostic read, so a SQL
-  // provider gets $queryRawUnsafe and mongodb gets $runCommandRaw. A project
-  // generated with --db none leaves this anchor as a comment and the probe
-  // falls through to its throw, reporting 503 honestly.
+  // The database driver splices in the client and the probe; with --db none the
+  // probe throws and readiness reports 503.
   // @DB_CLIENT@
 
   @Get('live')
@@ -22,28 +19,16 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  // Readiness is polled by every orchestrator, often every few seconds, so
-  // the probe below reuses the client field declared above instead of
-  // constructing a new PrismaClient per request: HealthController is a
-  // Nest singleton (the default provider/controller scope), so one instance
-  // — and one connection pool — lives for the process, the same lifetime a
-  // NestJS Prisma integration normally gives it via a connect-once service.
-  // A fresh client per call would need its own $disconnect() to avoid
-  // leaking a connection per poll, but tearing a real pool down and back up
-  // every few seconds is the wasteful version of the same fix.
-  // Not `async` here: with --db none there is nothing to await, and
-  // @typescript-eslint/require-await fails a generated project on its own
-  // lint. services/shared/nest.sh adds the keyword when it splices in a
-  // probe, which is the only case that awaits anything.
+  // Reuses the singleton's client: readiness is polled every few seconds.
+  // Not `async`: with --db none, require-await fails lint; the driver adds it.
   @Get('ready')
   ready(): Promise<{ status: string }> {
     try {
       // @DB_PROBE@
       throw new Error('no database is configured for this project');
     } catch (error) {
-      // Logged, not returned: a driver's connection error names the host,
-      // port, user and database, and /health/ready is unauthenticated. An
-      // orchestrator reads the status code and nothing else.
+      // Logged, not returned: the error names host and user, and this route is
+      // unauthenticated.
       this.logger.warn(`readiness probe failed: ${(error as Error).message}`);
       throw new HttpException(
         { status: 'unavailable' },

@@ -1,18 +1,12 @@
-# php itself is not pinned (ADR-0016). node is here because vite builds the
-# assets: picking laravel to get one app instead of two does not avoid node,
-# and that is better learned here than in CI.
+# php comes from the system (ADR-0016); node builds the vite assets.
 [tools]
 "ubi:composer/composer" = "2.10.2"
 node = "24.15.0"
 
 [tasks.install]
 # mise installs composer as composer.phar, not composer
-# `npm run build` belongs here, not in check or test. It produces two
-# gitignored artifacts nothing else generates: resources/js/{actions,routes},
-# which types:check compiles against, and public/build/manifest.json, without
-# which every test rendering an inertia page 500s. Both survive locally from
-# the last run, so the app passes every local run and never passes a clean CI
-# checkout. Same order the starter kit's own CI uses.
+# `npm run build` here: types:check needs resources/js/{actions,routes} and page
+# tests need public/build/manifest.json, both gitignored.
 run = [
   "php -r 'exit(version_compare(PHP_VERSION, \"8.3.0\", \">=\") ? 0 : 1);' || { echo \"laravel-inertia requires system php >= 8.3.0 (found $(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'no php on PATH')); install php 8.3 or newer via your OS package manager (e.g. apt install php8.3-cli) or https://php.net, then re-run mise install\" >&2; exit 1; }",
   "composer.phar install --no-interaction --prefer-dist",
@@ -20,18 +14,14 @@ run = [
   "npm run build",
 ]
 
-# vite-plus's `vp check` covers formatting and linting in one command; there is
-# no separate format:check to call. Scoped to resources/ because an unscoped run
-# also reformats this file.
+# `vp check` formats and lints; unscoped, it also rewrites this file.
 [tasks.format]
 run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 
 [tasks."format-fix"]
 run = ["./vendor/bin/pint", "npm run check:fix -- resources"]
 
-# both halves of lint are already formatters that lint: pint on the php side,
-# vp on the frontend. Same honest duplicate as laravel-api rather than a second
-# linter invented to fill the slot.
+# pint and vp are formatter and linter both
 [tasks.lint]
 run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 
@@ -39,15 +29,12 @@ run = ["./vendor/bin/pint --test", "npm run check -- resources"]
 run = ["./vendor/bin/phpstan analyse --no-progress --memory-limit=512M", "npm run types:check"]
 
 [tasks.test]
-# Same uncommitted-.env problem as laravel-api: no APP_KEY means every test
-# that boots the app dies on MissingAppKeyException.
+# APP_KEY lives in the uncommitted .env; a throwaway key lets tests boot the app.
 run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
-# --no-dev strips pint, phpstan and phpunit from vendor/, and the pre-commit
-# hook calls ./vendor/bin/pint directly — so the next commit fails on a missing
-# binary. Put them back; `status=$?` keeps the production install's exit code.
-# The real artifact is the Dockerfile's own --no-dev install.
+# The second install restores pint for the pre-commit hook; `status=$?` keeps
+# the --no-dev install's exit code. The image does its own --no-dev install.
 run = [
   "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative; status=$?; composer.phar install --no-interaction --prefer-dist --quiet; exit $status",
   "npm run build",

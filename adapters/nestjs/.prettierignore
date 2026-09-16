@@ -1,4 +1,2 @@
 pnpm-lock.yaml
-# nest build writes here; unignored, format fails on the previous run's own
-# output once build has run once
 dist

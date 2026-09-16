@@ -9,12 +9,9 @@ node_modules
 storage/logs
 storage/framework/cache
 
-# both the directory and its manifests must survive: composer writes them
-# locally, naming dev providers a --no-dev image lacks, but artisan also
-# refuses to boot without the directory itself present — for this adapter the
-# failure surfaces in vite's wayfinder plugin, several stages from the cause
+# the manifests, not the directory: local ones name dev providers a --no-dev
+# image lacks, and artisan will not boot without the directory
 bootstrap/cache/*.php
 
-# a build context is not a git tree: without this, a host `npm run build`
-# ships over what the assets stage just built
+# a host `npm run build` would overwrite the assets stage's output
 public/build

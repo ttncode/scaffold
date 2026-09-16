@@ -1,5 +1,4 @@
-# uv alone: uv resolves its own managed interpreter, so a `python` entry here
-# would be installed and then ignored. .python-version is the pin uv reads.
+# No python: uv installs its own from .python-version and would ignore mise's.
 [tools]
 uv = "0.12.13"
 
@@ -22,14 +21,12 @@ run = "uv run mypy --strict app tests"
 run = "uv run pytest -q"
 
 [tasks.build]
-# The production sync drops ruff, which the pre-commit hook calls directly, so
-# the second sync puts it back; `status=$?` keeps the production exit code.
+# The second sync restores ruff for the pre-commit hook; `status=$?` keeps the
+# production sync's exit code.
 run = "uv sync --locked --no-dev; status=$?; uv sync --locked --quiet; exit $status"
 
 [tasks.migrate]
-# alembic.ini exists only for postgres/mysql, app/migrate.py only for mongodb;
-# --db none or a cache-only project ships neither, so this must not assume one
-# of the two is always there.
+# alembic.ini: postgres/mysql; app/migrate.py: mongodb; neither: --db none.
 run = "if [ -f alembic.ini ]; then uv run alembic upgrade head; elif [ -f app/migrate.py ]; then uv run python -m app.migrate; else echo 'nothing to migrate'; fi"
 
 [tasks.ci-unit]
