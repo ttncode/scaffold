@@ -26,14 +26,10 @@ teardown() {
 @test "compose.yaml, install.sh and the build workflows name one registry path" {
   # build.yml pushes the image compose.yaml pulls, and install.sh downloads
   # the release that publishes compose.yaml. Three files, one path — written
-  # from the same owner and project name at generation time.
-  #
-  # They used to disagree by construction: the workflows were substituted and
-  # compose.yaml/install.sh shipped `CHANGEME/CHANGEME`, so a project's first
-  # release named an image nothing had pushed and needed a hand-edit plus a
-  # second release before install.sh worked at all.
-  # One entry per application now (ADR-0022), so this asks the question of
-  # every one of them rather than of a single `app` service.
+  # from the same owner and project name at generation time; letting them
+  # drift leaves install.sh downloading a release nothing pushed. One entry
+  # per application (ADR-0022), so this asks the question of every one of
+  # them rather than of a single `app` service.
   local images want_repo
   images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
     "${PROJECT}/.github/workflows/build.yml")"
@@ -162,8 +158,8 @@ INNER_EOF
 
 @test "install.sh survives being piped into bash instead of dying on an unbound variable" {
   # documented as curl-piped (`curl ... | bash`), same as the immich script
-  # this is adapted from — piped in, BASH_SOURCE[0] is unbound, and
-  # `set -o nounset` used to kill the script before the source guard even ran.
+  # this is adapted from — piped in, BASH_SOURCE[0] is unbound, which
+  # `set -o nounset` would otherwise kill before the source guard even runs.
   mkdir -p "${WORKDIR}/piped"
   cd "${WORKDIR}/piped"
   run bash <"${PROJECT}/install.sh"

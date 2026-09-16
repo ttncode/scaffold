@@ -434,10 +434,9 @@ EOF
 @test "apply_service_drivers points a driver at the real project root, not the app's own ancestor" {
   # scaffold add creates its app one directory below the project root
   # ("worker", not "apps/worker"); a driver that assumed the fixed
-  # apps/<role> depth would land two directories above the app instead —
-  # reproduced directly against the pre-fix nest.sh, which mutated this
-  # decoy file with exit 0 and never noticed the real root had no
-  # pnpm-workspace.yaml of its own.
+  # apps/<role> depth would land two directories above the app instead,
+  # silently mutating a decoy file there rather than failing on the real
+  # root's missing pnpm-workspace.yaml.
   local root="${BATS_TEST_TMPDIR}/rootcheck/project"
   local decoy="${BATS_TEST_TMPDIR}/rootcheck"
   local app="${root}/worker"
@@ -934,8 +933,7 @@ _password_literal_report() {
   # A project generated with --db none keeps this file as shipped: nothing
   # splices a probe in, so nothing in ready() awaits. Shipping it `async`
   # made every --db none project fail @typescript-eslint/require-await on
-  # its own lint task — green-on-generation is the whole promise (ADR-0021),
-  # and two of the sixteen nightly service cells were red on it.
+  # its own lint task — green-on-generation is the whole promise (ADR-0021).
   #
   # Both halves, because either alone is satisfiable by a broken file: the
   # shipped file must not say async, and the driver must be the thing that

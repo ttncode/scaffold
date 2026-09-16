@@ -282,10 +282,11 @@ strip_ansi() {
 
 @test "Ctrl-D at the name prompt exits instead of spinning forever" {
   # read returns 1 on EOF, leaving name empty; tui_name_is_usable "" fails,
-  # and pre-fix the loop just re-asked forever. The TTY guard in main only
-  # keeps a non-terminal stdin out — it does nothing about Ctrl-D on a real
-  # one, so this drives tui_prompt_name itself under a pty. Bounded by an
-  # outer timeout so a regression here fails this test instead of hanging it.
+  # and a loop with no EOF check just re-asks forever. The TTY guard in main
+  # only keeps a non-terminal stdin out — it does nothing about Ctrl-D on a
+  # real one, so this drives tui_prompt_name itself under a pty. Bounded by
+  # an outer timeout so a regression here fails this test instead of hanging
+  # it.
   command -v script >/dev/null || skip "script(1) not available"
 
   local driver="${BATS_TEST_TMPDIR}/drive-name-prompt.sh"
@@ -634,9 +635,8 @@ EOF
   #
   # Both run under a pty. tui_header measures with `tput cols`, which reads
   # the terminal, not $COLUMNS — so without a pty `stty cols` fails silently,
-  # tput falls back to 80, and both cases draw the same 80-column box. That
-  # is how the first version of this test passed here and failed on CI: the
-  # width it claimed to set was never the width being measured.
+  # tput falls back to 80, and both cases draw the same 80-column box: a
+  # width this test would claim to set without ever actually measuring it.
   command -v script >/dev/null || skip "script(1) not available"
 
   local body="source '${SCAFFOLD_ROOT}/lib/tui.sh'; tui_header"

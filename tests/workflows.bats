@@ -2,12 +2,10 @@ setup() {
   REAL_HOME="$HOME"
   # Redirecting HOME to hide a git identity moves mise's data directory with
   # it, and an empty one means every generated project re-downloads node,
-  # pnpm, lefthook and gitleaks. That is minutes per test and, worse, four
-  # network calls that can fail for reasons this suite is not testing —
-  # measured twice: `peer closed connection without sending TLS close_notify`
-  # while fetching pnpm, failing a test about git identity. The tests below
-  # point it back at the real store; HOME stays redirected, which is the
-  # thing they actually need.
+  # pnpm, lefthook and gitleaks — minutes per test, and network calls that
+  # can fail for reasons this suite is not testing. The tests below point it
+  # back at the real store; HOME stays redirected, which is the thing they
+  # actually need.
   REAL_MISE_DATA_DIR="${MISE_DATA_DIR:-${HOME}/.local/share/mise}"
 
   # a test that redirects HOME loses git's identity with it, and

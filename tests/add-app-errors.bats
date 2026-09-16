@@ -1,9 +1,9 @@
-# covers the failure paths task 8 asked for beyond the brief's five given
-# tests: locating the project (outside git, inside a non-scaffold git repo),
-# a pre-existing target surviving a refused add with its contents intact,
-# resolving the target relative to the project root from a subdirectory, and
-# the cleanup trap actually firing on a partial failure — all without a real
-# adapter's network-hitting generator, so this file stays fast.
+# Failure paths for `scaffold add`: locating the project (outside git, inside
+# a non-scaffold git repo), a pre-existing target surviving a refused add with
+# its contents intact, resolving the target relative to the project root from
+# a subdirectory, and the cleanup trap actually firing on a partial failure —
+# all without a real adapter's network-hitting generator, so this file stays
+# fast.
 
 setup() {
   load 'helpers/setup'

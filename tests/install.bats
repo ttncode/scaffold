@@ -68,8 +68,8 @@ INNER_EOF
 }
 
 @test "fetch_release_asset uses the api asset endpoint when a token is set" {
-  # A Bearer token on the browser URL returns 404 for a private repository —
-  # measured 2026-09-07 — so the endpoint has to change, not just the headers.
+  # A Bearer token on the browser URL returns 404 for a private repository,
+  # so the endpoint has to change, not just the headers.
   mkdir -p stub2
   cat >stub2/curl <<'INNER_EOF'
 #!/usr/bin/env bash
@@ -112,9 +112,9 @@ INNER_EOF
 
 @test "start_stack logs in to ghcr only when a token is set" {
   # A package's ghcr visibility is separate from its repository's — a
-  # private package refuses an anonymous pull with `unauthorized`, measured
-  # 2026-09-07. A public client pulling a public image must never be asked
-  # to authenticate, so the no-token half here must see no login at all.
+  # private package refuses an anonymous pull with `unauthorized`. A public
+  # client pulling a public image must never be asked to authenticate, so
+  # the no-token half here must see no login at all.
   mkdir -p stub3
   cat >stub3/docker <<'INNER_EOF'
 #!/usr/bin/env bash
@@ -152,7 +152,7 @@ INNER_EOF
 @test "fetch_release_asset with no token names GITHUB_TOKEN on failure" {
   # Without this the operator sees only curl's `(22) ... 404`, which reads as
   # "no such release" rather than "you are not signed in" — see the comment
-  # on fetch_release_asset for the private-repository measurement behind it.
+  # on fetch_release_asset for why a private repository behaves that way.
   mkdir -p stub4
   cat >stub4/curl <<'INNER_EOF'
 #!/usr/bin/env bash
