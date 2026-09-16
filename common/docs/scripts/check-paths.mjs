@@ -5,11 +5,10 @@ import { extname, join, resolve } from "node:path";
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 // backticked strings that look like repository paths
 const PATH_PATTERN = /`((?:[\w.-]+\/)+[\w.-]+)`/g;
-// a comment citing an adr by path, not just by prose in a backtick — the
-// shape task 6 and task 9 both got wrong, in files that ship (compose.yaml,
-// install.sh, an adapter's own mise.toml), while what they meant was the
-// scaffold toolbox's own history, which never ships past 0000 and the
-// template (see common/docs/decisions/).
+// a comment citing an adr by path, not just by prose in a backtick — in files
+// that ship (compose.yaml, install.sh, an adapter's own mise.toml) that path
+// must resolve against this project's own docs/decisions/, not the scaffold
+// toolbox's, which never ships past 0000 and the template.
 const ADR_REFERENCE_PATTERN = /\bdocs\/decisions\/(\d{4})[\w.-]*/g;
 const ADR_SCAN_EXTENSIONS = new Set([".sh", ".toml", ".mjs", ".yaml", ".yml"]);
 
@@ -22,8 +21,7 @@ const SKIP_DIRS = new Set(["node_modules", ".git", ".vitepress"]);
 // root, so the root-relative path scan reports them as dead when they are not
 // (e.g. create-next-app's AGENTS.md and README.md). This applies to the
 // markdown path scan only — the ADR-citation scan must still walk apps/, or
-// a dead ADR reference in an adapter's own mise.toml goes unseen again
-// (the hole task 11 closed).
+// a dead ADR reference in an adapter's own mise.toml goes unseen.
 const MARKDOWN_SKIP_DIRS = new Set([...SKIP_DIRS, "apps"]);
 
 async function filesMatching(dir, matches, skipDirs = SKIP_DIRS) {
