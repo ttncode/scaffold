@@ -1,60 +1,52 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : lib/lint.sh
-# Description : Check every adapter and service against the contract.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
+# Check every adapter and service against the contract.
 # shellcheck shell=bash
+#
+# Every lint_* function prints one line per problem and returns 1 when it found
+# any, so a caller runs them all and fails once at the end.
 
-# adapter_env_value <adapter.env> <var> — the value of one quoted assignment.
 adapter_env_value() {
-  sed -n "s/^${2}=\"\(.*\)\"\$/\1/p" "$1"
+  local -r file="$1" var="$2"
+
+  sed -n "s/^${var}=\"\(.*\)\"\$/\1/p" "$file"
 }
 
-# task_body <mise.toml> <task> — every line of one task's table. A `run` value
-# can be a string or an array spanning several lines, and printing the whole
-# table covers both without parsing either.
+# Prints the whole table, so a `run` string and a multi-line array both work.
 task_body() {
-  awk -v task="$2" '
+  local -r file="$1" task="$2"
+
+  awk -v task="$task" '
     $0 ~ "^\\[tasks\\.\"?" task "\"?\\]$" { inside = 1; next }
     inside && /^\[/ { exit }
-    # a comment is not what the task runs, and a trailing one belongs to the
-    # next table: a note above [tasks.format-fix] otherwise reads as the
-    # previous task writing
+    # a trailing comment belongs to the next table
     inside && /^[[:space:]]*#/ { next }
     inside { print }
-  ' "$1"
+  ' "$file"
 }
 
-# driver_families <adapters-dir> — the families that take a driver, read from
-# the adapters themselves rather than listed here: a list would be a second
-# copy of the same fact, and the copy is what goes stale.
+# Read from the adapters, not listed here, so it cannot go stale.
 driver_families() {
+  local -r adapters="$1"
   local adapter role family
   local -a families=()
 
-  for adapter in "$1"/*/; do
-    [ -f "${adapter}adapter.env" ] || continue
+  for adapter in "$adapters"/*/; do
+    [[ -f "${adapter}adapter.env" ]] || continue
     role="$(adapter_env_value "${adapter}adapter.env" ADAPTER_ROLE)"
     case " ${DRIVEN_ROLES[*]} " in
       *" ${role} "*) ;;
       *) continue ;;
     esac
     family="$(adapter_env_value "${adapter}adapter.env" ADAPTER_FAMILY)"
-    [ -n "$family" ] || continue
+    [[ -n "$family" ]] || continue
     case " ${families[*]-} " in
       *" ${family} "*) ;;
       *) families+=("$family") ;;
     esac
   done
 
-  [ "${#families[@]}" -gt 0 ] || return 0
+  ((${#families[@]} > 0)) || return 0
   printf '%s\n' "${families[@]}"
 }
-
-# lint_adapters <adapters-dir>
-# prints one line per problem and returns 1 when any adapter is incomplete.
-# Every lint_* function prints one line per problem and returns 1 when it found
-# any, so a caller can run them all and still fail once at the end.
 
 lint_required_files() {
   local -r name="$1" dir="$2"
@@ -62,7 +54,7 @@ lint_required_files() {
   local file status=0
 
   for file in "$@"; do
-    if [ ! -f "${dir}${file}" ]; then
+    if [[ ! -f "${dir}${file}" ]]; then
       printf '%s: missing file %s\n' "$name" "$file"
       status=1
     fi
@@ -72,7 +64,7 @@ lint_required_files() {
 
 lint_adapter_env() {
   local -r name="$1" file="$2"
-  local var role value status=0
+  local var status=0
 
   for var in "${REQUIRED_ADAPTER_VARS[@]}"; do
     grep -Eq "^${var}=" "$file" || {
@@ -81,23 +73,35 @@ lint_adapter_env() {
     }
   done
 
-  # Conditional on the role rather than required outright: a web adapter has no
-  # connection to probe, and demanding a readiness path from it would only
-  # produce one that returns 200 without doing anything.
+  lint_readiness_path_declared "$name" "$file" || status=1
+  lint_route_paths "$name" "$file" || status=1
+
+  return "$status"
+}
+
+# Only a driven role: a web adapter has no connection, and a required readiness
+# path would only produce one that returns 200 doing nothing.
+lint_readiness_path_declared() {
+  local -r name="$1" file="$2"
+  local role
+
   role="$(adapter_env_value "$file" ADAPTER_ROLE)"
   case " ${DRIVEN_ROLES[*]} " in
-    *" ${role} "*)
-      grep -Eq '^ADAPTER_READINESS_PATH=' "$file" || {
-        printf '%s: adapter.env does not set ADAPTER_READINESS_PATH (required for role %s)\n' "$name" "$role"
-        status=1
-      }
-      ;;
+    *" ${role} "*) ;;
+    *) return 0 ;;
   esac
 
-  # A path variable that merely exists is not a route: an empty value satisfies
-  # every check above, then collapses compose.bats' HEALTHCHECK assertion and
-  # the deploy gate's readiness curl into matching any probe on localhost:8080 —
-  # the defect these exist to stop.
+  grep -Eq '^ADAPTER_READINESS_PATH=' "$file" && return 0
+  printf '%s: adapter.env does not set ADAPTER_READINESS_PATH (required for role %s)\n' "$name" "$role"
+  return 1
+}
+
+# An empty path would make the HEALTHCHECK assertion and the deploy gate's curl
+# match any probe on localhost:8080.
+lint_route_paths() {
+  local -r name="$1" file="$2"
+  local var value status=0
+
   for var in ADAPTER_LIVENESS_PATH ADAPTER_READINESS_PATH; do
     grep -Eq "^${var}=" "$file" || continue
     value="$(adapter_env_value "$file" "$var")"
@@ -115,15 +119,23 @@ lint_adapter_env() {
 
 lint_adapter_tasks() {
   local -r name="$1" file="$2"
-  local task body flag status=0
+  local task status=0
 
   for task in "${CONTRACT_TASKS[@]}"; do
-    # both the bare and quoted spelling are valid toml, so tolerate either
     if ! grep -Eq "^\[tasks\.\"?${task}\"?\]" "$file"; then
       printf '%s: missing task %s\n' "$name" "$task"
       status=1
     fi
   done
+
+  lint_read_only_tasks "$name" "$file" || status=1
+
+  return "$status"
+}
+
+lint_read_only_tasks() {
+  local -r name="$1" file="$2"
+  local task body flag status=0
 
   for task in "${READ_ONLY_TASKS[@]}"; do
     body="$(task_body "$file" "$task")"
@@ -146,12 +158,12 @@ lint_adapters() {
   local adapter name status=0
 
   for adapter in "$dir"/*/; do
-    [ -d "$adapter" ] || continue
+    [[ -d "$adapter" ]] || continue
     name="$(basename "$adapter")"
 
     lint_required_files "$name" "$adapter" "${REQUIRED_ADAPTER_FILES[@]}" || status=1
-    [ -f "${adapter}adapter.env" ] && { lint_adapter_env "$name" "${adapter}adapter.env" || status=1; }
-    [ -f "${adapter}mise.toml" ] && { lint_adapter_tasks "$name" "${adapter}mise.toml" || status=1; }
+    [[ -f "${adapter}adapter.env" ]] && { lint_adapter_env "$name" "${adapter}adapter.env" || status=1; }
+    [[ -f "${adapter}mise.toml" ]] && { lint_adapter_tasks "$name" "${adapter}mise.toml" || status=1; }
   done
 
   return "$status"
@@ -175,12 +187,10 @@ lint_service_env() {
   return "$status"
 }
 
-# A subshell per function, or one family's LARAVEL_* parameters (read unqualified
-# in services/shared/laravel.sh) leak into the next driver checked.
-#
-# SERVICE_DIR set before sourcing, as load_service sets it: a driver that reads
-# it at sourcing time and finds it unbound dies under the inherited `set -u`,
-# which is not the same problem as a missing function.
+# A subshell per function, or one family's LARAVEL_* parameters leak into the
+# next driver checked. SERVICE_DIR is set first, as load_service sets it: a
+# driver reading it unbound would die under `set -u` and report as a missing
+# function.
 lint_driver_functions() {
   local -r name="$1" family="$2" driver="$3" service_dir="$4"
   local fn fault status=0
@@ -193,7 +203,7 @@ lint_driver_functions() {
       . "$driver"
       declare -F "$fn" >/dev/null
     } 2>&1)"; then
-      if [ -n "$fault" ]; then
+      if [[ -n "$fault" ]]; then
         printf '%s: %s driver failed to source: %s\n' "$name" "$family" "$fault"
       else
         printf '%s: %s driver does not define %s\n' "$name" "$family" "$fn"
@@ -212,7 +222,7 @@ lint_service_drivers() {
 
   for family in "$@"; do
     driver="${service}drivers/${family}.sh"
-    if [ ! -f "$driver" ]; then
+    if [[ ! -f "$driver" ]]; then
       printf '%s: no driver for %s\n' "$name" "$family"
       status=1
       continue
@@ -223,9 +233,6 @@ lint_service_drivers() {
   return "$status"
 }
 
-# lint_services <services-dir> <adapters-dir>
-# Fails when any service is incomplete, or when a family that takes a driver has
-# no driver in some service.
 lint_services() {
   local -r dir="$1" adapters="$2"
   local service name status=0
@@ -234,12 +241,12 @@ lint_services() {
   mapfile -t families < <(driver_families "$adapters")
 
   for service in "$dir"/*/; do
-    [ -d "$service" ] || continue
+    [[ -d "$service" ]] || continue
     name="$(basename "$service")"
-    [ "$name" = "$SHARED_DRIVERS_DIR" ] && continue
+    [[ "$name" == "$SHARED_DRIVERS_DIR" ]] && continue
 
     lint_required_files "$name" "$service" "${REQUIRED_SERVICE_FILES[@]}" || status=1
-    [ -f "${service}service.env" ] && { lint_service_env "$name" "${service}service.env" || status=1; }
+    [[ -f "${service}service.env" ]] && { lint_service_env "$name" "${service}service.env" || status=1; }
     lint_service_drivers "$name" "$service" ${families[@]+"${families[@]}"} || status=1
   done
 

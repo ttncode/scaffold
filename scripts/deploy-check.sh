@@ -1,29 +1,17 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : scripts/deploy-check.sh
-# Description : Prove a generated project's released stack serves HTTP and
-#               reaches its database.
-# Author      : ttncode
+# Prove a generated project's released stack serves HTTP and reaches its
+# database: the first gate that starts a container (ADR-0021).
 #
-# Usage:
-#   ./scripts/deploy-check.sh <adapter>... [--db <service>]
-#
-# Example:
-#   ./scripts/deploy-check.sh nextjs nestjs --db postgres
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Everything before this gate validated YAML; nothing started a container
-# (ADR-0021).
-
+# Usage:   ./scripts/deploy-check.sh <adapter>... [--db <service>]
+# Example: ./scripts/deploy-check.sh nextjs nestjs --db postgres
 set -euo pipefail
 
-# What this gate calls itself: the substituted GitHub owner, the local image
-# tags, and the compose project. Never a real account or a real stack.
+# The substituted GitHub owner, the local image tags and the compose project:
+# never a real account or a real stack.
 GATE_NAME="deploy-check"
 
-# Long enough for a cold `docker pull` of the database image plus the app's own
-# startup, short enough that a stack that will never come up fails the job
-# instead of eating its whole timeout budget.
+# A cold pull of the database image plus app startup, without eating the job's
+# whole timeout on a stack that will never come up.
 HEALTH_TIMEOUT_SECONDS=120
 HEALTH_POLL_INTERVAL_SECONDS=2
 
@@ -34,9 +22,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/lib/log.sh"
 # shellcheck source=lib/adapter.sh
 source "${ROOT}/lib/adapter.sh"
-# app_service_key and app_port_variable: the same two rules that named the
-# compose service and the port variable when the project was generated, rather
-# than a second copy here that can drift from them.
 # shellcheck source=lib/service.sh
 source "${ROOT}/lib/service.sh"
 
@@ -48,13 +33,11 @@ TMP_DIR=""
 PROJECT_DIR=""
 declare -A ADAPTER_OF ROLE_OF LIVENESS_OF READINESS_OF TAG_OF
 
-# ─── what this run is checking ─────────────────────────────────────────────
-
 parse_args() {
-  while [ $# -gt 0 ]; do
+  while (($# > 0)); do
     case "$1" in
       --db)
-        [ $# -ge 2 ] || die "--db requires a service name"
+        (($# >= 2)) || die "--db requires a service name"
         DB_SERVICE="$2"
         shift 2
         ;;
@@ -65,11 +48,11 @@ parse_args() {
         ;;
     esac
   done
-  [ "${#ADAPTERS[@]}" -ge 1 ] || die "usage: deploy-check.sh <adapter>... [--db <service>]"
+  ((${#ADAPTERS[@]} >= 1)) || die "usage: deploy-check.sh <adapter>... [--db <service>]"
 }
 
-# load_adapter is the reader `scaffold new` itself uses: a second copy drifts,
-# which is how nestjs's Dockerfile came to probe a /health nothing served.
+# Through load_adapter, the reader `scaffold new` uses: a second copy is how
+# nestjs's Dockerfile came to probe a /health nothing served.
 resolve_adapters() {
   local adapter app readiness
 
@@ -80,21 +63,10 @@ resolve_adapters() {
     load_adapter "$adapter" || die "unknown adapter: ${adapter}"
     app="$(app_service_key "$(role_path "$ADAPTER_ROLE")")"
 
-    # lib/lint.sh only checks the line is present. An empty path probes "/",
-    # which nextjs answers 200 for reasons unrelated to its real liveness.
-    [ -n "$ADAPTER_LIVENESS_PATH" ] || die "${adapter} declares an empty ADAPTER_LIVENESS_PATH"
-
-    # `${ADAPTER_READINESS_PATH:-}` alone cannot tell "not declared" (skip, and
-    # say so) from "declared empty" (a malformed adapter.env): both collapse to
-    # "". The `+x` test keeps them apart.
-    readiness=""
-    if [ -n "${ADAPTER_READINESS_PATH+x}" ]; then
-      [ -n "$ADAPTER_READINESS_PATH" ] || die "${adapter} declares an empty ADAPTER_READINESS_PATH"
-      readiness="$ADAPTER_READINESS_PATH"
-    fi
-    # With --db none the route still ships and correctly reports 503, so curling
-    # it expecting 200 would fail a combination the spec says is fine.
-    [ "$DB_SERVICE" = none ] && readiness=""
+    # The linter only checks the line exists; an empty path probes "/", which
+    # nextjs answers 200 regardless.
+    [[ -n "$ADAPTER_LIVENESS_PATH" ]] || die "${adapter} declares an empty ADAPTER_LIVENESS_PATH"
+    readiness="$(readiness_path_to_check "$adapter")"
 
     APPS+=("$app")
     ADAPTER_OF["$app"]="$adapter"
@@ -105,49 +77,56 @@ resolve_adapters() {
   done
 }
 
+# `+x` tells "not declared" (skip) from "declared empty" (malformed). With
+# --db none the route correctly answers 503, so it is not checked.
+readiness_path_to_check() {
+  local -r adapter="$1"
+  local readiness=""
+
+  if [[ -n "${ADAPTER_READINESS_PATH+x}" ]]; then
+    [[ -n "$ADAPTER_READINESS_PATH" ]] || die "${adapter} declares an empty ADAPTER_READINESS_PATH"
+    readiness="$ADAPTER_READINESS_PATH"
+  fi
+  [[ "$DB_SERVICE" == "none" ]] && readiness=""
+  printf '%s' "$readiness"
+}
+
 # migrate has no application of its own and runs a driven application's image.
 resolve_migrate_app() {
   local app
   for app in "${APPS[@]}"; do
-    [ "${ROLE_OF[$app]}" = web ] && continue
+    [[ "${ROLE_OF[$app]}" == "web" ]] && continue
     MIGRATE_APP="$app"
     return 0
   done
   return 0
 }
 
-# ─── the throwaway environment ─────────────────────────────────────────────
-
-# A trap, not a trailing cleanup line: every die() below is a plain `exit 1`,
-# and only a trap runs on that path too. INT/TERM too, so a cancelled CI job or
-# a Ctrl-C doesn't leave containers and a temp dir behind.
+# A trap, because die() exits directly; INT/TERM so a cancelled job leaves no
+# containers behind.
 cleanup() {
-  if [ -f "${PROJECT_DIR}/compose.yaml" ]; then
+  if [[ -f "${PROJECT_DIR}/compose.yaml" ]]; then
     (cd "$PROJECT_DIR" && docker compose down -v --remove-orphans) || true
   fi
   rm -rf "$TMP_DIR"
 }
 
-# `scaffold new` needs an account and a trust store a runner has neither of.
-# Each is owned by this run rather than written into real state, and skipped
-# when the caller already supplied one.
+# `scaffold new` needs an account and a trust store a runner has neither of;
+# each is owned by this run unless the caller supplied one.
 prepare_workspace() {
   TMP_DIR="$(mktemp -d)"
   PROJECT_DIR="${TMP_DIR}/demo"
 
   export SCAFFOLD_GITHUB_OWNER="${SCAFFOLD_GITHUB_OWNER:-$GATE_NAME}"
 
-  # mise records every config it trusts, keyed by path, and a throwaway project
-  # dir has no reason to outlive this run — tests/helpers/setup.bash found the
-  # real store past 7600 stale entries.
-  if [ -z "${MISE_STATE_DIR:-}" ]; then
+  # mise records every trusted path, and this project dir does not outlive the run.
+  if [[ -z "${MISE_STATE_DIR:-}" ]]; then
     MISE_STATE_DIR="${TMP_DIR}/mise-state"
     export MISE_STATE_DIR
   fi
 
-  # Every generated project's compose.yaml is `name: app` (common/compose.yaml)
-  # — without this, a local run reconciles against, and `down -v`s, any real
-  # "app" project already running on this machine, database volumes included.
+  # Every generated compose.yaml is `name: app`: without this, `down -v` would
+  # take any real "app" project on this machine, volumes included.
   COMPOSE_PROJECT_NAME="${GATE_NAME}-$(
     IFS=-
     printf '%s' "${APPS[*]}"
@@ -157,8 +136,6 @@ prepare_workspace() {
   trap cleanup EXIT INT TERM
 }
 
-# ─── generate and build ────────────────────────────────────────────────────
-
 generate_project() {
   local app
   local -a new_args=("$PROJECT_DIR")
@@ -167,22 +144,20 @@ generate_project() {
   for app in "${APPS[@]}"; do
     new_args+=("--${ROLE_OF[$app]}" "${ADAPTER_OF[$app]}")
   done
-  [ -n "$DB_SERVICE" ] && new_args+=(--db "$DB_SERVICE")
+  [[ -n "$DB_SERVICE" ]] && new_args+=(--db "$DB_SERVICE")
 
   "${ROOT}/scaffold" new "${new_args[@]}" || die "scaffold new failed for ${ADAPTERS[*]}"
 }
 
-# build_targets — the `images` array the build workflow hands the reusable
-# workflow, one entry per application (ADR-0022). Asserted against what this run
-# asked for: a target this gate does not build comes up on whatever a registry
-# publishes, and a missing one was generated and never deployed.
+# Asserted against this run's request: an extra target would come up on a
+# registry's image, and a missing one was never deployed.
 build_targets() {
-  local build_yml="${PROJECT_DIR}/.github/workflows/build.yml"
+  local -r build_yml="${PROJECT_DIR}/.github/workflows/build.yml"
   local images
 
-  [ -f "$build_yml" ] || die "generated project has no .github/workflows/build.yml"
+  [[ -f "$build_yml" ]] || die "generated project has no .github/workflows/build.yml"
   images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$build_yml")"
-  [ "$(jq 'length' <<<"$images")" = "${#APPS[@]}" ] ||
+  [[ "$(jq 'length' <<<"$images")" == "${#APPS[@]}" ]] ||
     die "expected ${#APPS[@]} build target(s) in ${build_yml}, got: ${images}"
 
   jq -r '.[] | [.context, .dockerfile] | @tsv' <<<"$images"
@@ -193,23 +168,18 @@ build_images() {
 
   while IFS=$'\t' read -r context dockerfile; do
     app="$(app_service_key "$(dirname "$dockerfile")")"
-    [ -n "${TAG_OF[$app]:-}" ] || die "the build workflow builds ${app}, which this run did not ask for"
+    [[ -n "${TAG_OF[$app]:-}" ]] || die "the build workflow builds ${app}, which this run did not ask for"
     log "building ${TAG_OF[$app]} from ${dockerfile} (context: ${context})..."
     docker build -f "${PROJECT_DIR}/${dockerfile}" -t "${TAG_OF[$app]}" "${PROJECT_DIR}/${context}" ||
       die "docker build failed for ${ADAPTER_OF[$app]} (${dockerfile})"
   done < <(build_targets)
 }
 
-# ─── point the stack at what was just built ────────────────────────────────
-
 has_migrate_service() {
-  [ -n "$MIGRATE_APP" ] &&
+  [[ -n "$MIGRATE_APP" ]] &&
     yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1
 }
 
-# Per service, not one tag for the whole file: a project publishes one image per
-# application (ADR-0022). migrate follows whichever application it was pointed
-# at.
 rewrite_compose_images() {
   local app
 
@@ -224,13 +194,13 @@ rewrite_compose_images() {
   fi
 }
 
-# Equality with the tag just built, not just "the rewrite ran": if a path above
-# stops matching, yq still exits 0 and the stack comes up on a *pulled* image
-# while the one just built is discarded — a green run proving nothing.
+# yq exits 0 on a path that matches nothing, and the stack would then come up
+# on a pulled image: a green run proving nothing.
 assert_image_is_built_tag() {
-  local service="$1" want="$2" actual
+  local -r service="$1" want="$2"
+  local actual
   actual="$(yq ".services.\"${service}\".image" "${PROJECT_DIR}/compose.yaml")"
-  [ "$actual" = "$want" ] ||
+  [[ "$actual" == "$want" ]] ||
     die "compose.yaml's ${service} image is ${actual}, not the image just built (${want})"
 }
 
@@ -244,11 +214,8 @@ assert_every_image_is_built_tag() {
   return 0
 }
 
-# ─── start it the way a real deploy would ──────────────────────────────────
-
-# common/install.sh's own generate_service_passwords, not a second copy of the
-# substitution: a gate that leaves every password at the literal "changeme" runs
-# a sequence no real deploy ever runs.
+# install.sh's own password generation: a gate left at "changeme" runs a
+# sequence no real deploy runs.
 write_env_file() {
   cp "${PROJECT_DIR}/example.env" "${PROJECT_DIR}/.env"
   # shellcheck source=/dev/null # path is this toolbox's own common/install.sh
@@ -258,16 +225,15 @@ write_env_file() {
 }
 
 wait_until_healthy() {
-  local service="$1" health="" elapsed=0
+  local -r service="$1"
+  local health="" elapsed=0
   log "waiting for the ${service} container to become healthy (up to ${HEALTH_TIMEOUT_SECONDS}s)..."
-  while [ "$elapsed" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
-    # `docker inspect` on one container id, not `docker compose ps --format
-    # json`: that format's shape is compose-version-dependent, and the `|| true`
-    # this needs anyway would swallow the resulting jq error into a false
-    # "unknown" — a full 120s red on a healthy stack.
+  while ((elapsed < HEALTH_TIMEOUT_SECONDS)); do
+    # `docker inspect`, not `compose ps --format json`, whose shape varies by
+    # compose version and would read as "unknown" for the full timeout.
     health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q "$service")" 2>/dev/null || true)"
-    [ "$health" = "healthy" ] && return 0
-    [ "$health" = "unhealthy" ] &&
+    [[ "$health" == "healthy" ]] && return 0
+    [[ "$health" == "unhealthy" ]] &&
       die "${service} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_OF[$service]} is failing (see: docker compose logs ${service})"
     sleep "$HEALTH_POLL_INTERVAL_SECONDS"
     elapsed=$((elapsed + HEALTH_POLL_INTERVAL_SECONDS))
@@ -275,7 +241,7 @@ wait_until_healthy() {
   die "${service} container did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s (last status: ${health:-unknown})"
 }
 
-# Not `start_stack`: write_env_file sources common/install.sh, which defines one.
+# Not `start_stack`: install.sh, sourced above, defines one.
 launch_stack() {
   log "starting the stack..."
   docker compose up -d || die "docker compose up failed for ${ADAPTERS[*]}"
@@ -288,41 +254,31 @@ wait_for_healthy_apps() {
   done
 }
 
-# ─── prove it actually works ───────────────────────────────────────────────
-
-# The readiness probe is `select 1` — connectivity, not schema, and 200 against
-# an empty database. Asserting the migration's own exit code separately is what
-# stops a deploy whose migration silently failed from going green.
-#
-# install.sh's run_migrations decides whether a migrate service should exist by
-# grepping compose.yaml, the artifact this gate just built. The roles and
-# DB_SERVICE are known here before the project was generated, so this asserts it
-# independently: a driver that drops the database and migrate services together
-# would satisfy install.sh's check and slip past unnoticed. compose_has_service
-# comes from install.sh, sourced by write_env_file above.
+# The readiness probe is `select 1`, which passes on an empty database, so the
+# migration is asserted on its own. install.sh decides from compose.yaml whether
+# a migrate service should exist; this decides from the request, so a driver
+# dropping both database and migrate cannot slip past.
 assert_migrate_service_exists() {
-  [ -n "$MIGRATE_APP" ] && [ "$DB_SERVICE" != none ] || return 0
+  [[ -n "$MIGRATE_APP" ]] && [[ "$DB_SERVICE" != "none" ]] || return 0
 
   compose_has_service migrate --profile migrate ||
     die "expected a migrate service for ${ADAPTER_OF[$MIGRATE_APP]} (role=${ROLE_OF[$MIGRATE_APP]}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
 }
 
 assert_http_ok() {
-  local label="$1" url="$2" code
+  local -r label="$1" url="$2"
+  local code
   code="$(curl -sS -o /dev/null -w '%{http_code}' "$url")" ||
     die "${label} check failed: could not reach ${url}"
-  [ "$code" = "200" ] || die "${label} check failed: ${url} returned ${code}, not 200"
+  [[ "$code" == "200" ]] || die "${label} check failed: ${url} returned ${code}, not 200"
   log "${label} (${url}): ${code}"
 }
 
-# app_base_url <app> — the host port compose published, named after the app's
-# own directory (ADR-0022): WEB_PORT for apps/web, API_PORT for apps/api.
-#
-# `|| true`: under pipefail a .env with no such line makes grep exit 1, which
-# kills the script silently before the fallback below can run.
+# `|| true`: under pipefail a missing line kills the script before the fallback.
 app_base_url() {
+  local -r app="$1"
   local port
-  port="$(grep "^$(app_port_variable "$1")=" .env | cut -d= -f2 || true)"
+  port="$(grep "^$(app_port_variable "$app")=" .env | cut -d= -f2 || true)"
   printf 'http://localhost:%s' "${port:-$DEFAULT_APP_PORT}"
 }
 
@@ -333,9 +289,9 @@ assert_endpoints_ok() {
     base="$(app_base_url "$app")"
     assert_http_ok "${app} liveness" "${base}${LIVENESS_OF[$app]}"
 
-    if [ -n "${READINESS_OF[$app]}" ]; then
+    if [[ -n "${READINESS_OF[$app]}" ]]; then
       assert_http_ok "${app} readiness" "${base}${READINESS_OF[$app]}"
-    elif [ "$DB_SERVICE" = none ]; then
+    elif [[ "$DB_SERVICE" == "none" ]]; then
       log "${app}: --db none — skipping readiness check"
     else
       log "${app}: ${ADAPTER_OF[$app]} declares no readiness path — skipping readiness check"
@@ -343,9 +299,7 @@ assert_endpoints_ok() {
   done
 }
 
-# ─── entry point ───────────────────────────────────────────────────────────
-
-# Not `main`: write_env_file sources common/install.sh, which defines one.
+# Not `main`: install.sh, sourced by write_env_file, defines one.
 run_deploy_check() {
   parse_args "$@"
   resolve_adapters
