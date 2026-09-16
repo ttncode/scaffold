@@ -4,7 +4,6 @@ export default defineConfig({
   title: '@PROJECT_TITLE@',
   description: 'Project documentation',
   head: [['link', { rel: 'icon', href: '/logo.png' }]],
-  // a dead link is a failed build, not a warning
   ignoreDeadLinks: false,
   themeConfig: {
     logo: '/logo.png',

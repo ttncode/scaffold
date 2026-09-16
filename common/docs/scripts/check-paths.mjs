@@ -5,23 +5,13 @@ import { extname, join, resolve } from "node:path";
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 // backticked strings that look like repository paths
 const PATH_PATTERN = /`((?:[\w.-]+\/)+[\w.-]+)`/g;
-// a comment citing an adr by path, not just by prose in a backtick — in files
-// that ship (compose.yaml, install.sh, an adapter's own mise.toml) that path
-// must resolve against this project's own docs/decisions/, not the scaffold
-// toolbox's, which never ships past 0000 and the template.
+// an adr cited by path in a shipped file must exist in this project's docs/decisions/
 const ADR_REFERENCE_PATTERN = /\bdocs\/decisions\/(\d{4})[\w.-]*/g;
 const ADR_SCAN_EXTENSIONS = new Set([".sh", ".toml", ".mjs", ".yaml", ".yml"]);
 
-// node_modules and .git ship files nothing here authored — vendor markdown
-// full of paths relative to whatever package it belongs to, or plumbing
-// with no bearing on this project's own docs or adr citations.
 const SKIP_DIRS = new Set(["node_modules", ".git", ".vitepress"]);
-// apps/ ships generator-owned markdown (AGENTS.md, README.md) whose backticked
-// paths are written relative to the app's own directory, not the project
-// root, so the root-relative path scan reports them as dead when they are not
-// (e.g. create-next-app's AGENTS.md and README.md). This applies to the
-// markdown path scan only — the ADR-citation scan must still walk apps/, or
-// a dead ADR reference in an adapter's own mise.toml goes unseen.
+// generator-owned markdown under apps/ uses app-relative paths; the adr scan
+// still walks apps/
 const MARKDOWN_SKIP_DIRS = new Set([...SKIP_DIRS, "apps"]);
 
 async function filesMatching(dir, matches, skipDirs = SKIP_DIRS) {
@@ -62,8 +52,6 @@ function missingAdrReferences(content, shippedNumbers) {
 
 const failures = [];
 
-// the whole project, not just docs/ — a backticked dead path in
-// deploy-adapters/README.md is the same defect as one in docs/index.md.
 for (const file of await filesMatching(
   PROJECT_ROOT,
   (name) => name.endsWith(".md"),

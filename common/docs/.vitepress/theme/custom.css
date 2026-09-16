@@ -1,8 +1,4 @@
-/* The home page is short enough not to scroll and every guide page is not, so
-   navigating between them adds and removes the scrollbar — and the centred
-   content jumps sideways by its width each time. Reserving the gutter costs
-   nothing on a page that scrolls anyway, and nothing at all on the overlay
-   scrollbars macOS and mobile use. */
+/* Stops content jumping sideways between pages that scroll and pages that don't. */
 html {
   scrollbar-gutter: stable;
 }

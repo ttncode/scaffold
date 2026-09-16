@@ -1,18 +1,13 @@
 monorepo_root = true
 
-# The services this project was generated against. `scaffold add` reads these
-# so an application added later is wired to the same database as the first
-# one. Changing them here does not migrate anything — see the toolbox's
-# ADR-0019.
+# Read by `scaffold add` to wire a new application to the same services.
+# Editing them migrates nothing (ADR-0019).
 [vars]
 database = "@DATABASE@"
 cache = "@CACHE@"
 
-# The registry path every application in this project publishes under, with
-# its own directory name appended: apps/web becomes <image>-web (ADR-0022).
-# Read by `scaffold add`, so an application added in month six lands under the
-# same path as the first one, and by compose.yaml and the build workflows,
-# which have to name one string or a release publishes an image nothing pulls.
+# apps/web publishes as <image>-web (ADR-0022). `scaffold add`, compose.yaml
+# and the build workflows must all name this one string.
 image = "ghcr.io/you/@PROJECT_NAME@"
 
 [monorepo]

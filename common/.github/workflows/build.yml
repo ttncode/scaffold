@@ -8,15 +8,12 @@ concurrency:
 permissions: {}
 jobs:
   build:
-    # no more than app-build's own jobs ask for; the workflow-level
-    # `permissions: {}` above grants nothing to inherit.
+    # what app-build's jobs need; `permissions: {}` above leaves nothing to inherit.
     permissions:
       contents: read
       packages: write
-    # `@v1` moves on purpose: one fix reaches every project, and that same
-    # channel outlives the engagement (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
     uses: you/.github/.github/workflows/app-build.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     with:
-      # {image, context, dockerfile} per application, written by scaffold as
-      # each is generated (ADR-0022). Empty means nothing to publish.
+      # {image, context, dockerfile} per application, written by scaffold (ADR-0022).
       images: "[]"

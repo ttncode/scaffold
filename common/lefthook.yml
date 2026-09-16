@@ -1,7 +1,5 @@
-# Through `mise exec --` so only mise has to be on PATH. These tools exist
-# only in this project's mise.toml, so calling them bare fails a plain
-# `git commit` with `gitleaks: not found`. lefthook's `rc:` key would do this
-# too, but it is baked into .git/hooks at install time and drifts silently.
+# `mise exec --`: these tools exist only in mise.toml, and lefthook's `rc:` is
+# baked into .git/hooks at install time.
 pre-commit:
   parallel: true
   commands:

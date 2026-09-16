@@ -1,6 +1,5 @@
-# only read when the build context is the project root — an all-typescript
-# project's apps/*/Dockerfile.workspace; node_modules is copied from a pinned
-# build stage, so a host copy would overwrite it
+# Read only for a root build context (Dockerfile.workspace). node_modules comes
+# from a build stage; a host copy would overwrite it.
 **/node_modules
 **/.next
 **/dist

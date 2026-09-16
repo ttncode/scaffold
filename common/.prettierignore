@@ -1,5 +1,4 @@
-# prettier rewrites pnpm-lock.yaml and fights Release Please for CHANGELOG.md;
-# neither is written by hand
+# tool-written: prettier would fight pnpm and Release Please over these
 pnpm-lock.yaml
 **/pnpm-lock.yaml
 package-lock.json
