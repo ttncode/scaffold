@@ -36,7 +36,6 @@ source "${SCAFFOLD_ROOT}/lib/publish.sh"
 
 REQUIRED_TOOLS=(git mise jq yq)
 
-# One value for the whole run, read by apply_adapter.
 SCAFFOLD_SERVICES=()
 
 usage() {
@@ -87,7 +86,6 @@ confine_mise_to() {
   export MISE_CEILING_PATHS
 }
 
-# The given directory, or the git root of wherever the command was run.
 resolve_project() {
   local rel="$1" command="$2" project
 
