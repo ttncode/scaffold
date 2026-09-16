@@ -118,6 +118,7 @@ INNER_EOF
   mkdir -p stub3
   cat >stub3/docker <<'INNER_EOF'
 #!/usr/bin/env bash
+[[ "$1" == login ]] && cat >/dev/null
 printf '%s\n' "$*" >> "${DOCKER_LOG}"
 INNER_EOF
   chmod +x stub3/docker
