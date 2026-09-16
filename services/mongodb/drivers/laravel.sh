@@ -54,8 +54,9 @@ service_driver_dockerfile() {
   # Pinned to 1.21.0, matching platform.ext-mongodb above: mongodb/mongodb's
   # BSONArray/BSONDocument declare bsonSerialize() against the 1.x signature and
   # the 2.x extension changed it, so loading those classes is a PHP fatal error,
-  # not an exception this project's try/catch can see — a 500 on /health/ready
-  # before this pin.
+  # not an exception this project's try/catch can see — the readiness probe
+  # returns a silent 500 on /health/ready if the extension drifts off this
+  # pin.
   # shellcheck disable=SC2016,SC1003 # literal Dockerfile RUN text: $PHPIZE_DEPS and the
   # trailing backslashes are line continuations in the generated file, not shell escapes
   printf '%s\n' \

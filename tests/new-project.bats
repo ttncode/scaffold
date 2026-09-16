@@ -37,9 +37,8 @@ teardown() {
 
 @test "a relative target is created where the command was run" {
   # scaffold loads its own pinned toolchain through `mise env -C`, which
-  # prints the environment without moving. `mise exec -C` — what the README
-  # used to route every invocation through — moves as well, and this project
-  # then landed inside the toolbox rather than in the caller's directory.
+  # prints the environment without moving — `mise exec -C` moves as well and
+  # would generate the project inside the toolbox instead of here.
   cd "$WORKDIR"
   run scaffold new demo-relative
   assert_ok
@@ -48,9 +47,8 @@ teardown() {
 }
 
 @test "new reports its steps instead of a package manager's output" {
-  # It used to hand the terminal several minutes of progress bars, through
-  # which the one line that mattered — which application is being generated —
-  # never appeared at all.
+  # Hides the package manager's own progress output, so the one line that
+  # matters — which application is being generated — is not buried in it.
   run scaffold new "$PROJECT"
   assert_ok
   [[ "$output" == *"→ "* ]] || {
@@ -164,12 +162,10 @@ teardown() {
 @test "new does not trust a parent config it did not create" {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = [\n  "x",\n]\n' \
     >"${WORKDIR}/mise.toml"
-  # No skip guard. There used to be one, for the true reason that `CI=true`
-  # makes mise trust every config it finds — but its only two outcomes were
-  # "skipped on a runner" and "failed everywhere else", so the property was
-  # never verified anywhere and the leak it guards against shipped. The state
-  # directory is the suite's own now (tests/helpers/setup), and CI is scrubbed
-  # from the run below, so the precondition holds in both environments.
+  # No CI skip guard: `CI=true` makes mise trust every config it finds, so
+  # this must run everywhere. The suite's own state directory
+  # (tests/helpers/setup) and the scrubbed CI below keep the precondition
+  # true in and out of CI.
   run env -u CI -u MISE_YES -u GITHUB_ACTIONS mise trust --show -C "$WORKDIR"
   [[ "$output" == *"${WORKDIR}: untrusted"* ]] || {
     echo "precondition failed; trust --show reported:"

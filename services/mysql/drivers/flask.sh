@@ -7,5 +7,5 @@ FLASK_PACKAGE="PyMySQL"
 FLASK_PORT="3306"
 # shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
 FLASK_COMPOSE_URL='mysql+pymysql://${DB_USERNAME:-app}:${DB_PASSWORD}@database:3306/${DB_DATABASE:-app}'
-# shellcheck source=/dev/null
+# shellcheck source=services/shared/flask.sh
 . "${SCAFFOLD_ROOT}/services/shared/flask.sh"

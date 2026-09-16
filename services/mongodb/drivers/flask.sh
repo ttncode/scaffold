@@ -5,7 +5,7 @@
 # splice_flask_probe, then overrides service_driver_apply,
 # service_driver_compose_env and service_driver_compose_migrate; no FLASK_*
 # variables are set.
-# shellcheck source=/dev/null
+# shellcheck source=services/shared/flask.sh
 . "${SCAFFOLD_ROOT}/services/shared/flask.sh"
 
 service_driver_apply() {

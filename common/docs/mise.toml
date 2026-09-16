@@ -1,5 +1,5 @@
 [tasks.install]
-# A frozen install that relinks node_modules must not stop to ask (ADR-0017).
+# A frozen install that relinks node_modules must not stop to ask (toolbox ADR-0017).
 env = { npm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 

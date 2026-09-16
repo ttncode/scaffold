@@ -13,7 +13,7 @@
 service_driver_apply() {
   # Before the installs, not after: prisma, its engines and its client all place
   # the query engine binary through an install-time script with no pure-js
-  # fallback, and unset the first `pnpm add` below is refused with
+  # fallback, otherwise the first `pnpm add` below is refused with
   # ERR_PNPM_IGNORED_BUILDS wherever CI=true leaves pnpm no prompt.
   # SCAFFOLD_PROJECT_ROOT, not a fixed `../..`: cmd_add's app directory is
   # caller-chosen.
@@ -64,9 +64,9 @@ EOF
 # in eslint's recommended set. A --db none project keeps the throw.
 #
 # The client is a field on HealthController, not a local inside ready(): a
-# controller is a Nest singleton, and a PrismaClient built per request and
-# never closed leaks one connection per poll — measured exhausting Postgres's
-# max_connections inside an hour at a 10s probe interval.
+# controller is a Nest singleton, so a PrismaClient built per request and
+# never closed leaks one connection per poll toward Postgres's
+# max_connections.
 splice_nest_probe() {
   local method field preamble probe
   # shellcheck disable=SC2016 # literal TypeScript spliced into the generated controller
@@ -135,7 +135,7 @@ service_driver_compose_env() {
 # one of two locations depending on which Dockerfile shape wins, a decision made
 # after this driver runs — so the command tries both and `cd`s into whichever
 # matched, since prisma resolves `./prisma/schema.prisma` from its own working
-# directory (measured: `Could not find Prisma Schema` before this `cd`).
+# directory, and fails with `Could not find Prisma Schema` otherwise.
 service_driver_compose_migrate() {
   local args
   case "$PRISMA_PROVIDER" in

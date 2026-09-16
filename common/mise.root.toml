@@ -1,7 +1,7 @@
 monorepo_root = true
 
 # Read by `scaffold add` to wire a new application to the same services.
-# Editing them migrates nothing (ADR-0019).
+# Editing them migrates nothing (toolbox ADR-0019).
 [vars]
 database = "@DATABASE@"
 cache = "@CACHE@"
