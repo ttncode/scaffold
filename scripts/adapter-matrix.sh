@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Print the tier-a and tier-b adapter matrices for CI (ADR-0012). Tier a runs on
 # every event; tier b on a pull request only when its own directory changed,
-# otherwise on the weekly schedule or a manual dispatch.
+# otherwise on the weekly schedule or a manual dispatch. Tiers come from
+# `scaffold list --adapters`, not a second list in the workflow, so they cannot drift.
 #
 # Usage:   ./scripts/adapter-matrix.sh <event-name> <schedule-cron> [base-sha] [head-sha]
 # Example: ./scripts/adapter-matrix.sh pull_request "" "$BASE_SHA" "$HEAD_SHA"

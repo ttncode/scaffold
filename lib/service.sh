@@ -26,7 +26,7 @@ load_service() {
   # shellcheck disable=SC2034 # read by the caller
   SERVICE_DIR="$dir"
   unset -v SERVICE_NAME SERVICE_KIND SERVICE_IMAGE
-  # shellcheck source=/dev/null
+  # shellcheck source=/dev/null # path varies by service
   source "${dir}/service.env" || return 1
 
   [[ -n "${SERVICE_NAME:-}" ]] && [[ -n "${SERVICE_KIND:-}" ]] &&

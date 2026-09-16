@@ -515,6 +515,7 @@ settle_added_app() {
   fi
 
   sync_ci_roots "$project"
+  # After finalize_app_dockerfile, which settles which variant is ${rel}/Dockerfile.
   register_image_target "$project" "$rel"
   record_scaffold_app "$project" "$rel" "$adapter"
 }

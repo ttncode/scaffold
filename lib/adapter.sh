@@ -31,7 +31,7 @@ load_adapter() {
   ADAPTER_DIR="$dir"
   unset -v "${ADAPTER_OPTIONAL_VARS[@]}"
 
-  # shellcheck source=/dev/null
+  # shellcheck source=/dev/null # path varies by adapter
   source "${dir}/adapter.env" || return 1
 
   # Left to the linter, so a fixture missing them still loads.
@@ -75,6 +75,8 @@ merge_lefthook_fragment() {
 
   # -P: yq propagates the fragment's style, and an empty `{}` fragment would
   # collapse lefthook.yml onto one line and drop its comments.
+  # Removed on both paths explicitly: a RETURN trap fires again in callers, where
+  # $rendered is out of scope.
   if ! yq eval-all --inplace -P 'select(fileIndex==0) * select(fileIndex==1)' \
     "${project}/lefthook.yml" "$rendered"; then
     rm -f "$rendered"
