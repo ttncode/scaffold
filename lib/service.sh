@@ -292,17 +292,14 @@ replace_env_line() {
 apply_service_dockerfile() {
   local -r app="$1"
   local block="$2"
-  local file found=0
+  local file
 
   for file in "${app}/Dockerfile" "${app}/Dockerfile.workspace"; do
     [[ -f "$file" ]] || continue
-    found=1
     grep -q "^${SERVICE_SETUP_ANCHOR}\$" "$file" ||
       die "no @SERVICE_SETUP@ anchor in ${file}"
     splice_service_setup "$file" "$block"
   done
-
-  ((found == 1)) || return 0
 }
 
 # ENVIRON, not -v: -v would consume a backslash in the block as an escape.
