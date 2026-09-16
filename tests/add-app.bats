@@ -71,7 +71,11 @@ teardown() {
   # and it lived inside the reconcile branch only, so a project without a shared
   # workspace kept confirmModulesPurge and frozenLockfile forever.
   run grep -cE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"
-  [ "$output" = "0" ] || { echo "left behind:"; grep -nE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"; false; }
+  [ "$output" = "0" ] || {
+    echo "left behind:"
+    grep -nE 'confirmModulesPurge|frozenLockfile|minimumReleaseAge: 0' "${PROJECT}/pnpm-workspace.yaml"
+    false
+  }
 }
 
 @test "an app added later is wired to the project's own database" {

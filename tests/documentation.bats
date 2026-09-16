@@ -28,7 +28,7 @@ setup() {
 }
 
 @test "add-an-adapter fits on one page" {
-  run wc -l < "${SCAFFOLD_ROOT}/docs/runbook/add-an-adapter.md"
+  run wc -l <"${SCAFFOLD_ROOT}/docs/runbook/add-an-adapter.md"
   [ "$output" -le 120 ]
 }
 

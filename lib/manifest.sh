@@ -24,10 +24,10 @@ register_config_root() {
     awk -v root="$root" '
       { print }
       /^config_roots = \[$/ { printf "  \"%s\",\n", root }
-    ' "$file" > "${file}.tmp"
+    ' "$file" >"${file}.tmp"
     mv "${file}.tmp" "$file"
-    grep -q "^  \"${root}\",\$" "$file" \
-      || die "could not register ${root}: no 'config_roots = [' line in ${file} — has it been reformatted?"
+    grep -q "^  \"${root}\",\$" "$file" ||
+      die "could not register ${root}: no 'config_roots = [' line in ${file} — has it been reformatted?"
   fi
 
   # The root [tasks.checklist] must run every config root's checklist. Kept
@@ -40,16 +40,16 @@ register_config_root() {
         in_checklist = 0
       }
       { print }
-    ' "$file" > "${file}.tmp"
+    ' "$file" >"${file}.tmp"
     mv "${file}.tmp" "$file"
-    grep -q "\"//${root}:checklist\"" "$file" \
-      || die "could not add ${root} to the root checklist in ${file} — has [tasks.checklist] been reformatted?"
+    grep -q "\"//${root}:checklist\"" "$file" ||
+      die "could not add ${root} to the root checklist in ${file} — has [tasks.checklist] been reformatted?"
   fi
 }
 
 config_roots() {
-  sed -n '/^config_roots = \[$/,/^\]$/p' "${1}/${MISE_CONFIG_FILE}" \
-    | sed -n 's/^  "\(.*\)",$/\1/p'
+  sed -n '/^config_roots = \[$/,/^\]$/p' "${1}/${MISE_CONFIG_FILE}" |
+    sed -n 's/^  "\(.*\)",$/\1/p'
 }
 
 sync_ci_roots() {
@@ -80,8 +80,8 @@ register_image_target() {
     context="$rel"
   fi
 
-  [ -f "${project}/${dockerfile}" ] \
-    || die "no Dockerfile at ${dockerfile} to build ${name} from"
+  [ -f "${project}/${dockerfile}" ] ||
+    die "no Dockerfile at ${dockerfile} to build ${name} from"
 
   for file in "${BUILD_WORKFLOWS[@]}"; do
     file="${project}/${file}"
@@ -89,11 +89,11 @@ register_image_target() {
     updated="$(jq -c --arg image "$image" --arg context "$context" \
       --arg dockerfile "$dockerfile" \
       '. + [{image: $image, context: $context, dockerfile: $dockerfile}]' \
-      <<<"$current")" \
-      || die "could not read the images array out of ${file}"
+      <<<"$current")" ||
+      die "could not read the images array out of ${file}"
 
     IMAGES="$updated" yq --inplace \
-      '(.jobs[] | select(has("with")) | .with.images) = strenv(IMAGES)' "$file" \
-      || die "could not record ${name}'s image in ${file}"
+      '(.jobs[] | select(has("with")) | .with.images) = strenv(IMAGES)' "$file" ||
+      die "could not record ${name}'s image in ${file}"
   done
 }

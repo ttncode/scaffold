@@ -18,8 +18,8 @@ service_driver_apply() {
   uv add sqlalchemy alembic "$FLASK_PACKAGE" || return 1
 
   write_env_lines .env.example \
-    "DATABASE_URL=${FLASK_DIALECT}://app:app@localhost:${FLASK_PORT}/app" \
-    || return 1
+    "DATABASE_URL=${FLASK_DIALECT}://app:app@localhost:${FLASK_PORT}/app" ||
+    return 1
 
   splice_flask_probe \
     'import os
@@ -74,14 +74,14 @@ splice_flask_probe() {
       print "        return jsonify(status=\"ok\")"; next
     }
     { print }
-  ' "$file" > "${file}.tmp" || return 1
+  ' "$file" >"${file}.tmp" || return 1
   mv "${file}.tmp" "$file"
 
   # shellcheck disable=SC2015 # deliberate: die must fire when any grep fails
-  ! grep -q 'no database is configured for this project' "$file" \
-    && ! grep -q '@DB_ENGINE@' "$file" \
-    && ! grep -q '@DB_PROBE@' "$file" \
-    || die "could not splice the database probe into app/health.py — has the anchor moved?"
+  ! grep -q 'no database is configured for this project' "$file" &&
+    ! grep -q '@DB_ENGINE@' "$file" &&
+    ! grep -q '@DB_PROBE@' "$file" ||
+    die "could not splice the database probe into app/health.py — has the anchor moved?"
 
   # The engine block's stdlib imports land below flask's own import, which
   # ruff's isort rule (I001) and its formatter both reject — reformat once
@@ -108,9 +108,9 @@ init_flask_alembic() {
   rm -f migrations/env.py.bak
 
   # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
-  grep -q '^import os$' migrations/env.py \
-    && grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\].replace("%", "%%"))' migrations/env.py \
-    || die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"
+  grep -q '^import os$' migrations/env.py &&
+    grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\].replace("%", "%%"))' migrations/env.py ||
+    die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"
 
   uv run ruff check --fix migrations/env.py || return 1
   uv run ruff format migrations/env.py || return 1

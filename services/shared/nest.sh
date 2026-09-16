@@ -41,7 +41,7 @@ service_driver_apply() {
 
   # datasource and generator only; models describe the client's domain, which
   # this toolbox does not know.
-  cat > prisma/schema.prisma <<EOF || return 1
+  cat >prisma/schema.prisma <<EOF || return 1
 generator client {
   provider = "prisma-client-js"
 }
@@ -111,11 +111,11 @@ assert_nest_probe_spliced() {
   local -r file="$1"
 
   # shellcheck disable=SC2015 # deliberate: die must fire when any check fails
-  grep -q "dbClient" "$file" \
-    && grep -q "PrismaClient" "$file" \
-    && grep -q "async ready(): Promise<" "$file" \
-    && ! grep -q "no database is configured for this project" "$file" \
-    || die "could not splice the database probe into ${file} — has the anchor moved?"
+  grep -q "dbClient" "$file" &&
+    grep -q "PrismaClient" "$file" &&
+    grep -q "async ready(): Promise<" "$file" &&
+    ! grep -q "no database is configured for this project" "$file" ||
+    die "could not splice the database probe into ${file} — has the anchor moved?"
 }
 
 service_driver_dockerfile() {

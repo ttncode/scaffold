@@ -28,8 +28,8 @@ service_driver_apply() {
     "DB_PORT=${LARAVEL_PORT}" \
     "DB_DATABASE=app" \
     "DB_USERNAME=app" \
-    "DB_PASSWORD=app" \
-    || return 1
+    "DB_PASSWORD=app" ||
+    return 1
 
   # APP_KEY is per-family, not per-service, so no env.fragment can carry it into
   # example.env; unset, compose.yaml's `APP_KEY: ${APP_KEY}` interpolates to
@@ -53,9 +53,9 @@ service_driver_apply() {
   rm -f routes/health.php.bak
 
   # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
-  grep -q 'DB::connection()->select' routes/health.php \
-    && grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php \
-    || die "could not splice the database probe into routes/health.php — has the anchor moved?"
+  grep -q 'DB::connection()->select' routes/health.php &&
+    grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php ||
+    die "could not splice the database probe into routes/health.php — has the anchor moved?"
 }
 
 service_driver_dockerfile() {

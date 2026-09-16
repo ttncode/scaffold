@@ -25,13 +25,19 @@ strip_ansi() {
   # is never asked about a database.
   run wizard_actions 0
   assert_ok
-  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "new " ] \
-    || { echo "outside a project the wizard offers: ${output}"; false; }
+  [ "$(cut -f1 <<<"$output" | tr '\n' ' ')" = "new " ] ||
+    {
+      echo "outside a project the wizard offers: ${output}"
+      false
+    }
 
   run wizard_actions 1
   assert_ok
-  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "new update publish " ] \
-    || { echo "inside a project the wizard offers: ${output}"; false; }
+  [ "$(cut -f1 <<<"$output" | tr '\n' ' ')" = "new update publish " ] ||
+    {
+      echo "inside a project the wizard offers: ${output}"
+      false
+    }
 }
 
 @test "every action the wizard offers is a command scaffold accepts" {
@@ -40,8 +46,11 @@ strip_ansi() {
   # cheapest way to keep them in step.
   local action
   while read -r action; do
-    grep -qE "^    ${action}\) cmd_" "${SCAFFOLD_ROOT}/scaffold" \
-      || { echo "the wizard offers '${action}', which scaffold's main has no case for"; false; }
+    grep -qE "^    ${action}\) cmd_" "${SCAFFOLD_ROOT}/scaffold" ||
+      {
+        echo "the wizard offers '${action}', which scaffold's main has no case for"
+        false
+      }
   done < <(wizard_actions 1 | cut -f1)
 }
 
@@ -50,29 +59,39 @@ strip_ansi() {
   # sound like "do the thing".
   local line
   while IFS= read -r line; do
-    [ -n "$(cut -f2 <<< "$line")" ] \
-      || { echo "no description for: $(cut -f1 <<< "$line")"; false; }
+    [ -n "$(cut -f2 <<<"$line")" ] ||
+      {
+        echo "no description for: $(cut -f1 <<<"$line")"
+        false
+      }
   done < <(wizard_actions 1)
 }
 
 @test "publish asks the one question it has an answer for" {
   run wizard_visibilities
   assert_ok
-  [ "$(cut -f1 <<< "$output" | tr '\n' ' ')" = "private public " ] \
-    || { echo "visibilities are: ${output}"; false; }
+  [ "$(cut -f1 <<<"$output" | tr '\n' ' ')" = "private public " ] ||
+    {
+      echo "visibilities are: ${output}"
+      false
+    }
   # Private first: a plain Enter picks what cmd_publish would have defaulted
   # to unset, the same promise wizard_order_options makes for the flags.
-  [ "$(head -1 <<< "$output" | cut -f1)" = private ]
+  [ "$(head -1 <<<"$output" | cut -f1)" = private ]
 }
 
 @test "the answer column fits the widest question the wizard can ask" {
   # Measured from the prompts rather than hand-counted, so a new screen
   # widens the column instead of overflowing it.
-  local width; width="$(wizard_prompt_width)"
+  local width
+  width="$(wizard_prompt_width)"
   local prompt
   for prompt in "$WIZARD_ACTION_PROMPT" "$WIZARD_SHAPE_PROMPT" "$WIZARD_VISIBILITY_PROMPT"; do
-    [ "${#prompt}" -le "$width" ] \
-      || { echo "'${prompt}' is ${#prompt} wide, column is ${width}"; false; }
+    [ "${#prompt}" -le "$width" ] ||
+      {
+        echo "'${prompt}' is ${#prompt} wide, column is ${width}"
+        false
+      }
   done
 }
 
@@ -166,9 +185,9 @@ strip_ansi() {
     run wizard_questions "$shape"
     assert_ok
     count=$((count + 1))
-  done <<< "$shapes"
+  done <<<"$shapes"
 
-  [ "$count" -eq "$(wc -l <<< "$shapes")" ]
+  [ "$count" -eq "$(wc -l <<<"$shapes")" ]
 }
 
 @test "wizard_questions asks about services exactly when a shape's roles need drivers" {
@@ -180,7 +199,7 @@ strip_ansi() {
   # web+api alike.
   local shape roles role driven questions
   for shape in $(wizard_shapes | cut -f1); do
-    IFS='+' read -ra roles <<< "$shape"
+    IFS='+' read -ra roles <<<"$shape"
     driven=0
     for role in "${roles[@]}"; do
       case " ${DRIVEN_ROLES[*]} " in
@@ -239,8 +258,11 @@ strip_ansi() {
     for kind in web api app database cache; do
       wizard_options "$LISTING" "$kind" | grep -q "^${name}	" && reachable=1
     done
-    [ "$reachable" -eq 1 ] || { echo "${name} is in scaffold list but no question offers it"; false; }
-  done <<< "$LISTING"
+    [ "$reachable" -eq 1 ] || {
+      echo "${name} is in scaffold list but no question offers it"
+      false
+    }
+  done <<<"$LISTING"
 }
 
 @test "the name prompt enforces init_project's rule before anything is created" {
@@ -267,7 +289,7 @@ strip_ansi() {
   command -v script >/dev/null || skip "script(1) not available"
 
   local driver="${BATS_TEST_TMPDIR}/drive-name-prompt.sh"
-  cat > "$driver" <<EOF
+  cat >"$driver" <<EOF
 #!/usr/bin/env bash
 source "${SCAFFOLD_ROOT}/lib/log.sh"
 source "${SCAFFOLD_ROOT}/lib/project.sh"
@@ -276,12 +298,20 @@ tui_prompt_name >/dev/null
 EOF
 
   local out="${BATS_TEST_TMPDIR}/eof.log" status=0
-  { sleep 1; printf '\x04'; sleep 1; } \
-    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || status=$?
+  {
+    sleep 1
+    printf '\x04'
+    sleep 1
+  } |
+    timeout 10 script -qec "bash '${driver}'" /dev/null >"$out" 2>&1 || status=$?
 
   # 124 is timeout(1) killing a still-spinning process; 130 is exit's own
   # Ctrl-C/Ctrl-D convention (128 + SIGINT) and what the fix now returns.
-  [ "$status" -ne 124 ] || { echo "tui_prompt_name spun until the outer timeout killed it:"; cat "$out"; false; }
+  [ "$status" -ne 124 ] || {
+    echo "tui_prompt_name spun until the outer timeout killed it:"
+    cat "$out"
+    false
+  }
   [ "$status" -eq 130 ]
 }
 
@@ -294,7 +324,7 @@ EOF
   command -v script >/dev/null || skip "script(1) not available"
 
   local driver="${BATS_TEST_TMPDIR}/drive-esc.sh"
-  cat > "$driver" <<EOF
+  cat >"$driver" <<EOF
 #!/usr/bin/env bash
 source "${SCAFFOLD_ROOT}/lib/log.sh"
 source "${SCAFFOLD_ROOT}/lib/project.sh"
@@ -303,10 +333,18 @@ tui_prompt_name >/dev/null
 EOF
 
   local out="${BATS_TEST_TMPDIR}/esc.log" status=0
-  { sleep 1; printf '\033'; sleep 1; } \
-    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || status=$?
+  {
+    sleep 1
+    printf '\033'
+    sleep 1
+  } |
+    timeout 10 script -qec "bash '${driver}'" /dev/null >"$out" 2>&1 || status=$?
 
-  [ "$status" -ne 124 ] || { echo "Esc did not cancel; the prompt spun until timeout:"; cat "$out"; false; }
+  [ "$status" -ne 124 ] || {
+    echo "Esc did not cancel; the prompt spun until timeout:"
+    cat "$out"
+    false
+  }
   [ "$status" -eq 130 ]
 }
 
@@ -317,7 +355,7 @@ EOF
   command -v script >/dev/null || skip "script(1) not available"
 
   local driver="${BATS_TEST_TMPDIR}/drive-bs.sh"
-  cat > "$driver" <<EOF
+  cat >"$driver" <<EOF
 #!/usr/bin/env bash
 source "${SCAFFOLD_ROOT}/lib/log.sh"
 source "${SCAFFOLD_ROOT}/lib/project.sh"
@@ -326,13 +364,25 @@ tui_prompt_name
 EOF
 
   local out="${BATS_TEST_TMPDIR}/bs.log"
-  { sleep 1; printf 'demoX\177\n'; sleep 1; } \
-    | timeout 10 script -qec "bash '${driver}'" /dev/null > "$out" 2>&1 || true
+  {
+    sleep 1
+    printf 'demoX\177\n'
+    sleep 1
+  } |
+    timeout 10 script -qec "bash '${driver}'" /dev/null >"$out" 2>&1 || true
 
   # The name is written to stdout; the prompt and its echo go to stderr, and
   # script merges both, so match the value rather than the whole stream.
-  grep -q 'demo' "$out" || { echo "no name in the output:"; cat "$out"; false; }
-  grep -qv 'demoX' "$out" || { echo "backspace did not remove the X:"; cat "$out"; false; }
+  grep -q 'demo' "$out" || {
+    echo "no name in the output:"
+    cat "$out"
+    false
+  }
+  grep -qv 'demoX' "$out" || {
+    echo "backspace did not remove the X:"
+    cat "$out"
+    false
+  }
 }
 
 @test "the header is printed once, not once per screen" {
@@ -342,13 +392,25 @@ EOF
   command -v script >/dev/null || skip "script(1) not available"
 
   local out="${BATS_TEST_TMPDIR}/header.log"
-  { sleep 1; printf 'demo-app\n'; sleep 1; printf '\n'; sleep 1; printf '\033'; sleep 1; } \
-    | timeout 25 script -qec "cd '${SCAFFOLD_ROOT}' && mise exec -- ./scaffold" /dev/null \
-    > "$out" 2>&1 || true
+  {
+    sleep 1
+    printf 'demo-app\n'
+    sleep 1
+    printf '\n'
+    sleep 1
+    printf '\033'
+    sleep 1
+  } |
+    timeout 25 script -qec "cd '${SCAFFOLD_ROOT}' && mise exec -- ./scaffold" /dev/null \
+      >"$out" 2>&1 || true
 
   local seen
   seen="$(grep -ac 'Project generator' "$out" || true)"
-  [ "$seen" -eq 1 ] || { echo "header appeared ${seen} times, expected 1:"; cat "$out"; false; }
+  [ "$seen" -eq 1 ] || {
+    echo "header appeared ${seen} times, expected 1:"
+    cat "$out"
+    false
+  }
 }
 
 @test "from inside a project the wizard reaches publish, not new" {
@@ -360,24 +422,41 @@ EOF
   local project="${BATS_TEST_TMPDIR}/inside"
   mkdir -p "$project"
   printf 'monorepo_root = true\n\n[vars]\nimage = "ghcr.io/acme/demo"\n' \
-    > "${project}/mise.toml"
+    >"${project}/mise.toml"
   git -C "$project" init -q -b main
 
   local out="${BATS_TEST_TMPDIR}/publish-session.log"
   {
-    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\x1b[B'; sleep 0.3; printf '\n'  # action: publish
-    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'                            # visibility: public
-    sleep 1; printf 'n\n'                                                       # do not publish
     sleep 1
-  } | ( cd "$project" && COLUMNS=90 LINES=45 script -qec \
-        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null ) \
-      > "$out" 2>&1 || true
+    printf '\x1b[B'
+    sleep 0.3
+    printf '\x1b[B'
+    sleep 0.3
+    printf '\n' # action: publish
+    sleep 1
+    printf '\x1b[B'
+    sleep 0.3
+    printf '\n' # visibility: public
+    sleep 1
+    printf 'n\n' # do not publish
+    sleep 1
+  } | (cd "$project" && COLUMNS=90 LINES=45 script -qec \
+    "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null) \
+    >"$out" 2>&1 || true
 
-  strip_ansi "$out" | grep -q 'scaffold publish --public' \
-    || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
+  strip_ansi "$out" | grep -q 'scaffold publish --public' ||
+    {
+      echo "the wizard did not reach the expected command:"
+      cat "$out"
+      false
+    }
   # The name prompt belongs to `new` and must not have been asked.
-  strip_ansi "$out" | grep -qi 'project name' \
-    && { echo "publish asked for a project name:"; cat "$out"; false; }
+  strip_ansi "$out" | grep -qi 'project name' &&
+    {
+      echo "publish asked for a project name:"
+      cat "$out"
+      false
+    }
   return 0
 }
 
@@ -390,19 +469,31 @@ EOF
 
   local out="${BATS_TEST_TMPDIR}/session.log"
   {
-    sleep 1; printf 'wizard-demo\n'
-    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'   # shape: app
-    sleep 1; printf '\n'                               # fullstack: laravel-inertia
-    sleep 1; printf '\n'                               # database: mysql
-    sleep 1; printf '\n'                               # cache: none
-    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+    printf 'wizard-demo\n'
+    sleep 1
+    printf '\x1b[B'
+    sleep 0.3
+    printf '\n' # shape: app
+    sleep 1
+    printf '\n' # fullstack: laravel-inertia
+    sleep 1
+    printf '\n' # database: mysql
+    sleep 1
+    printf '\n' # cache: none
+    sleep 1
+    printf 'n\n' # do not generate
     sleep 1
   } | COLUMNS=90 LINES=45 script -qec \
-        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
-      > "$out" 2>&1 || true
+    "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+    >"$out" 2>&1 || true
 
-  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' \
-    || { echo "the wizard did not reach the expected command:"; cat "$out"; false; }
+  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --app laravel-inertia --db mysql --cache none' ||
+    {
+      echo "the wizard did not reach the expected command:"
+      cat "$out"
+      false
+    }
 }
 
 @test "typing an option's first letter selects it, not whatever Enter would default to" {
@@ -417,20 +508,31 @@ EOF
 
   local out="${BATS_TEST_TMPDIR}/session.log"
   {
-    sleep 1; printf 'wizard-demo\n'
-    sleep 1; printf '\n'                               # shape: web+api (first option)
-    sleep 1; printf '\n'                               # web: nextjs (only option)
-    sleep 1; printf 'l\n'                              # api: laravel-api
-    sleep 1; printf 'p\n'                              # database: postgres
-    sleep 1; printf 'r\n'                              # cache: redis
-    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+    printf 'wizard-demo\n'
+    sleep 1
+    printf '\n' # shape: web+api (first option)
+    sleep 1
+    printf '\n' # web: nextjs (only option)
+    sleep 1
+    printf 'l\n' # api: laravel-api
+    sleep 1
+    printf 'p\n' # database: postgres
+    sleep 1
+    printf 'r\n' # cache: redis
+    sleep 1
+    printf 'n\n' # do not generate
     sleep 1
   } | COLUMNS=90 LINES=45 script -qec \
-        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
-      > "$out" 2>&1 || true
+    "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+    >"$out" 2>&1 || true
 
-  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' \
-    || { echo "typing did not select the named options:"; cat "$out"; false; }
+  strip_ansi "$out" | grep -q 'scaffold new wizard-demo --web nextjs --api laravel-api --db postgres --cache redis' ||
+    {
+      echo "typing did not select the named options:"
+      cat "$out"
+      false
+    }
 }
 
 @test "the header banner appears exactly once in a whole session" {
@@ -445,21 +547,33 @@ EOF
 
   local out="${BATS_TEST_TMPDIR}/session.log"
   {
-    sleep 1; printf 'wizard-demo\n'
-    sleep 1; printf '\x1b[B'; sleep 0.3; printf '\n'   # shape: app
-    sleep 1; printf '\n'                               # fullstack: laravel-inertia
-    sleep 1; printf '\n'                               # database: mysql
-    sleep 1; printf '\n'                               # cache: none
-    sleep 1; printf 'n\n'                              # do not generate
+    sleep 1
+    printf 'wizard-demo\n'
+    sleep 1
+    printf '\x1b[B'
+    sleep 0.3
+    printf '\n' # shape: app
+    sleep 1
+    printf '\n' # fullstack: laravel-inertia
+    sleep 1
+    printf '\n' # database: mysql
+    sleep 1
+    printf '\n' # cache: none
+    sleep 1
+    printf 'n\n' # do not generate
     sleep 1
   } | COLUMNS=90 LINES=45 script -qec \
-        "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
-      > "$out" 2>&1 || true
+    "TERM=xterm-256color SCAFFOLD_WIZARD_DRY_RUN=1 '${SCAFFOLD_ROOT}/scaffold'" /dev/null \
+    >"$out" 2>&1 || true
 
   local count
   count="$(grep -cF 'Pick a stack — CI, containers and a release you can install' "$out")"
-  [ "$count" -eq 1 ] \
-    || { echo "expected the header to appear exactly once, got ${count}:"; cat "$out"; false; }
+  [ "$count" -eq 1 ] ||
+    {
+      echo "expected the header to appear exactly once, got ${count}:"
+      cat "$out"
+      false
+    }
 }
 
 @test "an answered question leaves exactly one line behind" {
@@ -489,16 +603,24 @@ EOF
   pane="$(tmux capture-pane -t "$session" -p)"
   tmux kill-session -t "$session" 2>/dev/null || true
 
-  [[ "$pane" != *"separate frontend and backend, one repository"* ]] \
-    || { echo "the answered question's option row is still on screen:"; echo "$pane"; false; }
+  [[ "$pane" != *"separate frontend and backend, one repository"* ]] ||
+    {
+      echo "the answered question's option row is still on screen:"
+      echo "$pane"
+      false
+    }
 
   # The gap is whatever wizard_prompt_width measured, so it is matched as a
   # run of spaces rather than counted: this test is about there being one
   # collapsed line, not about how wide the answer column happens to be.
   local collapsed
-  collapsed="$(grep -cE '✔ +What are you building\? +web\+api' <<< "$pane")"
-  [ "$collapsed" -eq 1 ] \
-    || { echo "expected exactly one collapsed line, got ${collapsed}:"; echo "$pane"; false; }
+  collapsed="$(grep -cE '✔ +What are you building\? +web\+api' <<<"$pane")"
+  [ "$collapsed" -eq 1 ] ||
+    {
+      echo "expected exactly one collapsed line, got ${collapsed}:"
+      echo "$pane"
+      false
+    }
 }
 
 @test "the header carries the wordmark, and drops it when it will not fit" {
@@ -526,14 +648,30 @@ EOF
   # drop is the wordmark's own and not a narrow terminal cutting everything.
   narrow="$(TERM=xterm-256color script -qec "stty cols 68 rows 40; bash -c \"${body}\"" /dev/null)"
 
-  grep -q '███████╗' <<<"$wide" \
-    || { echo "no wordmark at 100 columns:"; echo "$wide"; false; }
-  grep -q '…' <<<"$narrow" \
-    && { echo "the wordmark was ellipsised instead of dropped at 68 columns:"; echo "$narrow"; false; }
-  grep -q '███████╗' <<<"$narrow" \
-    && { echo "the wordmark was drawn at 68 columns, where it does not fit:"; echo "$narrow"; false; }
+  grep -q '███████╗' <<<"$wide" ||
+    {
+      echo "no wordmark at 100 columns:"
+      echo "$wide"
+      false
+    }
+  grep -q '…' <<<"$narrow" &&
+    {
+      echo "the wordmark was ellipsised instead of dropped at 68 columns:"
+      echo "$narrow"
+      false
+    }
+  grep -q '███████╗' <<<"$narrow" &&
+    {
+      echo "the wordmark was drawn at 68 columns, where it does not fit:"
+      echo "$narrow"
+      false
+    }
 
   # The rest of the header still has to be there in both.
-  grep -qF 'Pick a stack — CI, containers and a release you can install' <<<"$narrow" \
-    || { echo "the narrow header lost more than the wordmark:"; echo "$narrow"; false; }
+  grep -qF 'Pick a stack — CI, containers and a release you can install' <<<"$narrow" ||
+    {
+      echo "the narrow header lost more than the wordmark:"
+      echo "$narrow"
+      false
+    }
 }

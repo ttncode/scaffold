@@ -37,8 +37,11 @@ teardown() {
   local images want_repo
   images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
     "${PROJECT}/.github/workflows/build.yml")"
-  [ "$(jq 'length' <<<"$images")" -gt 0 ] \
-    || { echo "build.yml publishes no image at all"; false; }
+  [ "$(jq 'length' <<<"$images")" -gt 0 ] ||
+    {
+      echo "build.yml publishes no image at all"
+      false
+    }
 
   local want_image service actual
   while IFS= read -r want_image; do
@@ -58,8 +61,11 @@ teardown() {
   # naming one of its own.
   actual="$(yq '.services.migrate.image // ""' "${PROJECT}/compose.yaml")"
   if [ -n "$actual" ] && [ "$actual" != null ]; then
-    jq -e --arg image "${actual%%:*}" 'any(.[]; .image == $image)' <<<"$images" >/dev/null \
-      || { echo "migrate runs ${actual}, which no build target publishes"; false; }
+    jq -e --arg image "${actual%%:*}" 'any(.[]; .image == $image)' <<<"$images" >/dev/null ||
+      {
+        echo "migrate runs ${actual}, which no build target publishes"
+        false
+      }
   fi
 
   want_repo="$(jq -r '.[0].image' <<<"$images")"
@@ -74,7 +80,10 @@ teardown() {
 
   # A placeholder anywhere in either file means the substitution was skipped.
   run bash -c "grep -l 'CHANGEME\|@PROJECT_NAME@\|ghcr.io/you/' '${PROJECT}/compose.yaml'"
-  [ -z "$output" ] || { echo "compose.yaml still carries a placeholder"; false; }
+  [ -z "$output" ] || {
+    echo "compose.yaml still carries a placeholder"
+    false
+  }
 }
 
 @test "third-party images are pinned by digest" {
@@ -99,7 +108,11 @@ teardown() {
   # tomorrow. Nothing enforced the second half. Dockerfile* also catches the
   # typescript adapters' workspace-shape Dockerfile.workspace.
   run bash -c "grep -h '^FROM' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile* | grep -v '@sha256:'"
-  [ -z "$output" ] || { echo "unpinned base images:"; echo "$output"; false; }
+  [ -z "$output" ] || {
+    echo "unpinned base images:"
+    echo "$output"
+    false
+  }
 }
 
 @test "every adapter ships a dockerignore" {
@@ -107,8 +120,11 @@ teardown() {
   # password — into any image built locally. For nextjs it also lets a host
   # node_modules overwrite the one copied from the pinned build stage.
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    [ -f "${adapter}.dockerignore" ] \
-      || { echo "no .dockerignore in ${adapter}"; false; }
+    [ -f "${adapter}.dockerignore" ] ||
+      {
+        echo "no .dockerignore in ${adapter}"
+        false
+      }
   done
 }
 
@@ -117,7 +133,7 @@ teardown() {
   # cache as well as a database left REDIS_PASSWORD on the literal default
   # and nothing said so.
   cd "$PROJECT"
-  cat > env.fixture <<'INNER_EOF'
+  cat >env.fixture <<'INNER_EOF'
 DB_PASSWORD=changeme
 REDIS_PASSWORD=changeme
 APP_PORT=8080
@@ -134,7 +150,7 @@ INNER_EOF
   # differently (RABBITMQ_DEFAULT_PASS) got no generated value under the old
   # ^[A-Z_]*_PASSWORD=changeme$ pattern, and tripped no check either.
   cd "$PROJECT"
-  cat > env.fixture2 <<'INNER_EOF'
+  cat >env.fixture2 <<'INNER_EOF'
 RABBITMQ_DEFAULT_PASS=changeme
 APP_PORT=8080
 INNER_EOF
@@ -150,7 +166,7 @@ INNER_EOF
   # `set -o nounset` used to kill the script before the source guard even ran.
   mkdir -p "${WORKDIR}/piped"
   cd "${WORKDIR}/piped"
-  run bash < "${PROJECT}/install.sh"
+  run bash <"${PROJECT}/install.sh"
   [ "$status" -ne 0 ]
   [[ "$output" != *"unbound variable"* ]]
   [[ "$output" == *"could not download the release assets"* ]]
@@ -186,16 +202,28 @@ INNER_EOF
   local images
   images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0]' \
     "${ts}/.github/workflows/build.yml")"
-  [ "$(jq 'length' <<<"$images")" -eq 2 ] \
-    || { echo "expected two build targets, got: ${images}"; false; }
+  [ "$(jq 'length' <<<"$images")" -eq 2 ] ||
+    {
+      echo "expected two build targets, got: ${images}"
+      false
+    }
 
   local context dockerfile manifest
   while IFS=$'\t' read -r context dockerfile; do
-    [ "$context" = "." ] || { echo "${dockerfile} builds from '${context}', not the workspace root"; false; }
-    [ -f "${ts}/${dockerfile}" ] || { echo "no Dockerfile at ${dockerfile}"; false; }
+    [ "$context" = "." ] || {
+      echo "${dockerfile} builds from '${context}', not the workspace root"
+      false
+    }
+    [ -f "${ts}/${dockerfile}" ] || {
+      echo "no Dockerfile at ${dockerfile}"
+      false
+    }
     for manifest in package.json pnpm-lock.yaml pnpm-workspace.yaml; do
-      [ -f "${ts}/${context}/${manifest}" ] \
-        || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
+      [ -f "${ts}/${context}/${manifest}" ] ||
+        {
+          echo "missing ${manifest} at context '${context}', named by ${dockerfile}"
+          false
+        }
     done
   done < <(jq -r '.[] | [.context, .dockerfile] | @tsv' <<<"$images")
 }
@@ -212,13 +240,19 @@ INNER_EOF
     "${mixed}/.github/workflows/build.yml")"
   context="$(jq -r '.[] | select(.dockerfile == "apps/web/Dockerfile") | .context' <<<"$images")"
   dockerfile="apps/web/Dockerfile"
-  [ "$context" = "apps/web" ] \
-    || { echo "apps/web builds from '${context}', not its own directory"; false; }
+  [ "$context" = "apps/web" ] ||
+    {
+      echo "apps/web builds from '${context}', not its own directory"
+      false
+    }
   [ -f "${mixed}/${dockerfile}" ]
 
   for manifest in package.json pnpm-lock.yaml pnpm-workspace.yaml; do
-    [ -f "${mixed}/${context}/${manifest}" ] \
-      || { echo "missing ${manifest} at context '${context}', named by ${dockerfile}"; false; }
+    [ -f "${mixed}/${context}/${manifest}" ] ||
+      {
+        echo "missing ${manifest} at context '${context}', named by ${dockerfile}"
+        false
+      }
   done
 }
 
@@ -226,12 +260,20 @@ INNER_EOF
   # add_app_service publishes ${<NAME>_PORT:-<allocated>}:8080 for every
   # application, so an adapter exposing anything else publishes a dead port.
   run bash -c "grep -L '^EXPOSE 8080\$' '${SCAFFOLD_ROOT}'/adapters/*/Dockerfile*"
-  [ -z "$output" ] || { echo "not exposing 8080:"; echo "$output"; false; }
+  [ -z "$output" ] || {
+    echo "not exposing 8080:"
+    echo "$output"
+    false
+  }
 
   # The container side of every published port, asserted against a real
   # project rather than the template it came from.
   run bash -c "yq -r '.services[].ports[]? | select(test(\":8080\$\") | not)' '${PROJECT}/compose.yaml'"
-  [ -z "$output" ] || { echo "publishing to a port no adapter serves:"; echo "$output"; false; }
+  [ -z "$output" ] || {
+    echo "publishing to a port no adapter serves:"
+    echo "$output"
+    false
+  }
 }
 
 @test "every adapter Dockerfile probes the liveness path its adapter declares" {
@@ -242,19 +284,25 @@ INNER_EOF
     path="$(grep '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" | cut -d'"' -f2)"
     for file in "${dir}"Dockerfile "${dir}"Dockerfile.workspace; do
       [ -f "$file" ] || continue
-      grep -q '^HEALTHCHECK' "$file" \
-        || { wrong="${wrong}${file}: no HEALTHCHECK"$'\n'; continue; }
+      grep -q '^HEALTHCHECK' "$file" ||
+        {
+          wrong="${wrong}${file}: no HEALTHCHECK"$'\n'
+          continue
+        }
       # localhost or 127.0.0.1: nextjs's HEALTHCHECK dials 127.0.0.1 because
       # this image's resolver hands "localhost" the IPv6 ::1 first and the
       # IPv4-only listener (forced by ENV HOSTNAME="0.0.0.0", the fix for
       # standalone server.js otherwise binding to the container's own id)
       # refuses it — see adapters/nextjs/Dockerfile. Either host still
       # proves the adapter's declared path is the one actually probed.
-      grep -Eq "(localhost|127\.0\.0\.1):8080${path}" "$file" \
-        || wrong="${wrong}${file}: does not probe ${path} on 8080"$'\n'
+      grep -Eq "(localhost|127\.0\.0\.1):8080${path}" "$file" ||
+        wrong="${wrong}${file}: does not probe ${path} on 8080"$'\n'
     done
   done
-  [ -z "$wrong" ] || { echo "$wrong"; false; }
+  [ -z "$wrong" ] || {
+    echo "$wrong"
+    false
+  }
 }
 
 @test "install.sh generates an APP_KEY laravel will accept" {
@@ -262,11 +310,14 @@ INNER_EOF
   # "Unsupported cipher or incorrect key length" — laravel needs base64: and
   # exactly 32 bytes.
   local env_file="${BATS_TEST_TMPDIR}/.env"
-  printf 'DB_PASSWORD=changeme\nAPP_KEY=changeme\n' > "$env_file"
+  printf 'DB_PASSWORD=changeme\nAPP_KEY=changeme\n' >"$env_file"
   . "${SCAFFOLD_ROOT}/common/install.sh"
   run generate_service_passwords "$env_file"
   assert_ok
   run grep '^APP_KEY=' "$env_file"
-  [[ "$output" =~ ^APP_KEY=base64:[A-Za-z0-9+/]{43}=$ ]] \
-    || { echo "not a laravel key: ${output}"; false; }
+  [[ "$output" =~ ^APP_KEY=base64:[A-Za-z0-9+/]{43}=$ ]] ||
+    {
+      echo "not a laravel key: ${output}"
+      false
+    }
 }

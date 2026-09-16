@@ -118,7 +118,11 @@ teardown() {
   assert_ok
   local hooks
   hooks="$(printf '%s\n' "$output" | grep -c pint)"
-  [ "$hooks" -eq 2 ] || { echo "expected 2 pint hooks, found ${hooks}:"; echo "$output"; false; }
+  [ "$hooks" -eq 2 ] || {
+    echo "expected 2 pint hooks, found ${hooks}:"
+    echo "$output"
+    false
+  }
 }
 
 @test "a php-only project still ships the build policy" {

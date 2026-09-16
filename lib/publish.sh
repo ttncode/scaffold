@@ -26,7 +26,8 @@ PUBLISH_UNSUPPORTED=2
 # and the build workflows all carry that same pair, so deriving the repository
 # from it is what makes their assumption true rather than hopeful.
 repo_slug() {
-  local image; image="$(project_image_base "$1")"
+  local image
+  image="$(project_image_base "$1")"
   printf '%s' "${image#ghcr.io/}"
 }
 
@@ -41,8 +42,8 @@ create_repo() {
   # failure in the second or third leaves the first behind. Everything here is
   # idempotent, but the message has to say what may already be out there.
   gh repo create "$slug" "--${visibility}" --source "$project" \
-    --remote origin --push >/dev/null \
-    || die "could not finish creating ${slug} — it may exist on GitHub already, with no remote or no branch pushed. Check it, then run this again: everything here is idempotent."
+    --remote origin --push >/dev/null ||
+    die "could not finish creating ${slug} — it may exist on GitHub already, with no remote or no branch pushed. Check it, then run this again: everything here is idempotent."
 }
 
 # allow_actions_to_open_pull_requests <slug>
@@ -52,8 +53,8 @@ create_repo() {
 allow_actions_to_open_pull_requests() {
   gh api -X PUT "repos/${1}/actions/permissions/workflow" \
     -f default_workflow_permissions=read \
-    -F can_approve_pull_request_reviews=true >/dev/null \
-    || die "could not allow Actions to open pull requests on ${1} — Release Please will not be able to open its release pull request"
+    -F can_approve_pull_request_reviews=true >/dev/null ||
+    die "could not allow Actions to open pull requests on ${1} — Release Please will not be able to open its release pull request"
 }
 
 main_is_protected() {
@@ -75,7 +76,8 @@ protect_main() {
   local -r slug="$1"
   local response status=0
 
-  response="$(gh api -X POST "repos/${slug}/rulesets" --input - 2>&1 <<'EOF'
+  response="$(
+    gh api -X POST "repos/${slug}/rulesets" --input - 2>&1 <<'EOF'
 {
   "name": "main",
   "target": "branch",
@@ -99,7 +101,7 @@ protect_main() {
   ]
 }
 EOF
-)" || status=$?
+  )" || status=$?
 
   [ "$status" -eq 0 ] && return 0
   case "$response" in
@@ -116,7 +118,8 @@ EOF
 enable_secret_scanning() {
   local response status=0
 
-  response="$(gh api -X PATCH "repos/${1}" --input - 2>&1 <<'EOF'
+  response="$(
+    gh api -X PATCH "repos/${1}" --input - 2>&1 <<'EOF'
 {
   "security_and_analysis": {
     "secret_scanning": { "status": "enabled" },
@@ -124,11 +127,11 @@ enable_secret_scanning() {
   }
 }
 EOF
-)" || status=$?
+  )" || status=$?
 
   [ "$status" -eq 0 ] && return 0
   case "$response" in
-    *"Advanced Security"*|*"not available"*|*"upgrade"*|*"Upgrade"*) return "$PUBLISH_UNSUPPORTED" ;;
+    *"Advanced Security"* | *"not available"* | *"upgrade"* | *"Upgrade"*) return "$PUBLISH_UNSUPPORTED" ;;
   esac
   printf '%s\n' "$response" >&2
   return 1
@@ -145,8 +148,8 @@ set_release_secrets() {
 
   # --body reads from the environment rather than argv: a private key in a
   # process's arguments is readable by every other user on the host.
-  gh secret set RELEASE_APP_ID --repo "$slug" --body "$RELEASE_APP_ID" >/dev/null \
-    || die "could not set RELEASE_APP_ID on ${slug}"
-  gh secret set RELEASE_APP_PRIVATE_KEY --repo "$slug" --body "$RELEASE_APP_PRIVATE_KEY" >/dev/null \
-    || die "could not set RELEASE_APP_PRIVATE_KEY on ${slug}"
+  gh secret set RELEASE_APP_ID --repo "$slug" --body "$RELEASE_APP_ID" >/dev/null ||
+    die "could not set RELEASE_APP_ID on ${slug}"
+  gh secret set RELEASE_APP_PRIVATE_KEY --repo "$slug" --body "$RELEASE_APP_PRIVATE_KEY" >/dev/null ||
+    die "could not set RELEASE_APP_PRIVATE_KEY on ${slug}"
 }

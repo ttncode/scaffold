@@ -57,7 +57,8 @@ driver_families() {
 # any, so a caller can run them all and still fail once at the end.
 
 lint_required_files() {
-  local -r name="$1" dir="$2"; shift 2
+  local -r name="$1" dir="$2"
+  shift 2
   local file status=0
 
   for file in "$@"; do
@@ -128,7 +129,7 @@ lint_adapter_tasks() {
     body="$(task_body "$file" "$task")"
     for flag in "${WRITING_FLAGS[@]}"; do
       case " $body " in
-        *" ${flag} "*|*" ${flag}="*)
+        *" ${flag} "* | *" ${flag}="*)
           printf '%s: %s writes (%s) — %s must report, not repair; see docs/decisions/0011\n' \
             "$name" "$task" "$flag" "$task"
           status=1
@@ -185,13 +186,13 @@ lint_driver_functions() {
   local fn fault status=0
 
   for fn in "${REQUIRED_DRIVER_FUNCTIONS[@]}"; do
-    if ! fault="$( {
+    if ! fault="$({
       # shellcheck disable=SC2034 # read by the driver, not by this loop
       SERVICE_DIR="$service_dir"
       # shellcheck source=/dev/null # family varies, so the path isn't constant
       . "$driver"
       declare -F "$fn" >/dev/null
-    } 2>&1 )"; then
+    } 2>&1)"; then
       if [ -n "$fault" ]; then
         printf '%s: %s driver failed to source: %s\n' "$name" "$family" "$fault"
       else
@@ -205,7 +206,8 @@ lint_driver_functions() {
 }
 
 lint_service_drivers() {
-  local -r name="$1" service="$2"; shift 2
+  local -r name="$1" service="$2"
+  shift 2
   local family driver status=0
 
   for family in "$@"; do

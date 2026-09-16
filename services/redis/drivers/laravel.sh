@@ -18,8 +18,8 @@ service_driver_apply() {
     "REDIS_PASSWORD=app" \
     "CACHE_STORE=redis" \
     "SESSION_DRIVER=redis" \
-    "QUEUE_CONNECTION=redis" \
-    || return 1
+    "QUEUE_CONNECTION=redis" ||
+    return 1
 }
 
 service_driver_dockerfile() {

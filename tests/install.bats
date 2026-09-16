@@ -17,7 +17,7 @@ setup() {
   # this fixture exists to catch. A grep for the name that then takes the
   # next id yields 41898282 for every asset — a valid object that downloads
   # something else entirely, with no error anywhere.
-  cat > release.fixture.json <<'INNER_EOF'
+  cat >release.fixture.json <<'INNER_EOF'
 {
   "tag_name": "v0.2.1",
   "assets": [
@@ -34,16 +34,16 @@ setup() {
   ]
 }
 INNER_EOF
-  run release_asset_id example.env < release.fixture.json
+  run release_asset_id example.env <release.fixture.json
   assert_ok
   [ "$output" = "548466513" ]
 }
 
 @test "release_asset_id fails when the release has no such asset" {
-  cat > release.empty.json <<'INNER_EOF'
+  cat >release.empty.json <<'INNER_EOF'
 { "tag_name": "v0.2.1", "assets": [] }
 INNER_EOF
-  run release_asset_id compose.yaml < release.empty.json
+  run release_asset_id compose.yaml <release.empty.json
   [ "$status" -ne 0 ]
   [[ "$output" == *"compose.yaml"* ]]
 }
@@ -54,7 +54,7 @@ INNER_EOF
   # what would catch a fetch that called both and quietly required a token
   # for every public client.
   mkdir -p stub
-  cat > stub/curl <<'INNER_EOF'
+  cat >stub/curl <<'INNER_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${CURL_LOG}"
 INNER_EOF
@@ -71,7 +71,7 @@ INNER_EOF
   # A Bearer token on the browser URL returns 404 for a private repository —
   # measured 2026-09-07 — so the endpoint has to change, not just the headers.
   mkdir -p stub2
-  cat > stub2/curl <<'INNER_EOF'
+  cat >stub2/curl <<'INNER_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${CURL_LOG}"
 case "$*" in
@@ -116,7 +116,7 @@ INNER_EOF
   # 2026-09-07. A public client pulling a public image must never be asked
   # to authenticate, so the no-token half here must see no login at all.
   mkdir -p stub3
-  cat > stub3/docker <<'INNER_EOF'
+  cat >stub3/docker <<'INNER_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${DOCKER_LOG}"
 INNER_EOF
@@ -128,8 +128,11 @@ INNER_EOF
   # never did, d1.log does not exist, `cat` fails, and a bare `!= *login*`
   # against its error message passes while start_stack talked to a real
   # docker. Asserting what the stub did record is what closes that.
-  [ -f d1.log ] \
-    || { echo "the docker stub never ran — start_stack reached a real docker"; false; }
+  [ -f d1.log ] ||
+    {
+      echo "the docker stub never ran — start_stack reached a real docker"
+      false
+    }
   run cat d1.log
   [[ "$output" == *"compose up"* ]]
   [[ "$output" != *"login"* ]]
@@ -151,7 +154,7 @@ INNER_EOF
   # "no such release" rather than "you are not signed in" — see the comment
   # on fetch_release_asset for the private-repository measurement behind it.
   mkdir -p stub4
-  cat > stub4/curl <<'INNER_EOF'
+  cat >stub4/curl <<'INNER_EOF'
 #!/usr/bin/env bash
 exit 22
 INNER_EOF
@@ -167,7 +170,7 @@ INNER_EOF
   # hint above must not also appear, or an operator who already set
   # GITHUB_TOKEN is told to do what they already did.
   mkdir -p stub5
-  cat > stub5/curl <<'INNER_EOF'
+  cat >stub5/curl <<'INNER_EOF'
 #!/usr/bin/env bash
 case "$*" in
   *releases/latest*) printf '{"assets":[{"id":42,"name":"compose.yaml"}]}' ;;
@@ -189,7 +192,7 @@ INNER_EOF
   # failed — so the stack refused to migrate, at random, naming a service that
   # was there. The stub keeps writing past the match to make that deterministic.
   mkdir -p stub6
-  cat > stub6/docker <<'INNER_EOF'
+  cat >stub6/docker <<'INNER_EOF'
 #!/usr/bin/env bash
 case "$*" in
   *"config --services"*)
@@ -207,8 +210,11 @@ INNER_EOF
   assert_ok
   [[ "$output" == *"running migrations"* ]]
 
-  [ -f d6.log ] \
-    || { echo "the docker stub never ran the migration"; false; }
+  [ -f d6.log ] ||
+    {
+      echo "the docker stub never ran the migration"
+      false
+    }
   run cat d6.log
   [[ "$output" == *"run --rm migrate"* ]]
 }

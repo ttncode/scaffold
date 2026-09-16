@@ -41,7 +41,7 @@ PNPM_RELAXATIONS=('confirmModulesPurge: false' 'frozenLockfile: false' 'minimumR
 # writes into the root lockfile either way.
 relax_pnpm_workspace() {
   [ -f "$1" ] || return 0
-  printf '%s\n' "${PNPM_RELAXATIONS[@]}" >> "$1"
+  printf '%s\n' "${PNPM_RELAXATIONS[@]}" >>"$1"
 }
 
 restore_pnpm_workspace() {
@@ -136,7 +136,7 @@ record_release_age_exceptions() {
   log="$(mktemp)"
 
   while true; do
-    if ( cd "$project" && mise exec -- pnpm install --frozen-lockfile --config.confirm-modules-purge=false >"$log" 2>&1 ); then
+    if (cd "$project" && mise exec -- pnpm install --frozen-lockfile --config.confirm-modules-purge=false >"$log" 2>&1); then
       rm -f "$log"
       return 0
     fi
@@ -167,7 +167,7 @@ record_release_age_exceptions() {
     # open on the end (,$d) would silently swallow anything a later step
     # appended. Both markers are always written together, so the range is
     # always well-formed by the time this runs a second time.
-    [ -f "$workspace_file" ] || : > "$workspace_file"
+    [ -f "$workspace_file" ] || : >"$workspace_file"
     sed -i "/^${RELEASE_AGE_BLOCK_START}/,/^${RELEASE_AGE_BLOCK_END}\$/d" "$workspace_file"
     {
       printf '%s; pnpm re-checks this on every frozen\n' "$RELEASE_AGE_BLOCK_START"
@@ -176,7 +176,7 @@ record_release_age_exceptions() {
       printf 'minimumReleaseAgeExclude:\n'
       printf '%s\n' "$all_entries" | while IFS= read -r entry; do printf '  - "%s"\n' "$entry"; done
       printf '%s\n' "$RELEASE_AGE_BLOCK_END"
-    } >> "$workspace_file"
+    } >>"$workspace_file"
   done
 }
 
@@ -200,7 +200,7 @@ sync_standalone_build_policy() {
   local -r app="$1" project="$2"
   local -r file="${app}/${WORKSPACE_FILE}"
 
-  [ -f "$file" ] || printf '{}\n' > "$file"
+  [ -f "$file" ] || printf '{}\n' >"$file"
 
   yq eval-all --inplace \
     'select(fileIndex==0).allowBuilds = ((select(fileIndex==0).allowBuilds // {}) * select(fileIndex==1).allowBuilds) | select(fileIndex==0)' \
@@ -227,7 +227,8 @@ finalize_app_dockerfile() {
 # Every application is TypeScript, so they share one lockfile and one
 # node_modules at the root, and a packages/types can exist between them.
 join_typescript_workspace() {
-  local -r project="$1"; shift
+  local -r project="$1"
+  shift
 
   enable_typescript_workspace "$project"
 
@@ -250,7 +251,8 @@ join_typescript_workspace() {
 # Not every application is TypeScript — or there are none — so each owns its
 # manifests and its own lockfile, and there is no shared workspace to join.
 keep_apps_standalone() {
-  local -r project="$1"; shift
+  local -r project="$1"
+  shift
 
   rm -rf "${project}/packages-types"
 
@@ -272,8 +274,8 @@ keep_apps_standalone() {
   local pair app
   for pair in "$@"; do
     app="${pair%%:*}"
-    adapter_is_typescript "${pair#*:}" \
-      && sync_standalone_build_policy "${project}/${app}" "$project"
+    adapter_is_typescript "${pair#*:}" &&
+      sync_standalone_build_policy "${project}/${app}" "$project"
     finalize_app_dockerfile "$project" "$app"
     # Each application here owns a lockfile the policy will re-check forever.
     record_release_age_exceptions "${project}/${app}"

@@ -37,7 +37,7 @@ setup() {
   # check load_adapter already has for adapters.
   local dir="${BATS_TEST_TMPDIR}/services/broken"
   mkdir -p "$dir"
-  printf 'SERVICE_NAME="broken"\nSERVICE_KIND="database"\n' > "${dir}/service.env"
+  printf 'SERVICE_NAME="broken"\nSERVICE_KIND="database"\n' >"${dir}/service.env"
 
   SCAFFOLD_ROOT="$BATS_TEST_TMPDIR" run load_service broken
   [ "$status" -eq 1 ]
@@ -52,8 +52,11 @@ setup() {
 @test "every service pins its image by digest" {
   for service in "${SCAFFOLD_ROOT}"/services/*/; do
     [ -f "${service}service.env" ] || continue
-    grep -q '@sha256:' "${service}service.env" \
-      || { echo "no digest in ${service}service.env"; false; }
+    grep -q '@sha256:' "${service}service.env" ||
+      {
+        echo "no digest in ${service}service.env"
+        false
+      }
   done
 }
 
@@ -74,8 +77,8 @@ setup() {
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+    "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+    "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
 
   run assemble_compose "$project" mysql
   assert_ok
@@ -142,15 +145,21 @@ setup() {
 
 @test "every adapter declares a framework family" {
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    grep -Eq '^ADAPTER_FAMILY="(laravel|nest|next|flask)"$' "${adapter}adapter.env" \
-      || { echo "no ADAPTER_FAMILY in ${adapter}adapter.env"; false; }
+    grep -Eq '^ADAPTER_FAMILY="(laravel|nest|next|flask)"$' "${adapter}adapter.env" ||
+      {
+        echo "no ADAPTER_FAMILY in ${adapter}adapter.env"
+        false
+      }
   done
 }
 
 @test "every adapter Dockerfile carries the service anchor" {
   for adapter in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    grep -q '^# @SERVICE_SETUP@$' "${adapter}Dockerfile" \
-      || { echo "no @SERVICE_SETUP@ anchor in ${adapter}Dockerfile"; false; }
+    grep -q '^# @SERVICE_SETUP@$' "${adapter}Dockerfile" ||
+      {
+        echo "no @SERVICE_SETUP@ anchor in ${adapter}Dockerfile"
+        false
+      }
   done
 }
 
@@ -199,7 +208,7 @@ setup() {
 @test "apply_service_dockerfile removes the anchor when nothing was selected" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
-  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' >"${app}/Dockerfile"
 
   run apply_service_dockerfile "$app" ""
   assert_ok
@@ -213,7 +222,7 @@ setup() {
 @test "apply_service_dockerfile splices in every selected service's block" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
-  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' >"${app}/Dockerfile"
 
   run apply_service_dockerfile "$app" "$(printf 'RUN one\nRUN two\n')"
   assert_ok
@@ -226,7 +235,7 @@ setup() {
 @test "apply_service_dockerfile dies when the Dockerfile has no anchor" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
-  printf 'FROM scratch\nCMD ["true"]\n' > "${app}/Dockerfile"
+  printf 'FROM scratch\nCMD ["true"]\n' >"${app}/Dockerfile"
 
   run apply_service_dockerfile "$app" "RUN one"
   [ "$status" -eq 1 ]
@@ -236,7 +245,7 @@ setup() {
 @test "apply_service_dockerfile passes a block through without escape processing" {
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app"
-  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' >"${app}/Dockerfile"
 
   # a literal backslash-t, two characters — awk's -v assignment does
   # C-style escape processing and would collapse this into a tab
@@ -248,7 +257,7 @@ setup() {
 
 @test "write_env_lines replaces a key rather than duplicating it" {
   local file="${BATS_TEST_TMPDIR}/.env.example"
-  printf 'DB_HOST=localhost\nAPP_ENV=local\n' > "$file"
+  printf 'DB_HOST=localhost\nAPP_ENV=local\n' >"$file"
 
   run write_env_lines "$file" "DB_HOST=database" "DB_PORT=3306"
   assert_ok
@@ -266,7 +275,7 @@ setup() {
   # escaping too, so a backslash is thrown in on top).
   local file="${BATS_TEST_TMPDIR}/.env.example"
   local value='mongodb://app:app@localhost/app?authSource=admin&x=1|y\z'
-  printf 'DATABASE_URL=placeholder\n' > "$file"
+  printf 'DATABASE_URL=placeholder\n' >"$file"
 
   run write_env_lines "$file" "DATABASE_URL=${value}"
   assert_ok
@@ -281,7 +290,7 @@ setup() {
 
 @test "write_env_lines appends onto a file with no trailing newline" {
   local file="${BATS_TEST_TMPDIR}/.env.example"
-  printf 'APP_ENV=local' > "$file"
+  printf 'APP_ENV=local' >"$file"
 
   run write_env_lines "$file" "DB_HOST=database"
   assert_ok
@@ -292,27 +301,28 @@ setup() {
 }
 
 @test "apply_service_drivers does not leak one driver's parameters into the next" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app" \
     "${toolbox}/services/leaky/drivers" "${toolbox}/services/clean/drivers"
 
-  cat > "${toolbox}/services/leaky/service.env" <<'EOF'
+  cat >"${toolbox}/services/leaky/service.env" <<'EOF'
 SERVICE_NAME="leaky"
 SERVICE_KIND="database"
 SERVICE_IMAGE="example/leaky@sha256:deadbeef"
 EOF
-  cat > "${toolbox}/services/leaky/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/leaky/drivers/fixture.sh" <<'EOF'
 service_driver_apply() { FIXTURE_PARAM=set; }
 service_driver_dockerfile() { :; }
 EOF
 
-  cat > "${toolbox}/services/clean/service.env" <<'EOF'
+  cat >"${toolbox}/services/clean/service.env" <<'EOF'
 SERVICE_NAME="clean"
 SERVICE_KIND="cache"
 SERVICE_IMAGE="example/clean@sha256:deadbeef"
 EOF
-  cat > "${toolbox}/services/clean/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/clean/drivers/fixture.sh" <<'EOF'
 service_driver_apply() {
   [ -z "${FIXTURE_PARAM:-}" ] \
     || { echo "leaky's FIXTURE_PARAM survived into clean's driver" >&2; exit 1; }
@@ -325,11 +335,12 @@ EOF
 }
 
 @test "apply_service_drivers dies when a driver fails partway through service_driver_apply" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app" "${toolbox}/services/broken/drivers"
 
-  cat > "${toolbox}/services/broken/service.env" <<'EOF'
+  cat >"${toolbox}/services/broken/service.env" <<'EOF'
 SERVICE_NAME="broken"
 SERVICE_KIND="database"
 SERVICE_IMAGE="example/broken@sha256:deadbeef"
@@ -338,7 +349,7 @@ EOF
   # command in the same function would otherwise succeed. `|| return 1` makes
   # the failure visible at the point it happens; apply_service_drivers'
   # process-level `set -e` (below) would also catch a driver that omits it.
-  cat > "${toolbox}/services/broken/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/broken/drivers/fixture.sh" <<'EOF'
 service_driver_apply() {
   false || return 1
   touch installed
@@ -350,10 +361,18 @@ EOF
   [ "$status" -eq 1 ]
   # The service and the family both have to be named: a bare "a driver failed"
   # sends the reader to the wrong one of eight.
-  [[ "$output" == *"wiring broken into"* ]] \
-    || { echo "the failure does not name the service:"; echo "$output"; false; }
-  [[ "$output" == *"fixture driver"* ]] \
-    || { echo "the failure does not name the driver family:"; echo "$output"; false; }
+  [[ "$output" == *"wiring broken into"* ]] ||
+    {
+      echo "the failure does not name the service:"
+      echo "$output"
+      false
+    }
+  [[ "$output" == *"fixture driver"* ]] ||
+    {
+      echo "the failure does not name the driver family:"
+      echo "$output"
+      false
+    }
   [ ! -e "${app}/installed" ]
 }
 
@@ -364,16 +383,17 @@ EOF
 # `|| return 1` anywhere, so it only dies here if apply_service_drivers runs
 # it somewhere `set -e` still applies.
 @test "apply_service_drivers dies on an unchecked driver failure with no || return 1 anywhere" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   local app="${BATS_TEST_TMPDIR}/app"
   mkdir -p "$app" "${toolbox}/services/careless/drivers"
 
-  cat > "${toolbox}/services/careless/service.env" <<'EOF'
+  cat >"${toolbox}/services/careless/service.env" <<'EOF'
 SERVICE_NAME="careless"
 SERVICE_KIND="database"
 SERVICE_IMAGE="example/careless@sha256:deadbeef"
 EOF
-  cat > "${toolbox}/services/careless/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/careless/drivers/fixture.sh" <<'EOF'
 service_driver_apply() { false; touch installed; }
 service_driver_dockerfile() { :; }
 EOF
@@ -382,10 +402,18 @@ EOF
   [ "$status" -eq 1 ]
   # The service and the family both have to be named: a bare "a driver failed"
   # sends the reader to the wrong one of eight.
-  [[ "$output" == *"wiring careless into"* ]] \
-    || { echo "the failure does not name the service:"; echo "$output"; false; }
-  [[ "$output" == *"fixture driver"* ]] \
-    || { echo "the failure does not name the driver family:"; echo "$output"; false; }
+  [[ "$output" == *"wiring careless into"* ]] ||
+    {
+      echo "the failure does not name the service:"
+      echo "$output"
+      false
+    }
+  [[ "$output" == *"fixture driver"* ]] ||
+    {
+      echo "the failure does not name the driver family:"
+      echo "$output"
+      false
+    }
   [ ! -e "${app}/installed" ]
 }
 
@@ -415,11 +443,11 @@ EOF
   local app="${root}/worker"
   local fakebin="${BATS_TEST_TMPDIR}/rootcheck/fakebin"
   mkdir -p "$app" "$fakebin"
-  printf 'allowBuilds: {}\n' > "${decoy}/pnpm-workspace.yaml"
+  printf 'allowBuilds: {}\n' >"${decoy}/pnpm-workspace.yaml"
 
   # stands in for pnpm add/pnpm add -D, both network calls nest.sh's driver
   # makes before the yq guard this test exercises
-  cat > "${fakebin}/pnpm" <<'EOF'
+  cat >"${fakebin}/pnpm" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
@@ -434,27 +462,28 @@ EOF
 }
 
 @test "apply_service_drivers skips a driver's empty dockerfile output instead of splicing a blank line" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   local app="${BATS_TEST_TMPDIR}/blank-line-app"
   mkdir -p "$app" "${toolbox}/services/quiet/drivers" "${toolbox}/services/loud/drivers"
-  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' > "${app}/Dockerfile"
+  printf 'FROM scratch\n# @SERVICE_SETUP@\nCMD ["true"]\n' >"${app}/Dockerfile"
 
-  cat > "${toolbox}/services/quiet/service.env" <<'EOF'
+  cat >"${toolbox}/services/quiet/service.env" <<'EOF'
 SERVICE_NAME="quiet"
 SERVICE_KIND="cache"
 SERVICE_IMAGE="example/quiet@sha256:deadbeef"
 EOF
-  cat > "${toolbox}/services/quiet/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/quiet/drivers/fixture.sh" <<'EOF'
 service_driver_apply() { :; }
 service_driver_dockerfile() { :; }
 EOF
 
-  cat > "${toolbox}/services/loud/service.env" <<'EOF'
+  cat >"${toolbox}/services/loud/service.env" <<'EOF'
 SERVICE_NAME="loud"
 SERVICE_KIND="database"
 SERVICE_IMAGE="example/loud@sha256:deadbeef"
 EOF
-  cat > "${toolbox}/services/loud/drivers/fixture.sh" <<'EOF'
+  cat >"${toolbox}/services/loud/drivers/fixture.sh" <<'EOF'
 service_driver_apply() { :; }
 service_driver_dockerfile() { printf 'RUN loud-setup\n'; }
 EOF
@@ -473,8 +502,11 @@ EOF
   for service in "${SCAFFOLD_ROOT}"/services/*/; do
     [ -f "${service}service.env" ] || continue
     for family in laravel nest; do
-      [ -f "${service}drivers/${family}.sh" ] \
-        || { echo "no ${family} driver in ${service}"; false; }
+      [ -f "${service}drivers/${family}.sh" ] ||
+        {
+          echo "no ${family} driver in ${service}"
+          false
+        }
     done
   done
 }
@@ -483,8 +515,8 @@ EOF
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+    "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+    "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
 
   run assemble_compose "$project" postgres
   assert_ok
@@ -497,8 +529,8 @@ EOF
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+    "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+    "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
 
   run assemble_compose "$project" mongodb
   assert_ok
@@ -513,7 +545,7 @@ EOF
 @test "register_mongodb_connection inserts the mongodb connection at the anchor" {
   local file="${BATS_TEST_TMPDIR}/config/database.php"
   mkdir -p "$(dirname "$file")"
-  printf "<?php\n\nreturn [\n    'connections' => [\n    ],\n];\n" > "$file"
+  printf "<?php\n\nreturn [\n    'connections' => [\n    ],\n];\n" >"$file"
 
   run bash -c "
     source '${SCAFFOLD_ROOT}/lib/log.sh'
@@ -536,7 +568,7 @@ EOF
 @test "register_mongodb_connection dies when the anchor is missing" {
   local file="${BATS_TEST_TMPDIR}/config/database.php"
   mkdir -p "$(dirname "$file")"
-  printf "<?php\n\nreturn [\n    'connections' => [],\n];\n" > "$file"
+  printf "<?php\n\nreturn [\n    'connections' => [],\n];\n" >"$file"
 
   run bash -c "
     source '${SCAFFOLD_ROOT}/lib/log.sh'
@@ -551,8 +583,8 @@ EOF
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+    "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+    "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
 
   run assemble_compose "$project" mysql redis
   assert_ok
@@ -580,9 +612,9 @@ _app_fixture() {
   local project="$1" database="${2:-none}" cache="${3:-none}"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" "${project}/compose.yaml"
-  : > "${project}/example.env"
+  : >"${project}/example.env"
   printf 'monorepo_root = true\n\n[vars]\ndatabase = "%s"\ncache = "%s"\nimage = "ghcr.io/acme/demo"\n' \
-    "$database" "$cache" > "${project}/mise.toml"
+    "$database" "$cache" >"${project}/mise.toml"
 }
 
 @test "add_app_service names the service and image after the application directory" {
@@ -593,8 +625,11 @@ _app_fixture() {
   assert_ok
   run yq -r '.services.web.image' "${project}/compose.yaml"
   # shellcheck disable=SC2016 # literal ${IMAGE_TAG} compared against yq's output, not expanded
-  [ "$output" = 'ghcr.io/acme/demo-web:${IMAGE_TAG:-latest}' ] \
-    || { echo "image is ${output}"; false; }
+  [ "$output" = 'ghcr.io/acme/demo-web:${IMAGE_TAG:-latest}' ] ||
+    {
+      echo "image is ${output}"
+      false
+    }
 }
 
 @test "add_app_service allocates a port per application, from 8080 up" {
@@ -609,8 +644,11 @@ _app_fixture() {
 
   run yq -r '[.services[].ports[0]] | join(" ")' "${project}/compose.yaml"
   # shellcheck disable=SC2016 # literal ${...} compared against yq's output, not expanded
-  [ "$output" = '${WEB_PORT:-8080}:8080 ${API_PORT:-8081}:8080 ${ADMIN_UI_PORT:-8082}:8080' ] \
-    || { echo "ports are: ${output}"; false; }
+  [ "$output" = '${WEB_PORT:-8080}:8080 ${API_PORT:-8081}:8080 ${ADMIN_UI_PORT:-8082}:8080' ] ||
+    {
+      echo "ports are: ${output}"
+      false
+    }
 
   # The same variable names, in the file install.sh writes .env from.
   run grep -c -E '^(WEB|API|ADMIN_UI)_PORT=' "${project}/example.env"
@@ -627,10 +665,16 @@ _app_fixture() {
   add_app_service "$project" apps/api api
 
   run yq -r '.services.web.depends_on // "none"' "${project}/compose.yaml"
-  [ "$output" = none ] || { echo "web waits on: ${output}"; false; }
+  [ "$output" = none ] || {
+    echo "web waits on: ${output}"
+    false
+  }
 
   run yq -r '.services.api.depends_on | keys | sort | join(",")' "${project}/compose.yaml"
-  [ "$output" = "cache,database" ] || { echo "api waits on: ${output}"; false; }
+  [ "$output" = "cache,database" ] || {
+    echo "api waits on: ${output}"
+    false
+  }
 }
 
 @test "add_app_service refuses a project with no recorded registry path" {
@@ -639,7 +683,7 @@ _app_fixture() {
   local project="${BATS_TEST_TMPDIR}/old"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" "${project}/compose.yaml"
-  printf 'monorepo_root = true\n\n[vars]\ndatabase = "none"\ncache = "none"\n' > "${project}/mise.toml"
+  printf 'monorepo_root = true\n\n[vars]\ndatabase = "none"\ncache = "none"\n' >"${project}/mise.toml"
 
   # Through `bash -e`, the way scaffold itself runs it: die() inside a command
   # substitution exits only the subshell, and it is errexit on the assignment
@@ -673,8 +717,8 @@ _app_fixture() {
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   cp "${SCAFFOLD_ROOT}/common/compose.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
-     "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
+    "${SCAFFOLD_ROOT}/common/compose.dev.yaml" \
+    "${SCAFFOLD_ROOT}/common/compose.test.yaml" "$project/"
 
   run assemble_compose "$project" redis
   assert_ok
@@ -702,7 +746,7 @@ _app_fixture() {
   local project="${BATS_TEST_TMPDIR}/proj"
   mkdir -p "$project"
   sed 's|@PROJECT_NAME@|demo|g' "${SCAFFOLD_ROOT}/common/mise.root.toml" \
-    > "${project}/mise.toml"
+    >"${project}/mise.toml"
 
   run record_services "$project" mysql none
   assert_ok
@@ -727,10 +771,19 @@ _app_fixture() {
   allow_builds="$(grep -n 'allowBuilds.prisma' "$file" | head -1 | cut -d: -f1)"
   first_add="$(grep -n '^  pnpm add' "$file" | head -1 | cut -d: -f1)"
 
-  [ -n "$allow_builds" ] || { echo "no allowBuilds line in ${file}"; false; }
-  [ -n "$first_add" ] || { echo "no pnpm add line in ${file}"; false; }
-  [ "$allow_builds" -lt "$first_add" ] \
-    || { echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"; false; }
+  [ -n "$allow_builds" ] || {
+    echo "no allowBuilds line in ${file}"
+    false
+  }
+  [ -n "$first_add" ] || {
+    echo "no pnpm add line in ${file}"
+    false
+  }
+  [ "$allow_builds" -lt "$first_add" ] ||
+    {
+      echo "allowBuilds (line ${allow_builds}) must come before the first pnpm add (line ${first_add})"
+      false
+    }
 }
 
 # Shared by the two tests below, so a regression in the check itself fails
@@ -738,10 +791,13 @@ _app_fixture() {
 # alongside a broken check while still reporting green on its own.
 _password_literal_report() {
   local driver="$1" block bad=""
-  block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
-            SERVICE_DIR="$(dirname "$(dirname "$driver")")"
-            # shellcheck source=/dev/null
-            . "$driver"; service_driver_compose_env )"
+  block="$(
+    . "${SCAFFOLD_ROOT}/lib/service.sh"
+    SERVICE_DIR="$(dirname "$(dirname "$driver")")"
+    # shellcheck source=/dev/null
+    . "$driver"
+    service_driver_compose_env
+  )"
 
   # A *_PASSWORD key whose value is not exactly an interpolation. Anchored
   # with optional leading whitespace, not a bare ^, so an indented key still
@@ -790,7 +846,11 @@ _password_literal_report() {
   for driver in "${SCAFFOLD_ROOT}"/services/*/drivers/*.sh; do
     bad="${bad}$(_password_literal_report "$driver")"
   done
-  [ -z "$bad" ] || { echo "embeds a literal password:"; echo "$bad"; false; }
+  [ -z "$bad" ] || {
+    echo "embeds a literal password:"
+    echo "$bad"
+    false
+  }
 }
 
 @test "the literal-password check reports a driver that bakes one in" {
@@ -803,8 +863,12 @@ _password_literal_report() {
   local driver="${SCAFFOLD_ROOT}/tests/fixtures/lint-services/literal-password/sample/drivers/laravel.sh"
   local bad
   bad="$(_password_literal_report "$driver")"
-  [[ "$bad" == *"DB_PASSWORD: hunter2"* ]] \
-    || { echo "expected a literal password to be reported, got:"; echo "$bad"; false; }
+  [[ "$bad" == *"DB_PASSWORD: hunter2"* ]] ||
+    {
+      echo "expected a literal password to be reported, got:"
+      echo "$bad"
+      false
+    }
 }
 
 @test "apply_service_compose_env merges into the application it was given" {
@@ -813,14 +877,14 @@ _password_literal_report() {
   # to a generic `app` (ADR-0022).
   local project="${BATS_TEST_TMPDIR}/p"
   mkdir -p "$project"
-  printf 'services:\n  api:\n    image: x\n  web:\n    image: y\n' > "${project}/compose.yaml"
+  printf 'services:\n  api:\n    image: x\n  web:\n    image: y\n' >"${project}/compose.yaml"
   . "${SCAFFOLD_ROOT}/lib/service.sh"
   # shellcheck disable=SC2016 # literal ${...} passed as the compose-env fragment, not expanded
   apply_service_compose_env "$project" api 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
   run mise exec -- yq -r '.services.api.environment.DATABASE_URL' "${project}/compose.yaml"
   # shellcheck disable=SC2016 # literal ${...} compared against yq's output, not expanded
-  [[ "$output" == 'postgresql://app@database:5432/app' ]] \
-    || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
+  [[ "$output" == 'postgresql://app@database:5432/app' ]] ||
+    [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
 
   # The application beside it is left alone.
   run mise exec -- yq -r '.services.web.environment // "none"' "${project}/compose.yaml"
@@ -833,26 +897,36 @@ _password_literal_report() {
   # sqlite filename and never contacts the service at all.
   # shellcheck disable=SC2167 # service is local to lib/service.sh's own loop; unrelated to this one
   for service in mysql postgres mongodb; do
-    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
-              # shellcheck source=/dev/null
-              . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
-              service_driver_compose_env )"
+    block="$(
+      . "${SCAFFOLD_ROOT}/lib/service.sh"
+      # shellcheck source=/dev/null
+      . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
+      service_driver_compose_env
+    )"
     # shellcheck disable=SC2031 # service is read-only here, not actually modified by the sourcing above
-    grep -q '^DB_CONNECTION:' <<<"$block" \
-      || { echo "${service}/laravel.sh emits no DB_CONNECTION"; false; }
+    grep -q '^DB_CONNECTION:' <<<"$block" ||
+      {
+        echo "${service}/laravel.sh emits no DB_CONNECTION"
+        false
+      }
   done
 }
 
 @test "the nest drivers name DATABASE_URL and let an operator override it" {
   # shellcheck disable=SC2167 # service is local to lib/service.sh's own loop; unrelated to this one
   for service in mysql postgres mongodb; do
-    block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
-              # shellcheck source=/dev/null
-              . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
-              service_driver_compose_env )"
+    block="$(
+      . "${SCAFFOLD_ROOT}/lib/service.sh"
+      # shellcheck source=/dev/null
+      . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
+      service_driver_compose_env
+    )"
     # shellcheck disable=SC2016,SC2031 # literal ${...} match, and service is read-only here
-    grep -q '^DATABASE_URL: \${DATABASE_URL:-' <<<"$block" \
-      || { echo "${service}/nest.sh does not allow an override"; false; }
+    grep -q '^DATABASE_URL: \${DATABASE_URL:-' <<<"$block" ||
+      {
+        echo "${service}/nest.sh does not allow an override"
+        false
+      }
   done
 }
 

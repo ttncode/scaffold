@@ -26,7 +26,7 @@ load_service() {
   local -r name="$1"
 
   case "$name" in
-    ''|*[!a-z0-9-]*|-*) die "not a usable service name: ${name} (run: scaffold list)" ;;
+    '' | *[!a-z0-9-]* | -*) die "not a usable service name: ${name} (run: scaffold list)" ;;
   esac
 
   local -r dir="${SCAFFOLD_ROOT}/services/${name}"
@@ -38,8 +38,8 @@ load_service() {
   # shellcheck source=/dev/null
   source "${dir}/service.env" || return 1
 
-  [ -n "${SERVICE_NAME:-}" ] && [ -n "${SERVICE_KIND:-}" ] \
-    && [ -n "${SERVICE_IMAGE:-}" ] || return 1
+  [ -n "${SERVICE_NAME:-}" ] && [ -n "${SERVICE_KIND:-}" ] &&
+    [ -n "${SERVICE_IMAGE:-}" ] || return 1
 }
 
 # service_compose_key <kind> — the compose service name a kind publishes under.
@@ -60,8 +60,8 @@ record_services() {
   sed -i.bak -e "s|@DATABASE@|${database}|" -e "s|@CACHE@|${cache}|" "$file"
   rm -f "${file}.bak"
 
-  grep -Eq '@DATABASE@|@CACHE@' "$file" \
-    && die "could not record the selected services in ${file} — has [vars] been reformatted?"
+  grep -Eq '@DATABASE@|@CACHE@' "$file" &&
+    die "could not record the selected services in ${file} — has [vars] been reformatted?"
   return 0
 }
 
@@ -89,7 +89,8 @@ app_service_key() {
 # app_port_variable <rel> — WEB_PORT for apps/web. The same name in example.env
 # and in compose.yaml, derived rather than recorded, so the two cannot disagree.
 app_port_variable() {
-  local key; key="$(app_service_key "$1")"
+  local key
+  key="$(app_service_key "$1")"
   key="${key//-/_}"
   key="${key//./_}"
   printf '%s_PORT' "$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
@@ -122,8 +123,8 @@ project_image_base() {
     value="$(grep -oE 'ghcr\.io/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+' \
       "${project}/.github/workflows/build.yml" 2>/dev/null | head -1 || true)"
   fi
-  [ -n "$value" ] \
-    || die "cannot tell which registry path ${project} publishes under — neither [vars] image in mise.toml nor a ghcr.io reference in .github/workflows/build.yml"
+  [ -n "$value" ] ||
+    die "cannot tell which registry path ${project} publishes under — neither [vars] image in mise.toml nor a ghcr.io reference in .github/workflows/build.yml"
   printf '%s' "$value"
 }
 
@@ -134,7 +135,7 @@ project_image_base() {
 compose_lane_file() {
   case "$1" in
     prod) printf '%s\n' "$COMPOSE_FILE" ;;
-    dev|test) printf 'compose.%s.yaml\n' "$1" ;;
+    dev | test) printf 'compose.%s.yaml\n' "$1" ;;
     *) die "unknown compose lane: ${1}" ;;
   esac
 }
@@ -158,7 +159,8 @@ merge_compose_fragment() {
 # merged in per lane. The image is injected here rather than written in a
 # fragment so a service's digest lives only in its service.env.
 assemble_compose() {
-  local -r project="$1"; shift
+  local -r project="$1"
+  shift
   local service lane file key merged
 
   for service in "$@"; do
@@ -167,8 +169,8 @@ assemble_compose() {
 
     # The fragment has to publish under the key its kind implies, or the
     # depends_on in add_app_service would name a service that is not there.
-    yq -e ".services.${key} != null" "${SERVICE_DIR}/compose.fragment.yaml" >/dev/null \
-      || die "${service}'s compose fragment does not define services.${key}"
+    yq -e ".services.${key} != null" "${SERVICE_DIR}/compose.fragment.yaml" >/dev/null ||
+      die "${service}'s compose fragment does not define services.${key}"
 
     for lane in "${COMPOSE_LANES[@]}"; do
       file="${project}/$(compose_lane_file "$lane")"
@@ -176,7 +178,7 @@ assemble_compose() {
       merged="$(mktemp)"
       if ! yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' \
         "${SERVICE_DIR}/compose.fragment.yaml" \
-        "${SERVICE_DIR}/compose.${lane}.fragment.yaml" > "$merged"; then
+        "${SERVICE_DIR}/compose.${lane}.fragment.yaml" >"$merged"; then
         rm -f "$merged"
         die "could not assemble ${service}'s ${lane} block"
       fi
@@ -197,14 +199,15 @@ assemble_compose() {
 # service's driver, into the app's own .env.example: DB_CONNECTION is Laravel's
 # phrasing and DATABASE_URL is Prisma's for the same server.
 assemble_example_env() {
-  local -r project="$1"; shift
+  local -r project="$1"
+  shift
   local service
 
   for service in "$@"; do
     load_service "$service"
     [ -f "${SERVICE_DIR}/env.fragment" ] || continue
-    printf '\n' >> "${project}/${EXAMPLE_ENV_FILE}"
-    cat "${SERVICE_DIR}/env.fragment" >> "${project}/${EXAMPLE_ENV_FILE}"
+    printf '\n' >>"${project}/${EXAMPLE_ENV_FILE}"
+    cat "${SERVICE_DIR}/env.fragment" >>"${project}/${EXAMPLE_ENV_FILE}"
   done
 }
 
@@ -239,11 +242,11 @@ add_app_service() {
     printf '    restart: always\n'
     # shellcheck disable=SC2016 # same as the image line above
     printf "    ports:\n      - '\${%s:-%s}:%s'\n" "$port_var" "$port" "$APP_CONTAINER_PORT"
-  } > "$fragment"
+  } >"$fragment"
 
   merge_compose_fragment "$file" "$fragment" "the ${key} service"
 
-  printf '\n%s=%s\n' "$port_var" "$port" >> "${project}/${EXAMPLE_ENV_FILE}"
+  printf '\n%s=%s\n' "$port_var" "$port" >>"${project}/${EXAMPLE_ENV_FILE}"
 
   # Only an application that opens a connection waits for one. A web
   # application in a project with a database has no driver and no client, so
@@ -271,10 +274,11 @@ add_app_service() {
 # against an .env.example the adapter shipped, so appending blindly would leave
 # two values for one key and let the loser win depending on the reader.
 write_env_lines() {
-  local -r file="$1"; shift
+  local -r file="$1"
+  shift
   local line key rendered
 
-  [ -f "$file" ] || : > "$file"
+  [ -f "$file" ] || : >"$file"
   for line in "$@"; do
     key="${line%%=*}"
     if grep -q "^${key}=" "$file"; then
@@ -286,7 +290,7 @@ write_env_lines() {
         BEGIN { prefix = ENVIRON["KEY"] "=" }
         substr($0, 1, length(prefix)) == prefix { print ENVIRON["LINE"]; next }
         { print }
-      ' "$file" > "$rendered"; then
+      ' "$file" >"$rendered"; then
         rm -f "$rendered"
         die "could not set ${key} in ${file}"
       fi
@@ -295,9 +299,9 @@ write_env_lines() {
       # a file with no trailing newline would otherwise get this key
       # concatenated onto the end of the last line
       if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then
-        printf '\n' >> "$file"
+        printf '\n' >>"$file"
       fi
-      printf '%s\n' "$line" >> "$file"
+      printf '%s\n' "$line" >>"$file"
     fi
   done
 }
@@ -314,17 +318,18 @@ apply_service_dockerfile() {
   for file in "${app}/Dockerfile" "${app}/Dockerfile.workspace"; do
     [ -f "$file" ] || continue
     found=1
-    grep -q "^${SERVICE_SETUP_ANCHOR}\$" "$file" \
-      || die "no @SERVICE_SETUP@ anchor in ${file}"
+    grep -q "^${SERVICE_SETUP_ANCHOR}\$" "$file" ||
+      die "no @SERVICE_SETUP@ anchor in ${file}"
 
-    local rendered; rendered="$(mktemp)"
+    local rendered
+    rendered="$(mktemp)"
     # ENVIRON, not -v: awk's -v does C-style escape processing on the assigned
     # value, so a literal backslash in the block (e.g. \t, \") is consumed
     # instead of passed through.
     block="$block" anchor="$SERVICE_SETUP_ANCHOR" awk '
       $0 == ENVIRON["anchor"] { if (ENVIRON["block"] != "") printf "%s\n", ENVIRON["block"]; next }
       { print }
-    ' "$file" > "$rendered"
+    ' "$file" >"$rendered"
     mv "$rendered" "$file"
   done
 
@@ -350,7 +355,7 @@ apply_service_compose_env() {
     printf '  %s:\n' "$service"
     printf '    environment:\n'
     printf '%s\n' "$block" | sed 's/^/      /'
-  } > "$fragment"
+  } >"$fragment"
 
   merge_compose_fragment "$file" "$fragment" "the service environment"
 }
@@ -367,7 +372,7 @@ apply_service_compose_service() {
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
 
   fragment="$(mktemp)"
-  printf '%s\n' "$block" > "$fragment"
+  printf '%s\n' "$block" >"$fragment"
 
   merge_compose_fragment "$file" "$fragment" "the service"
 }
@@ -384,10 +389,10 @@ apply_service_compose_migrate() {
   [ -n "$command" ] || return 0
   [ -f "$file" ] || die "no ${COMPOSE_FILE} in ${project}"
 
-  image="$(yq ".services.\"${service}\".image" "$file")" \
-    || die "could not read ${service}'s image out of ${file}"
-  [ -n "$image" ] && [ "$image" != null ] \
-    || die "${file} has no ${service} service to migrate from"
+  image="$(yq ".services.\"${service}\".image" "$file")" ||
+    die "could not read ${service}'s image out of ${file}"
+  [ -n "$image" ] && [ "$image" != null ] ||
+    die "${file} has no ${service} service to migrate from"
 
   block="$(
     printf 'services:\n  migrate:\n'
@@ -441,8 +446,8 @@ run_driver_apply() {
   step "wiring ${service} into $(app_service_key "$app")"
   run_quietly "wiring ${service} into $(app_service_key "$app") (the ${family} driver)" \
     env PATH="${uv_bin:+${uv_bin}:}${pnpm_bin}:${node_bin}:${PATH}" \
-      npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
-      SCAFFOLD_PROJECT_ROOT="$project" \
+    npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+    SCAFFOLD_PROJECT_ROOT="$project" \
     bash -euo pipefail -c "$driver_script" _ "$app" "$driver"
 }
 
@@ -450,7 +455,10 @@ run_driver_apply() {
 # driver's parameters do not leak into the next one.
 driver_output() {
   # shellcheck source=/dev/null # family varies, so the path isn't constant
-  ( . "$1"; "$2" )
+  (
+    . "$1"
+    "$2"
+  )
 }
 
 # resolve_driver <family> <service> — the driver file, by name, or die.
@@ -468,7 +476,8 @@ resolve_driver() {
 # project-root is an argument, not `app`'s ancestor counted in `..`: cmd_new's
 # apps/<role> and cmd_add's caller-chosen directory nest at different depths.
 apply_service_drivers() {
-  local -r app="$1" project="$2" family="$3"; shift 3
+  local -r app="$1" project="$2" family="$3"
+  shift 3
   local service driver rendered
   local block="" env_block="" migrate_block=""
 
@@ -496,7 +505,8 @@ apply_service_drivers() {
     [ -n "$rendered" ] && migrate_block+="${rendered}"$'\n'
   done
 
-  local key; key="$(app_service_key "$app")"
+  local key
+  key="$(app_service_key "$app")"
   apply_service_dockerfile "$app" "${block%$'\n'}"
   apply_service_compose_env "$project" "$key" "${env_block%$'\n'}"
   # The migrate service runs the first driven application's image — it carries

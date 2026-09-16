@@ -47,7 +47,7 @@ setup() {
   # existed to fix elsewhere. this greps the claim instead of trusting it.
   local run_line files f
   run_line="$(awk '/^\[tasks\."test-unit"\]/{f=1} f && /^run = /{print; exit}' "${SCAFFOLD_ROOT}/mise.toml")"
-  files="$(grep -oE 'tests/[A-Za-z0-9_-]+\.bats' <<< "$run_line")"
+  files="$(grep -oE 'tests/[A-Za-z0-9_-]+\.bats' <<<"$run_line")"
   [ -n "$files" ]
   # The whole file, not just setup(): a generator call in a test body costs the
   # lane the same, and one added here reached CI before anyone noticed the lane
@@ -207,16 +207,22 @@ setup() {
   adapters="$(cat "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml")"
   provenance="$(cat "${SCAFFOLD_ROOT}/.github/workflows/provenance.yml")"
   # shellcheck disable=SC2016 # literal text matched against adapters.yml, not expanded
-  [[ "$adapters" == *'bats "tests/new-${ADAPTER}.bats"'* ]] \
-    || { echo "adapters.yml no longer runs tests/new-<adapter>.bats"; false; }
-  [[ "$provenance" == *"bats tests/provenance.bats"* ]] \
-    || { echo "provenance.yml no longer runs tests/provenance.bats"; false; }
+  [[ "$adapters" == *'bats "tests/new-${ADAPTER}.bats"'* ]] ||
+    {
+      echo "adapters.yml no longer runs tests/new-<adapter>.bats"
+      false
+    }
+  [[ "$provenance" == *"bats tests/provenance.bats"* ]] ||
+    {
+      echo "provenance.yml no longer runs tests/provenance.bats"
+      false
+    }
 
   for suite in "${SCAFFOLD_ROOT}"/tests/*.bats; do
     name="tests/$(basename "$suite")"
     case "$name" in
-      tests/new-*.bats) continue ;;       # adapters.yml, per-adapter matrix
-      tests/provenance.bats) continue ;;  # provenance.yml, needs an upstream clone
+      tests/new-*.bats) continue ;;      # adapters.yml, per-adapter matrix
+      tests/provenance.bats) continue ;; # provenance.yml, needs an upstream clone
     esac
     case "${unit}${integration}" in
       *"$name"*) ;;
@@ -234,10 +240,14 @@ setup() {
 @test "every adapter declares a liveness path" {
   local missing=""
   for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
-    grep -q '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" \
-      || missing="${missing}$(basename "$dir")"$'\n'
+    grep -q '^ADAPTER_LIVENESS_PATH=' "${dir}adapter.env" ||
+      missing="${missing}$(basename "$dir")"$'\n'
   done
-  [ -z "$missing" ] || { echo "missing ADAPTER_LIVENESS_PATH:"; echo "$missing"; false; }
+  [ -z "$missing" ] || {
+    echo "missing ADAPTER_LIVENESS_PATH:"
+    echo "$missing"
+    false
+  }
 }
 
 @test "an adapter whose role takes a driver declares a readiness path" {
@@ -248,10 +258,14 @@ setup() {
   for dir in "${SCAFFOLD_ROOT}"/adapters/*/; do
     role="$(grep '^ADAPTER_ROLE=' "${dir}adapter.env" | cut -d'"' -f2)"
     case " ${DRIVEN_ROLES[*]} " in *" ${role} "*) ;; *) continue ;; esac
-    grep -q '^ADAPTER_READINESS_PATH=' "${dir}adapter.env" \
-      || missing="${missing}$(basename "$dir")"$'\n'
+    grep -q '^ADAPTER_READINESS_PATH=' "${dir}adapter.env" ||
+      missing="${missing}$(basename "$dir")"$'\n'
   done
-  [ -z "$missing" ] || { echo "missing ADAPTER_READINESS_PATH:"; echo "$missing"; false; }
+  [ -z "$missing" ] || {
+    echo "missing ADAPTER_READINESS_PATH:"
+    echo "$missing"
+    false
+  }
 }
 
 @test "every caller of scaffold new supplies the environment it demands" {
@@ -273,7 +287,7 @@ setup() {
   local file hits=0
   while IFS= read -r file; do
     grep -qE '(\./)?scaffold new ' "$file" || continue
-    hits=$(( hits + 1 ))
+    hits=$((hits + 1))
     grep -q 'SCAFFOLD_GITHUB_OWNER' "$file" || {
       echo "${file} calls 'scaffold new' but never supplies SCAFFOLD_GITHUB_OWNER;"
       echo "it will fail on any machine without 'gh auth login' or git's github.user."
@@ -285,5 +299,8 @@ setup() {
   # exists to refuse elsewhere. Assert the search found the call sites it is
   # written against; a rename that moves them out of this glob fails here
   # rather than silently checking nothing.
-  [ "$hits" -eq 2 ] || { echo "expected 2 callers of 'scaffold new', found ${hits}"; false; }
+  [ "$hits" -eq 2 ] || {
+    echo "expected 2 callers of 'scaffold new', found ${hits}"
+    false
+  }
 }

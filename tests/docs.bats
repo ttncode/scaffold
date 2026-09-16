@@ -26,7 +26,7 @@ teardown() {
 
 @test "the path check fails on a path that does not exist" {
   # shellcheck disable=SC2016 # literal markdown backticks written into index.md, not expanded
-  echo 'See `docs/nope-does-not-exist.md`.' >> "${PROJECT}/docs/index.md"
+  echo 'See `docs/nope-does-not-exist.md`.' >>"${PROJECT}/docs/index.md"
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
   [ "$status" -eq 1 ]
@@ -34,7 +34,7 @@ teardown() {
 }
 
 @test "the path check fails on an adr citation that does not ship" {
-  echo '# see docs/decisions/0014-deployment-deferred-with-seams.md' >> "${PROJECT}/compose.yaml"
+  echo '# see docs/decisions/0014-deployment-deferred-with-seams.md' >>"${PROJECT}/compose.yaml"
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
   [ "$status" -eq 1 ]
@@ -42,14 +42,14 @@ teardown() {
 }
 
 @test "the path check accepts an adr citation that does ship" {
-  echo '# see docs/decisions/0000 for the rule' >> "${PROJECT}/compose.yaml"
+  echo '# see docs/decisions/0000 for the rule' >>"${PROJECT}/compose.yaml"
   cd "${PROJECT}/docs"
   run node scripts/check-paths.mjs
   assert_ok
 }
 
 @test "the adr check rejects an adr missing a required section" {
-  cat > "${PROJECT}/docs/decisions/0001-broken.md" <<'EOF'
+  cat >"${PROJECT}/docs/decisions/0001-broken.md" <<'EOF'
 # 0001 — Broken
 
 Status: Accepted
@@ -66,11 +66,11 @@ EOF
 
 @test "the path check ignores a generated app's own generator-owned markdown" {
   mkdir -p "${PROJECT}/apps/web"
-  cat > "${PROJECT}/apps/web/AGENTS.md" <<'EOF'
+  cat >"${PROJECT}/apps/web/AGENTS.md" <<'EOF'
 See `node_modules/next/dist/server/lib/generate-agent-files.js`.
 This block is written and re-added by `next dev`.
 EOF
-  cat > "${PROJECT}/apps/web/README.md" <<'EOF'
+  cat >"${PROJECT}/apps/web/README.md" <<'EOF'
 Edit `app/page.tsx`. Fonts are loaded with `next/font`.
 EOF
   cd "${PROJECT}/docs"
@@ -96,7 +96,10 @@ EOF
 @test "the vendored theme ships whole: css, licence, notice and logo" {
   local vendor="${PROJECT}/docs/.vitepress/theme/vendor/escrcpy" file
   for file in LICENSE NOTICE rainbow.css vars.css; do
-    [ -f "${vendor}/${file}" ] || { echo "missing: vendor/escrcpy/${file}"; false; }
+    [ -f "${vendor}/${file}" ] || {
+      echo "missing: vendor/escrcpy/${file}"
+      false
+    }
   done
   [ -f "${PROJECT}/docs/public/logo.png" ]
   # reformatting the copy would make it a modified file under section 4(b);
@@ -134,7 +137,7 @@ EOF
 }
 
 @test "the docs build fails on a dead link" {
-  echo '[nowhere](/nowhere)' >> "${PROJECT}/docs/index.md"
+  echo '[nowhere](/nowhere)' >>"${PROJECT}/docs/index.md"
   cd "$PROJECT"
   run mise run //docs:build
   [ "$status" -ne 0 ]
@@ -143,14 +146,14 @@ EOF
 
 @test "a broken path surfaces as a failing docs:check" {
   # shellcheck disable=SC2016 # literal markdown backticks written into index.md, not expanded
-  echo 'See `docs/nope-does-not-exist.md`.' >> "${PROJECT}/docs/index.md"
+  echo 'See `docs/nope-does-not-exist.md`.' >>"${PROJECT}/docs/index.md"
   cd "$PROJECT"
   run mise run //docs:check
   [ "$status" -ne 0 ]
 }
 
 @test "a broken adr surfaces as a failing docs:check" {
-  cat > "${PROJECT}/docs/decisions/0001-broken.md" <<'EOF'
+  cat >"${PROJECT}/docs/decisions/0001-broken.md" <<'EOF'
 # 0001 — Broken
 
 Status: Accepted

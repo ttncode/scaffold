@@ -91,8 +91,12 @@ setup() {
   # directly, and the only script that runs either goes through mise exec.
   # shellcheck disable=SC2016 # literal pattern matched against lib/adapter.sh's source, not expanded
   run grep -nE '(eval|bash -c) "\$ADAPTER_(GENERATOR|POST_GENERATE)"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
-  [ -z "$output" ] \
-    || { echo "a generator is run outside the project's toolchain:"; echo "$output"; false; }
+  [ -z "$output" ] ||
+    {
+      echo "a generator is run outside the project's toolchain:"
+      echo "$output"
+      false
+    }
 
   # shellcheck disable=SC2016 # literal pattern matched against lib/adapter.sh's source, not expanded
   run grep -c 'mise exec -- bash -c "\$2"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
@@ -170,7 +174,7 @@ setup() {
   local outside="${BATS_TEST_TMPDIR}/outside"
   mkdir -p "${outside}/evil"
   printf 'ADAPTER_NAME=evil\nADAPTER_ROLE=api\nADAPTER_GENERATOR=true\ntouch %s/SOURCED\n' \
-    "$outside" > "${outside}/evil/adapter.env"
+    "$outside" >"${outside}/evil/adapter.env"
 
   local traversal
   traversal="$(realpath --relative-to="${SCAFFOLD_ROOT}/adapters" "${outside}/evil")"
@@ -188,8 +192,12 @@ setup() {
   # branch.
   run "${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters/scaffold" list
   # the intact adapter must still be listed, whatever it calls itself
-  [[ "$output" == *$'\t'"api"$'\t'* ]] \
-    || { echo "no intact adapter survived the listing:"; echo "$output"; false; }
+  [[ "$output" == *$'\t'"api"$'\t'* ]] ||
+    {
+      echo "no intact adapter survived the listing:"
+      echo "$output"
+      false
+    }
 }
 
 @test "scaffold list reports a malformed service and continues" {
@@ -229,6 +237,10 @@ setup() {
   # new template beside them would be dropped by `git add -A` without a word.
   run git -C "$SCAFFOLD_ROOT" ls-files -i -c --exclude-standard
   assert_ok
-  [ -z "$output" ] \
-    || { echo "these ship but .gitignore matches them:"; echo "$output"; false; }
+  [ -z "$output" ] ||
+    {
+      echo "these ship but .gitignore matches them:"
+      echo "$output"
+      false
+    }
 }

@@ -65,10 +65,10 @@ fetch_release_asset() {
   fi
 
   id="$(curl -fsSL \
-      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-      -H 'Accept: application/vnd.github+json' \
-      "https://api.github.com/repos/${RepoSlug}/releases/latest" \
-    | release_asset_id "$name")" || return 1
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/${RepoSlug}/releases/latest" |
+    release_asset_id "$name")" || return 1
 
   curl -fsSL \
     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -186,11 +186,11 @@ start_stack() {
   # package refuses an anonymous pull with `unauthorized`.
   # --password-stdin, not an argument: argv is visible to every other user on the host.
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    printf '%s' "${GITHUB_TOKEN}" \
-      | docker login ghcr.io -u "${RepoSlug%%/*}" --password-stdin >/dev/null || {
-        echo 'could not sign in to ghcr.io; the token needs read:packages' >&2
-        return 1
-      }
+    printf '%s' "${GITHUB_TOKEN}" |
+      docker login ghcr.io -u "${RepoSlug%%/*}" --password-stdin >/dev/null || {
+      echo 'could not sign in to ghcr.io; the token needs read:packages' >&2
+      return 1
+    }
   fi
   docker compose up --remove-orphans -d || return 1
 }
@@ -200,7 +200,8 @@ start_stack() {
 # pipeline as failed. Measured at roughly one run in seven — a stack that
 # refused to migrate, at random, with a message about a service that was there.
 compose_has_service() {
-  local -r service="$1"; shift
+  local -r service="$1"
+  shift
   local services
 
   services="$(docker compose "$@" config --services)" || return 1
@@ -225,15 +226,33 @@ run_migrations() {
 }
 
 main() {
-  command -v curl >/dev/null || { echo 'curl is required'; return 1; }
-  docker compose version >/dev/null 2>&1 || { echo 'docker compose is required'; return 1; }
+  command -v curl >/dev/null || {
+    echo 'curl is required'
+    return 1
+  }
+  docker compose version >/dev/null 2>&1 || {
+    echo 'docker compose is required'
+    return 1
+  }
   require_private_tools || return 1
 
-  create_directory || { echo 'could not create the target directory'; return 1; }
-  download_release_assets || { echo 'could not download the release assets'; return 1; }
+  create_directory || {
+    echo 'could not create the target directory'
+    return 1
+  }
+  download_release_assets || {
+    echo 'could not download the release assets'
+    return 1
+  }
   require_configured_image || return 1
-  start_stack || { echo 'could not start the stack; check the output above'; return 1; }
-  run_migrations || { echo 'could not run migrations; check the output above'; return 1; }
+  start_stack || {
+    echo 'could not start the stack; check the output above'
+    return 1
+  }
+  run_migrations || {
+    echo 'could not run migrations; check the output above'
+    return 1
+  }
 
   # One line per application (ADR-0022), read out of .env so it reflects any
   # port the operator changed.

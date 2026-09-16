@@ -23,7 +23,7 @@ load_adapter() {
   # adapters/ — `--api ../../../tmp/evil` runs an arbitrary file. Checked before
   # the path is built.
   case "$name" in
-    ''|*[!a-z0-9-]*|-*) die "not a usable adapter name: ${name} (run: scaffold list)" ;;
+    '' | *[!a-z0-9-]* | -*) die "not a usable adapter name: ${name} (run: scaffold list)" ;;
   esac
 
   local -r dir="${SCAFFOLD_ROOT}/adapters/${name}"
@@ -49,12 +49,15 @@ load_adapter() {
 }
 
 adapter_is_typescript() {
-  ( load_adapter "$1"; [ "${ADAPTER_LANGUAGE:-}" = "typescript" ] )
+  (
+    load_adapter "$1"
+    [ "${ADAPTER_LANGUAGE:-}" = "typescript" ]
+  )
 }
 
 role_path() {
   case "$1" in
-    web|api|app) printf '%s/%s\n' "$APPS_DIR" "$1" ;;
+    web | api | app) printf '%s/%s\n' "$APPS_DIR" "$1" ;;
     *) die "unknown adapter role: ${1}" ;;
   esac
 }
@@ -66,7 +69,7 @@ merge_lefthook_fragment() {
   [ -f "$fragment" ] || return 0
 
   rendered="$(mktemp)"
-  sed "s|@APP_ROOT@|${rel}/|g" "$fragment" > "$rendered"
+  sed "s|@APP_ROOT@|${rel}/|g" "$fragment" >"$rendered"
 
   # Suffix every command with the app it came from: the merge below is key-wise,
   # so two apps of the same language — both laravel adapters define `pint` —
@@ -101,8 +104,8 @@ assert_workspace_filter_name() {
   local found expected
   found="$(jq -r '.name' "${dest}/package.json")"
   expected="$(basename "$dest")"
-  [ "$found" = "$expected" ] \
-    || die "${dest}/package.json is named '${found}', not '${expected}' — Dockerfile.workspace's 'pnpm --filter ${expected}' would match nothing"
+  [ "$found" = "$expected" ] ||
+    die "${dest}/package.json is named '${found}', not '${expected}' — Dockerfile.workspace's 'pnpm --filter ${expected}' would match nothing"
 }
 
 # Dockerfile.workspace ships @APP_FILTER@ where it needs the app's own directory
@@ -150,7 +153,8 @@ apply_adapter() {
   load_adapter "$name"
 
   local -r dest="${project}/${rel}"
-  local parent; parent="$(dirname "$dest")"
+  local parent
+  parent="$(dirname "$dest")"
   mkdir -p "$parent"
 
   # CI=true stays — it lets pnpm replace node_modules with no TTY to confirm on.

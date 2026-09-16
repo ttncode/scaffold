@@ -56,8 +56,9 @@ resolve_github_owner() {
   # Interpolated into `sed s|you/|...|`; GNU sed's s///e flag runs the pattern
   # space as a shell command, so an owner containing `|` is remote code execution.
   case "$owner" in
-    *[!A-Za-z0-9-]*|-*|*-)
-      die "not a usable GitHub account name: ${owner}" ;;
+    *[!A-Za-z0-9-]* | -* | *-)
+      die "not a usable GitHub account name: ${owner}"
+      ;;
   esac
   [ -z "$source" ] || warn "using GitHub owner '${owner}' (detected from ${source}) — set SCAFFOLD_GITHUB_OWNER to override"
   printf '%s' "$owner"
@@ -83,8 +84,8 @@ project_name_is_usable() {
 # from uncommitted edits cannot be reproduced from any commit.
 scaffold_version() {
   local version
-  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" \
-    || version="unknown"
+  version="$(git -C "$SCAFFOLD_ROOT" describe --tags --always --dirty 2>/dev/null)" ||
+    version="unknown"
   printf '%s' "$version"
 }
 
@@ -97,7 +98,7 @@ init_scaffold_manifest() {
 
   # A heredoc, not printf: the prose is full of backticks, which shellcheck
   # reads inside single quotes as an unescaped command substitution.
-  cat > "${project}/${SCAFFOLD_MANIFEST}" <<EOF
+  cat >"${project}/${SCAFFOLD_MANIFEST}" <<EOF
 # Written by scaffold. \`scaffold update\` reads this to work out what changed
 # in the toolbox since this project was generated.
 #
@@ -116,17 +117,18 @@ record_scaffold_app() {
   local -r project="$1" rel="$2" adapter="$3"
   local -r file="${project}/${SCAFFOLD_MANIFEST}"
 
-  [ -f "$file" ] \
-    || die "no ${SCAFFOLD_MANIFEST} in ${project} — this project predates it; see 'scaffold update'"
+  [ -f "$file" ] ||
+    die "no ${SCAFFOLD_MANIFEST} in ${project} — this project predates it; see 'scaffold update'"
 
-  grep -q "^\"${rel}\" = " "$file" \
-    && die "${rel} is already recorded in ${SCAFFOLD_MANIFEST}"
+  grep -q "^\"${rel}\" = " "$file" &&
+    die "${rel} is already recorded in ${SCAFFOLD_MANIFEST}"
 
-  printf '"%s" = "%s"\n' "$rel" "$adapter" >> "$file"
+  printf '"%s" = "%s"\n' "$rel" "$adapter" >>"$file"
 }
 
 substitute_in_files() {
-  local -r expression="$1"; shift
+  local -r expression="$1"
+  shift
   local file
 
   for file in "$@"; do
@@ -165,7 +167,7 @@ init_project() {
   # not match; GitHub treats an unresolvable owner in it as a syntax error.
   substitute_in_files "s|@you\b|@${owner}|g" "${dir}/CODEOWNERS"
 
-  sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" > "${dir}/mise.toml"
+  sed "s|@PROJECT_NAME@|${name}|g" "${dir}/mise.root.toml" >"${dir}/mise.toml"
   rm -f "${dir}/mise.root.toml"
 
   substitute_in_files "s|@PROJECT_NAME@|${name}|g" "${PROJECT_NAME_FILES[@]/#/${dir}/}"
@@ -181,8 +183,8 @@ init_project() {
 lock_toolchains() {
   # A mise.toml above the new project, read before ours, can make this fail
   # without breaking the project — so warn and leave it to whoever owns it.
-  mise lock --quiet -C "$1" >/dev/null \
-    || warn "could not lock the toolchain — run 'mise lock' before committing mise.lock, or CI's 'mise install --locked' will reject it"
+  mise lock --quiet -C "$1" >/dev/null ||
+    warn "could not lock the toolchain — run 'mise lock' before committing mise.lock, or CI's 'mise install --locked' will reject it"
 }
 
 finalize_project() {
