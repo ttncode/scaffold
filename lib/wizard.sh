@@ -1,41 +1,33 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# Script      : lib/wizard.sh
-# Description : What the interactive wizard asks, and the command it builds.
-# Author      : ttncode
-# ═══════════════════════════════════════════════════════════════════════════
+# What the interactive wizard asks, and the command it builds.
 # shellcheck shell=bash
 
 WIZARD_ACTION_PROMPT='What do you want to do?'
 WIZARD_VISIBILITY_PROMPT='Repository visibility'
 WIZARD_SHAPE_PROMPT='What are you building?'
 
-# Every question kind wizard_questions can emit, so wizard_prompt_width can
-# measure them all.
+# Every kind wizard_questions can emit, for wizard_prompt_width.
 WIZARD_QUESTION_KINDS=(web api app database cache)
 
-# ─── what the menus offer ──────────────────────────────────────────────────
-
 # wizard_actions <inside-a-project:0|1>
-# `update` and `publish` act on a project that already exists, so outside one
-# they are not offered: a refusal the user can walk into is worse than one they
-# cannot.
+# Outside a project, update and publish are not offered: a refusal the user
+# cannot walk into beats one they can.
 wizard_actions() {
+  local -r inside_project="${1:-0}"
+
   printf 'new\tgenerate a project\n'
-  [ "${1:-0}" = 1 ] || return 0
+  [[ "$inside_project" == "1" ]] || return 0
   printf 'update\tbring this project up to this toolbox\n'
   printf 'publish\tcreate its GitHub repository and apply its settings\n'
 }
 
-# wizard_visibilities — publish's one real decision. Private first, because a
-# client's project is the case this toolbox exists for.
+# Private first: a client's project is the case this toolbox exists for.
 wizard_visibilities() {
   printf 'private\tonly people you add can see it\n'
   printf 'public\tanyone can see it\n'
 }
 
-# wizard_shapes — one shape per line as name<TAB>description. wizard_questions
-# accepts only what this lists, so a shape added to one and not the other fails
-# a test instead of reaching a user four screens in.
+# wizard_questions accepts only these, so a shape added to one list and not the
+# other fails a test.
 wizard_shapes() {
   printf 'web+api\tseparate frontend and backend, one repository\n'
   printf 'app\tone application serving both pages and data\n'
@@ -43,9 +35,8 @@ wizard_shapes() {
   printf 'web\tfrontend only\n'
 }
 
-# wizard_questions <shape>
-# The order the answers constrain each other in. `web` asks nothing about a
-# database because `scaffold new` refuses --db without an api or app adapter.
+# In the order answers constrain each other. `web` asks no database: `scaffold
+# new` refuses --db without a backend.
 wizard_questions() {
   local -r shape="$1"
 
@@ -60,23 +51,20 @@ wizard_questions() {
   esac
 }
 
-# ─── how the questions are drawn ───────────────────────────────────────────
-
-# wizard_prompt_for <kind> — the question text tui_select shows.
 wizard_prompt_for() {
-  case "$1" in
+  local -r kind="$1"
+
+  case "$kind" in
     web) printf 'Frontend' ;;
     api) printf 'Backend' ;;
     app) printf 'Fullstack framework' ;;
     database) printf 'Database' ;;
     cache) printf 'Cache' ;;
-    *) die "unknown question kind: ${1}" ;;
+    *) die "unknown question kind: ${kind}" ;;
   esac
 }
 
-# wizard_prompt_width — the widest question this wizard can ask, so every answer
-# lines up in one column. Measured from the prompts, so a new kind widens the
-# column rather than overflowing a hand-counted constant.
+# Measured, not hand-counted, so a new kind widens the answer column.
 wizard_prompt_width() {
   local kind text width=${#WIZARD_SHAPE_PROMPT}
 
@@ -90,8 +78,8 @@ wizard_prompt_width() {
 }
 
 # wizard_options <listing> <kind>
-# <listing> is cmd_list's tab-separated output; every option comes from there
-# rather than a second copy of what the adapters and services already declare.
+# <listing> is cmd_list's output: the options come from what adapters and
+# services declare, not a second copy.
 wizard_options() {
   local -r listing="$1" kind="$2"
 
@@ -99,18 +87,13 @@ wizard_options() {
     web | api | app)
       awk -F'\t' -v role="$kind" \
         '$2 == role { printf "%s\ttier %s\n", $1, $3 }' <<<"$listing"
-      # The frontend of a web+api project is optional in a way the api is not,
-      # and the flags allow it, so the wizard does too.
-      #
-      # `if`, not `&&`: this is the case branch's last command, and `&&` makes
-      # the whole function return 1 whenever kind != web.
-      if [ "$kind" = "web" ]; then
+      # `if`, not `&&`: as the branch's last command, `&&` would return 1
+      # whenever kind is not web.
+      if [[ "$kind" == "web" ]]; then
         printf 'none\tno frontend\n'
       fi
       ;;
     database)
-      # No meta column: the kind is the only thing the listing carries per
-      # service, and the question is already titled "Database".
       awk -F'\t' '$2 == "database" { printf "%s\t\n", $1 }' <<<"$listing"
       printf 'none\tno database service\n'
       ;;
@@ -122,9 +105,7 @@ wizard_options() {
   esac
 }
 
-# wizard_order_options <kind> <listing> — wizard_options' rows for <kind>, with
-# cmd_new's own unset-flag default moved first, so a plain Enter picks what the
-# flags would have picked unset.
+# cmd_new's unset-flag default moves first, so a plain Enter matches the flags.
 wizard_order_options() {
   local -r kind="$1" listing="$2"
   local default="" line
@@ -134,27 +115,24 @@ wizard_order_options() {
     cache) default="none" ;;
   esac
 
-  if [ -z "$default" ]; then
+  if [[ -z "$default" ]]; then
     wizard_options "$listing" "$kind"
     return
   fi
 
   while IFS= read -r line; do
-    if [ "${line%%$'\t'*}" = "$default" ]; then
+    if [[ "${line%%$'\t'*}" == "$default" ]]; then
       printf '%s\n' "$line"
     fi
   done <<<"$(wizard_options "$listing" "$kind")"
   while IFS= read -r line; do
-    if [ "${line%%$'\t'*}" != "$default" ]; then
+    if [[ "${line%%$'\t'*}" != "$default" ]]; then
       printf '%s\n' "$line"
     fi
   done <<<"$(wizard_options "$listing" "$kind")"
-  # the loop's own status is read's EOF failure, not this function's; without
-  # this the default branch always reports failure on an otherwise-fine run.
+  # The loop's status is read's EOF failure.
   return 0
 }
-
-# ─── what the answers become ───────────────────────────────────────────────
 
 # wizard_new_args <kind=value>... — cmd_new's argv, one token per line.
 wizard_new_args() {
@@ -165,7 +143,7 @@ wizard_new_args() {
     value="${pair#*=}"
     case "$kind" in
       web | api | app)
-        if [ "$value" != none ]; then
+        if [[ "$value" != "none" ]]; then
           printf -- '--%s\n%s\n' "$kind" "$value"
         fi
         ;;
@@ -176,26 +154,22 @@ wizard_new_args() {
   done
 }
 
-# wizard_command <name> <kind=value>...
-# What the answers would have been typed as. Printed before the run so the
-# second project is scripted rather than clicked.
+# Printed before the run, so the second project is scripted rather than clicked.
 wizard_command() {
   local -r name="$1"
   shift
   local -a args
   mapfile -t args < <(wizard_new_args "$@")
   local out="scaffold new ${name}"
-  [ "${#args[@]}" -eq 0 ] || out+=" ${args[*]}"
+  ((${#args[@]} == 0)) || out+=" ${args[*]}"
   printf '%s\n' "$out"
 }
 
-# wizard_echo_command <command-line>
-# With `!` in front: that is how this shell runs a line without leaving the
-# prompt, so the transcript shows the thing to type. Flags carry cyan, values
-# stay plain, so the two halves of each pair read apart.
+# `!` in front: how this shell runs a line without leaving the prompt.
 wizard_echo_command() {
+  local -r command_line="$1"
   local token out="${CYAN}!${RESET}"
-  for token in $1; do
+  for token in $command_line; do
     case "$token" in
       --* | scaffold) out+=" ${CYAN}${token}${RESET}" ;;
       *) out+=" ${token}" ;;
