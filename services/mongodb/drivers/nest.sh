@@ -11,6 +11,7 @@ PRISMA_PROVIDER="mongodb"
 # directConnection is for prisma's mongodb provider, which otherwise expects a
 # replica set — unproven for anything but `db push` against one node.
 PRISMA_URL="mongodb://app:app@localhost:27017/app?authSource=admin&directConnection=true"
+# shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
 PRISMA_COMPOSE_URL='mongodb://${DB_USERNAME:-app}:${DB_PASSWORD}@database:27017/${DB_DATABASE:-app}?authSource=admin&directConnection=true'
 # shellcheck source=/dev/null
 . "${SCAFFOLD_ROOT}/services/shared/nest.sh"

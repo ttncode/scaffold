@@ -52,6 +52,7 @@ service_driver_apply() {
     routes/health.php || return 1
   rm -f routes/health.php.bak
 
+  # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
   grep -q 'DB::connection()->select' routes/health.php \
     && grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php \
     || die "could not splice the database probe into routes/health.php — has the anchor moved?"
@@ -67,6 +68,7 @@ service_driver_dockerfile() {
 service_driver_compose_env() {
   printf 'DB_CONNECTION: %s\n' "$LARAVEL_CONNECTION"
   printf '%s\n' "$LARAVEL_COMPOSE_ENV"
+  # shellcheck disable=SC2016 # literal ${APP_KEY} written into compose.yaml, not expanded here
   printf 'APP_KEY: ${APP_KEY}\n'
 }
 

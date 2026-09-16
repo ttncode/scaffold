@@ -1,0 +1,5 @@
+# SC2317: shellcheck parses a `.bats` file's `@test "..." { ... }` blocks as
+# one flat script rather than separate functions, so a `return` at the end of
+# one @test marks every @test after it as unreachable — a bats-parsing
+# artefact (tests/wizard.bats), not real dead code.
+disable=SC2317

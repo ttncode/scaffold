@@ -96,12 +96,15 @@ setup() {
   # the prod fragment merges after the shared one, so its changeme default
   # has to win; swapping that order or dropping the override breaks nothing
   # the rest of this test would catch.
+  # shellcheck disable=SC2016 # literal ${...} matched against the yq expression's target, not expanded
   run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-changeme}"' \
     "${project}/compose.yaml"
   assert_ok
+  # shellcheck disable=SC2016 # literal ${...} matched against the yq expression's target, not expanded
   run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-app}"' \
     "${project}/compose.dev.yaml"
   assert_ok
+  # shellcheck disable=SC2016 # literal ${...} matched against the yq expression's target, not expanded
   run yq -e '.services.database.environment.MYSQL_PASSWORD == "${DB_PASSWORD:-app}"' \
     "${project}/compose.test.yaml"
   assert_ok
@@ -179,6 +182,7 @@ setup() {
 
   local file="${BATS_TEST_TMPDIR}/health.controller.ts"
   cp "${SCAFFOLD_ROOT}/adapters/nestjs/src/health/health.controller.ts" "$file"
+  # shellcheck disable=SC2016 # literal TypeScript spliced into the fixture controller, not expanded
   sed -i 's|// @DB_CLIENT@|private dbClient?: { $queryRawUnsafe(q: string): Promise<unknown> };|' "$file"
   sed -i 's|// @DB_PROBE@|this.dbClient = new PrismaClient();|' "$file"
   sed -i 's|  ready(): Promise<|  async ready(): Promise<|' "$file"
@@ -588,6 +592,7 @@ _app_fixture() {
   run add_app_service "$project" apps/web web
   assert_ok
   run yq -r '.services.web.image' "${project}/compose.yaml"
+  # shellcheck disable=SC2016 # literal ${IMAGE_TAG} compared against yq's output, not expanded
   [ "$output" = 'ghcr.io/acme/demo-web:${IMAGE_TAG:-latest}' ] \
     || { echo "image is ${output}"; false; }
 }
@@ -603,6 +608,7 @@ _app_fixture() {
   add_app_service "$project" apps/admin-ui web
 
   run yq -r '[.services[].ports[0]] | join(" ")' "${project}/compose.yaml"
+  # shellcheck disable=SC2016 # literal ${...} compared against yq's output, not expanded
   [ "$output" = '${WEB_PORT:-8080}:8080 ${API_PORT:-8081}:8080 ${ADMIN_UI_PORT:-8082}:8080' ] \
     || { echo "ports are: ${output}"; false; }
 
@@ -676,6 +682,7 @@ _app_fixture() {
   # shared array) fails here instead of only in the password check below.
   run yq -e '.services.cache.command | length == 5' "${project}/compose.yaml"
   assert_ok
+  # shellcheck disable=SC2016 # literal ${...} matched against the yq expression's target, not expanded
   run yq -e '.services.cache.command[2] == "${REDIS_PASSWORD:-changeme}"' \
     "${project}/compose.yaml"
   assert_ok
@@ -685,6 +692,7 @@ _app_fixture() {
   assert_ok
   run yq -e '.services.cache.healthcheck.test | length == 5' "${project}/compose.yaml"
   assert_ok
+  # shellcheck disable=SC2016 # literal ${...} matched against the yq expression's target, not expanded
   run yq -e '.services.cache.healthcheck.test[3] == "${REDIS_PASSWORD:-changeme}"' \
     "${project}/compose.yaml"
   assert_ok
@@ -732,6 +740,7 @@ _password_literal_report() {
   local driver="$1" block bad=""
   block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
             SERVICE_DIR="$(dirname "$(dirname "$driver")")"
+            # shellcheck source=/dev/null
             . "$driver"; service_driver_compose_env )"
 
   # A *_PASSWORD key whose value is not exactly an interpolation. Anchored
@@ -743,6 +752,7 @@ _password_literal_report() {
   # complete, and the services/*/drivers/*.sh files are the only writers of
   # this block and already go through review — widen the blacklist here and
   # the next unlisted name just becomes the new hole.
+  # shellcheck disable=SC2031 # driver is read-only here, not actually modified by the sourcing above
   while IFS= read -r line; do
     case "$line" in
       *_PASSWORD:\ \$\{*_PASSWORD\}) ;;
@@ -752,6 +762,7 @@ _password_literal_report() {
 
   # A DSN's user:password@ slot whose password is not exactly an
   # interpolation — the same shape, embedded in a URL instead of a key.
+  # shellcheck disable=SC2031 # driver is read-only here, not actually modified by the sourcing above
   while IFS= read -r segment; do
     case "$segment" in
       :\$\{*_PASSWORD\}@) ;;
@@ -804,8 +815,10 @@ _password_literal_report() {
   mkdir -p "$project"
   printf 'services:\n  api:\n    image: x\n  web:\n    image: y\n' > "${project}/compose.yaml"
   . "${SCAFFOLD_ROOT}/lib/service.sh"
+  # shellcheck disable=SC2016 # literal ${...} passed as the compose-env fragment, not expanded
   apply_service_compose_env "$project" api 'DATABASE_URL: ${DATABASE_URL:-postgresql://app@database:5432/app}'
   run mise exec -- yq -r '.services.api.environment.DATABASE_URL' "${project}/compose.yaml"
+  # shellcheck disable=SC2016 # literal ${...} compared against yq's output, not expanded
   [[ "$output" == 'postgresql://app@database:5432/app' ]] \
     || [[ "$output" == '${DATABASE_URL:-postgresql://app@database:5432/app}' ]]
 
@@ -818,20 +831,26 @@ _password_literal_report() {
   # config/database.php is `env('DB_CONNECTION', 'sqlite')`. Without that
   # variable laravel does not fail — it silently reads DB_DATABASE as a
   # sqlite filename and never contacts the service at all.
+  # shellcheck disable=SC2167 # service is local to lib/service.sh's own loop; unrelated to this one
   for service in mysql postgres mongodb; do
     block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              # shellcheck source=/dev/null
               . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
               service_driver_compose_env )"
+    # shellcheck disable=SC2031 # service is read-only here, not actually modified by the sourcing above
     grep -q '^DB_CONNECTION:' <<<"$block" \
       || { echo "${service}/laravel.sh emits no DB_CONNECTION"; false; }
   done
 }
 
 @test "the nest drivers name DATABASE_URL and let an operator override it" {
+  # shellcheck disable=SC2167 # service is local to lib/service.sh's own loop; unrelated to this one
   for service in mysql postgres mongodb; do
     block="$( . "${SCAFFOLD_ROOT}/lib/service.sh"
+              # shellcheck source=/dev/null
               . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
               service_driver_compose_env )"
+    # shellcheck disable=SC2016,SC2031 # literal ${...} match, and service is read-only here
     grep -q '^DATABASE_URL: \${DATABASE_URL:-' <<<"$block" \
       || { echo "${service}/nest.sh does not allow an override"; false; }
   done

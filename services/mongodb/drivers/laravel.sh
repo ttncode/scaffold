@@ -43,6 +43,7 @@ service_driver_apply() {
     routes/health.php || return 1
   rm -f routes/health.php.bak
 
+  # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
   grep -q "DB::connection('mongodb')->getMongoDB()->command" routes/health.php \
     && grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php \
     || die "could not splice the database probe into routes/health.php — has the anchor moved?"
@@ -56,6 +57,8 @@ service_driver_dockerfile() {
   # the 2.x extension changed it, so loading those classes is a PHP fatal error,
   # not an exception this project's try/catch can see — a 500 on /health/ready
   # before this pin.
+  # shellcheck disable=SC2016,SC1003 # literal Dockerfile RUN text: $PHPIZE_DEPS and the
+  # trailing backslashes are line continuations in the generated file, not shell escapes
   printf '%s\n' \
     'RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS openssl-dev \' \
     ' && pecl install mongodb-1.21.0 \' \
@@ -68,7 +71,9 @@ service_driver_dockerfile() {
 # string, not decomposed credentials.
 service_driver_compose_env() {
   printf 'DB_CONNECTION: mongodb\n'
+  # shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
   printf 'DB_URI: ${DB_URI:-mongodb://${DB_USERNAME:-app}:${DB_PASSWORD}@database:27017/${DB_DATABASE:-app}?authSource=admin}\n'
+  # shellcheck disable=SC2016 # literal ${APP_KEY} written into compose.yaml, not expanded here
   printf 'APP_KEY: ${APP_KEY}\n'
 }
 

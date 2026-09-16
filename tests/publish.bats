@@ -145,7 +145,7 @@ _project() {
   GH_SCENARIO=absent run scaffold publish "$PROJECT"
   assert_ok
   run grep -c 'repo create acme/demo --private' "$GH_LOG"
-  [ "$output" = 1 ] || { echo "$(cat "$GH_LOG")"; false; }
+  [ "$output" = 1 ] || { cat "$GH_LOG"; false; }
 }
 
 @test "publish on a repository that exists changes no code, only settings" {

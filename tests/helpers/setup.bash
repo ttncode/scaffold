@@ -43,6 +43,7 @@ fi
 # bats' `run` captures the output, so a bare `[ "$status" -eq 0 ]` reports the
 # line that failed and nothing about why.
 assert_ok() {
+  # shellcheck disable=SC2154 # status/output set by bats' run in the calling test
   [ "$status" -eq 0 ] || {
     echo "exit status ${status}; command output follows:"
     echo "$output"

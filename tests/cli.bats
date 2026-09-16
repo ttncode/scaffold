@@ -89,10 +89,12 @@ setup() {
   # it has been once, when the output started being captured — without the
   # guarantee quietly going with it. Neither value may be handed to a shell
   # directly, and the only script that runs either goes through mise exec.
+  # shellcheck disable=SC2016 # literal pattern matched against lib/adapter.sh's source, not expanded
   run grep -nE '(eval|bash -c) "\$ADAPTER_(GENERATOR|POST_GENERATE)"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
   [ -z "$output" ] \
     || { echo "a generator is run outside the project's toolchain:"; echo "$output"; false; }
 
+  # shellcheck disable=SC2016 # literal pattern matched against lib/adapter.sh's source, not expanded
   run grep -c 'mise exec -- bash -c "\$2"' "${SCAFFOLD_ROOT}/lib/adapter.sh"
   assert_ok
   [ "$output" -eq 1 ]

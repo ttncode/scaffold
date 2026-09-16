@@ -21,6 +21,7 @@ service_driver_dockerfile() {
 # REDIS_PASSWORD the cache container reads, so the password lives in exactly
 # one place.
 service_driver_compose_env() {
+  # shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
   printf 'REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@cache:6379}\n'
 }
 

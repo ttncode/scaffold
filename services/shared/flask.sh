@@ -42,6 +42,7 @@ service_driver_dockerfile() {
 }
 
 service_driver_compose_env() {
+  # shellcheck disable=SC2016 # literal ${DATABASE_URL} written into compose.yaml, not expanded here
   printf 'DATABASE_URL: ${DATABASE_URL:-%s}\n' "$FLASK_COMPOSE_URL"
 }
 
@@ -76,6 +77,7 @@ splice_flask_probe() {
   ' "$file" > "${file}.tmp" || return 1
   mv "${file}.tmp" "$file"
 
+  # shellcheck disable=SC2015 # deliberate: die must fire when any grep fails
   ! grep -q 'no database is configured for this project' "$file" \
     && ! grep -q '@DB_ENGINE@' "$file" \
     && ! grep -q '@DB_PROBE@' "$file" \
@@ -105,6 +107,7 @@ init_flask_alembic() {
     migrations/env.py || return 1
   rm -f migrations/env.py.bak
 
+  # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
   grep -q '^import os$' migrations/env.py \
     && grep -q 'config.set_main_option("sqlalchemy.url", os.environ\["DATABASE_URL"\].replace("%", "%%"))' migrations/env.py \
     || die "could not point alembic at DATABASE_URL — has alembic init's generated env.py changed shape?"

@@ -59,6 +59,7 @@ EOF
 }
 
 service_driver_compose_env() {
+  # shellcheck disable=SC2016 # literal ${...} written into compose.yaml, not expanded here
   printf 'DATABASE_URL: ${DATABASE_URL:-mongodb://${DB_USERNAME:-app}:${DB_PASSWORD}@database:27017/${DB_DATABASE:-app}?authSource=admin}\n'
 }
 

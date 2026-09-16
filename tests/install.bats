@@ -6,7 +6,7 @@
 setup() {
   load 'helpers/setup'
   source "${SCAFFOLD_ROOT}/common/install.sh"
-  cd "$BATS_TEST_TMPDIR"
+  cd "$BATS_TEST_TMPDIR" || exit 1
 }
 
 @test "release_asset_id picks the asset's own id, not the uploader's" {
