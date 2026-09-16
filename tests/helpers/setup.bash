@@ -61,8 +61,8 @@ copy_toolbox() {
   local dest="${BATS_TEST_TMPDIR}/toolbox"
   mkdir -p "$dest"
   cp -R "${SCAFFOLD_ROOT}/adapters" "${SCAFFOLD_ROOT}/lib" \
-        "${SCAFFOLD_ROOT}/scripts" "${SCAFFOLD_ROOT}/common" \
-        "${SCAFFOLD_ROOT}/scaffold" "$dest/"
+    "${SCAFFOLD_ROOT}/scripts" "${SCAFFOLD_ROOT}/common" \
+    "${SCAFFOLD_ROOT}/scaffold" "$dest/"
   cp "${SCAFFOLD_ROOT}/UPSTREAM" "$dest/" 2>/dev/null || true
   mkdir -p "$dest/docs"
   cp "${SCAFFOLD_ROOT}/docs/PROVENANCE.md" "$dest/docs/" 2>/dev/null || true

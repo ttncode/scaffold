@@ -34,7 +34,7 @@ teardown() {
 @test "add refuses a git repo whose mise.toml is not a scaffold root" {
   mkdir -p "$WORKDIR/plain"
   git -C "$WORKDIR/plain" init --initial-branch=main --quiet
-  printf 'monorepo_root = false\n' > "$WORKDIR/plain/mise.toml"
+  printf 'monorepo_root = false\n' >"$WORKDIR/plain/mise.toml"
   cd "$WORKDIR/plain"
   run scaffold add apps/api --adapter nestjs
   [ "$status" -eq 1 ]
@@ -44,7 +44,7 @@ teardown() {
 @test "add refuses a path that already exists, and the existing app survives untouched" {
   scaffold new "$PROJECT"
   mkdir -p "${PROJECT}/apps/api"
-  echo "keep me" > "${PROJECT}/apps/api/marker"
+  echo "keep me" >"${PROJECT}/apps/api/marker"
 
   cd "$PROJECT"
   run scaffold add apps/api --adapter nestjs
@@ -102,7 +102,7 @@ teardown() {
 # success.
 @test "a failure inside cmd_add removes both temporary workspace relaxations" {
   scaffold new "$PROJECT"
-  printf 'packages:\n  - apps/*\n  - packages/*\n  - docs\n' > "${PROJECT}/pnpm-workspace.yaml"
+  printf 'packages:\n  - apps/*\n  - packages/*\n  - docs\n' >"${PROJECT}/pnpm-workspace.yaml"
   cd "$PROJECT"
   run "${SCAFFOLD_ROOT}/tests/fixtures/add-fixtures/scaffold" add apps/worker --adapter broken
   [ "$status" -eq 1 ]
@@ -136,4 +136,3 @@ teardown() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"--db given more than once"* ]]
 }
-

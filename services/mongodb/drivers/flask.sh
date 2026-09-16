@@ -16,8 +16,8 @@ service_driver_apply() {
   uv add pymongo || return 1
 
   write_env_lines .env.example \
-    "DATABASE_URL=mongodb://app:app@localhost:27017/app?authSource=admin" \
-    || return 1
+    "DATABASE_URL=mongodb://app:app@localhost:27017/app?authSource=admin" ||
+    return 1
 
   # MongoClient is generic; mypy --strict rejects the bare name, so the
   # parameter names the document type.
@@ -37,7 +37,7 @@ def _client() -> MongoClient[dict[str, Any]]:
   # alembic is SQL-only; this is mongodb's equivalent of it having zero
   # revisions — a real command against the real database, with an empty seam
   # for a client's own indexes.
-  cat > app/migrate.py <<'EOF' || return 1
+  cat >app/migrate.py <<'EOF' || return 1
 from typing import Any
 
 from app.health import _client

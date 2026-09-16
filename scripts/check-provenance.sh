@@ -41,8 +41,14 @@ errors=0
 # ─── what this run can check ───────────────────────────────────────────────
 
 read_upstream_pin() {
-  [ -f "${ROOT}/UPSTREAM" ] || { echo "error: ${ROOT}/UPSTREAM not found" >&2; exit 1; }
-  [ -f "$TABLE" ] || { echo "error: ${TABLE} not found" >&2; exit 1; }
+  [ -f "${ROOT}/UPSTREAM" ] || {
+    echo "error: ${ROOT}/UPSTREAM not found" >&2
+    exit 1
+  }
+  [ -f "$TABLE" ] || {
+    echo "error: ${TABLE} not found" >&2
+    exit 1
+  }
 
   UPSTREAM="$(cat "${ROOT}/UPSTREAM")"
   COMMIT="${UPSTREAM#*@}"

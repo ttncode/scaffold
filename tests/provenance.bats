@@ -22,8 +22,9 @@ setup() {
 }
 
 @test "check-provenance detects a modified verbatim file" {
-  local toolbox; toolbox="$(copy_toolbox)"
-  echo "# drift" >> "${toolbox}/common/.editorconfig"
+  local toolbox
+  toolbox="$(copy_toolbox)"
+  echo "# drift" >>"${toolbox}/common/.editorconfig"
   run "${toolbox}/scripts/check-provenance.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"DRIFTED"* ]]

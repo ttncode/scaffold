@@ -59,7 +59,10 @@ parse_args() {
         shift 2
         ;;
       -*) die "unknown option: ${1}" ;;
-      *) ADAPTERS+=("$1"); shift ;;
+      *)
+        ADAPTERS+=("$1")
+        shift
+        ;;
     esac
   done
   [ "${#ADAPTERS[@]}" -ge 1 ] || die "usage: deploy-check.sh <adapter>... [--db <service>]"
@@ -120,7 +123,7 @@ resolve_migrate_app() {
 # a Ctrl-C doesn't leave containers and a temp dir behind.
 cleanup() {
   if [ -f "${PROJECT_DIR}/compose.yaml" ]; then
-    ( cd "$PROJECT_DIR" && docker compose down -v --remove-orphans ) || true
+    (cd "$PROJECT_DIR" && docker compose down -v --remove-orphans) || true
   fi
   rm -rf "$TMP_DIR"
 }
@@ -145,7 +148,10 @@ prepare_workspace() {
   # Every generated project's compose.yaml is `name: app` (common/compose.yaml)
   # — without this, a local run reconciles against, and `down -v`s, any real
   # "app" project already running on this machine, database volumes included.
-  COMPOSE_PROJECT_NAME="${GATE_NAME}-$(IFS=-; printf '%s' "${APPS[*]}")"
+  COMPOSE_PROJECT_NAME="${GATE_NAME}-$(
+    IFS=-
+    printf '%s' "${APPS[*]}"
+  )"
   export COMPOSE_PROJECT_NAME
 
   trap cleanup EXIT INT TERM
@@ -176,8 +182,8 @@ build_targets() {
 
   [ -f "$build_yml" ] || die "generated project has no .github/workflows/build.yml"
   images="$(yq -r '[.jobs[] | select(has("with")) | .with.images] | .[0] // "[]"' "$build_yml")"
-  [ "$(jq 'length' <<<"$images")" = "${#APPS[@]}" ] \
-    || die "expected ${#APPS[@]} build target(s) in ${build_yml}, got: ${images}"
+  [ "$(jq 'length' <<<"$images")" = "${#APPS[@]}" ] ||
+    die "expected ${#APPS[@]} build target(s) in ${build_yml}, got: ${images}"
 
   jq -r '.[] | [.context, .dockerfile] | @tsv' <<<"$images"
 }
@@ -189,16 +195,16 @@ build_images() {
     app="$(app_service_key "$(dirname "$dockerfile")")"
     [ -n "${TAG_OF[$app]:-}" ] || die "the build workflow builds ${app}, which this run did not ask for"
     log "building ${TAG_OF[$app]} from ${dockerfile} (context: ${context})..."
-    docker build -f "${PROJECT_DIR}/${dockerfile}" -t "${TAG_OF[$app]}" "${PROJECT_DIR}/${context}" \
-      || die "docker build failed for ${ADAPTER_OF[$app]} (${dockerfile})"
+    docker build -f "${PROJECT_DIR}/${dockerfile}" -t "${TAG_OF[$app]}" "${PROJECT_DIR}/${context}" ||
+      die "docker build failed for ${ADAPTER_OF[$app]} (${dockerfile})"
   done < <(build_targets)
 }
 
 # ─── point the stack at what was just built ────────────────────────────────
 
 has_migrate_service() {
-  [ -n "$MIGRATE_APP" ] \
-    && yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1
+  [ -n "$MIGRATE_APP" ] &&
+    yq -e '.services.migrate' "${PROJECT_DIR}/compose.yaml" >/dev/null 2>&1
 }
 
 # Per service, not one tag for the whole file: a project publishes one image per
@@ -224,8 +230,8 @@ rewrite_compose_images() {
 assert_image_is_built_tag() {
   local service="$1" want="$2" actual
   actual="$(yq ".services.\"${service}\".image" "${PROJECT_DIR}/compose.yaml")"
-  [ "$actual" = "$want" ] \
-    || die "compose.yaml's ${service} image is ${actual}, not the image just built (${want})"
+  [ "$actual" = "$want" ] ||
+    die "compose.yaml's ${service} image is ${actual}, not the image just built (${want})"
 }
 
 assert_every_image_is_built_tag() {
@@ -247,8 +253,8 @@ write_env_file() {
   cp "${PROJECT_DIR}/example.env" "${PROJECT_DIR}/.env"
   # shellcheck source=/dev/null # path is this toolbox's own common/install.sh
   source "${ROOT}/common/install.sh"
-  generate_service_passwords "${PROJECT_DIR}/.env" \
-    || die "could not generate service passwords for ${ADAPTERS[*]}"
+  generate_service_passwords "${PROJECT_DIR}/.env" ||
+    die "could not generate service passwords for ${ADAPTERS[*]}"
 }
 
 wait_until_healthy() {
@@ -261,8 +267,8 @@ wait_until_healthy() {
     # "unknown" — a full 120s red on a healthy stack.
     health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q "$service")" 2>/dev/null || true)"
     [ "$health" = "healthy" ] && return 0
-    [ "$health" = "unhealthy" ] \
-      && die "${service} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_OF[$service]} is failing (see: docker compose logs ${service})"
+    [ "$health" = "unhealthy" ] &&
+      die "${service} container reported unhealthy — its HEALTHCHECK against ${LIVENESS_OF[$service]} is failing (see: docker compose logs ${service})"
     sleep "$HEALTH_POLL_INTERVAL_SECONDS"
     elapsed=$((elapsed + HEALTH_POLL_INTERVAL_SECONDS))
   done
@@ -297,14 +303,14 @@ wait_for_healthy_apps() {
 assert_migrate_service_exists() {
   [ -n "$MIGRATE_APP" ] && [ "$DB_SERVICE" != none ] || return 0
 
-  compose_has_service migrate --profile migrate \
-    || die "expected a migrate service for ${ADAPTER_OF[$MIGRATE_APP]} (role=${ROLE_OF[$MIGRATE_APP]}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
+  compose_has_service migrate --profile migrate ||
+    die "expected a migrate service for ${ADAPTER_OF[$MIGRATE_APP]} (role=${ROLE_OF[$MIGRATE_APP]}, db=${DB_SERVICE:-default}) but compose has none — a service, profile, or driver may have silently vanished"
 }
 
 assert_http_ok() {
   local label="$1" url="$2" code
-  code="$(curl -sS -o /dev/null -w '%{http_code}' "$url")" \
-    || die "${label} check failed: could not reach ${url}"
+  code="$(curl -sS -o /dev/null -w '%{http_code}' "$url")" ||
+    die "${label} check failed: could not reach ${url}"
   [ "$code" = "200" ] || die "${label} check failed: ${url} returned ${code}, not 200"
   log "${label} (${url}): ${code}"
 }

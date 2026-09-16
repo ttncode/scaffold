@@ -13,7 +13,7 @@ setup() {
   # a test that redirects HOME loses git's identity with it, and
   # GIT_AUTHOR_* does not satisfy `git config --get`. Write a real one.
   printf '[user]\n\tname = test\n\temail = test@example.com\n' \
-    > "${BATS_TEST_TMPDIR}/.gitconfig"
+    >"${BATS_TEST_TMPDIR}/.gitconfig"
   load 'helpers/setup'
   WORKDIR="$(mktemp -d)"
   PROJECT="${WORKDIR}/demo"
@@ -87,8 +87,8 @@ teardown() {
   # variable"), so the account this test detects cannot exist there. Skip with
   # the reason rather than fail on a fact about the environment.
   local account
-  account="$(gh api user --jq .login 2>/dev/null)" \
-    || skip "gh is not authenticated here, so there is no account to detect"
+  account="$(gh api user --jq .login 2>/dev/null)" ||
+    skip "gh is not authenticated here, so there is no account to detect"
   # HOME is redirected to hide git config's github.user, so gh's own config
   # has to be pointed back at the real one or this would test an
   # unauthenticated gh instead of a detected account.
@@ -141,8 +141,11 @@ teardown() {
       '${web_project}/.github/workflows/${file}.yml' \
       | jq -c 'map({context, dockerfile})'"
     assert_ok
-    [ "$output" = '[{"context":".","dockerfile":"apps/web/Dockerfile"}]' ] \
-      || { echo "${file}.yml builds: ${output}"; false; }
+    [ "$output" = '[{"context":".","dockerfile":"apps/web/Dockerfile"}]' ] ||
+      {
+        echo "${file}.yml builds: ${output}"
+        false
+      }
   done
 }
 
@@ -157,7 +160,10 @@ teardown() {
     run bash -c "yq -r '[.jobs[] | select(has(\"with\")) | .with.images] | .[0]' \
       '${bare}/.github/workflows/${file}.yml'"
     assert_ok
-    [ "$output" = "[]" ] || { echo "${file}.yml publishes: ${output}"; false; }
+    [ "$output" = "[]" ] || {
+      echo "${file}.yml publishes: ${output}"
+      false
+    }
   done
 }
 
@@ -205,7 +211,8 @@ teardown() {
 }
 
 @test "an adapter with an unrecognised ADAPTER_TIER fails loudly instead of vanishing" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   sed -i 's/ADAPTER_TIER="A"/ADAPTER_TIER="Z"/' "${toolbox}/adapters/nextjs/adapter.env"
   run "${toolbox}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
   [ "$status" -eq 1 ]
@@ -214,7 +221,8 @@ teardown() {
 }
 
 @test "an adapter missing ADAPTER_TIER entirely fails loudly instead of crashing blind" {
-  local toolbox; toolbox="$(copy_toolbox)"
+  local toolbox
+  toolbox="$(copy_toolbox)"
   sed -i '/^ADAPTER_TIER=/d' "${toolbox}/adapters/nextjs/adapter.env"
   run "${toolbox}/scripts/adapter-matrix.sh" schedule "23 2 * * 1"
   [ "$status" -eq 1 ]
@@ -280,8 +288,14 @@ teardown() {
   # line fail loudly instead of silently shipping an untested combination.
   local db_expected cache_expected db_actual cache_actual
 
-  db_expected="$( { scaffold list --services | awk -F'\t' '$2 == "database" { print $1 }'; echo none; } | sort )"
-  cache_expected="$( { scaffold list --services | awk -F'\t' '$2 == "cache" { print $1 }'; echo none; } | sort )"
+  db_expected="$({
+    scaffold list --services | awk -F'\t' '$2 == "database" { print $1 }'
+    echo none
+  } | sort)"
+  cache_expected="$({
+    scaffold list --services | awk -F'\t' '$2 == "cache" { print $1 }'
+    echo none
+  } | sort)"
 
   db_actual="$(yq -r '.jobs.services.strategy.matrix.db[]' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml" | sort)"
   cache_actual="$(yq -r '.jobs.services.strategy.matrix.cache[]' "${SCAFFOLD_ROOT}/.github/workflows/adapters.yml" | sort)"

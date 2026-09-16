@@ -22,7 +22,7 @@ teardown() {
 _stub_gh() {
   local bin="${WORKDIR}/stub"
   mkdir -p "$bin"
-  cat > "${bin}/gh" <<'EOF'
+  cat >"${bin}/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_LOG"
 
@@ -64,7 +64,7 @@ EOF
 _project() {
   mkdir -p "$PROJECT"
   printf 'monorepo_root = true\n\n[vars]\nimage = "ghcr.io/acme/demo"\n' \
-    > "${PROJECT}/mise.toml"
+    >"${PROJECT}/mise.toml"
   git -C "$PROJECT" init -q -b "${1:-main}"
   git -C "$PROJECT" add -A
   git -C "$PROJECT" -c user.email=t@scaffold.invalid -c user.name=t commit -q -m one
@@ -98,7 +98,7 @@ _project() {
 @test "publish refuses to create a repository from a dirty tree" {
   _stub_gh
   _project
-  printf 'work in progress\n' > "${PROJECT}/scratch"
+  printf 'work in progress\n' >"${PROJECT}/scratch"
 
   GH_SCENARIO=absent run scaffold publish "$PROJECT"
   [ "$status" -ne 0 ]
@@ -132,7 +132,11 @@ _project() {
   [[ "$output" == *"would protect main"* ]]
 
   run grep -cE 'repo create|-X PUT|-X POST|-X PATCH|secret set' "$GH_LOG"
-  [ "$output" = 0 ] || { echo "a dry run called:"; cat "$GH_LOG"; false; }
+  [ "$output" = 0 ] || {
+    echo "a dry run called:"
+    cat "$GH_LOG"
+    false
+  }
 }
 
 @test "publish creates the repository the project already names" {
@@ -145,7 +149,10 @@ _project() {
   GH_SCENARIO=absent run scaffold publish "$PROJECT"
   assert_ok
   run grep -c 'repo create acme/demo --private' "$GH_LOG"
-  [ "$output" = 1 ] || { cat "$GH_LOG"; false; }
+  [ "$output" = 1 ] || {
+    cat "$GH_LOG"
+    false
+  }
 }
 
 @test "publish on a repository that exists changes no code, only settings" {
@@ -237,7 +244,7 @@ _project() {
   run grep -c 'secret set' "$GH_LOG"
   [ "$output" = 0 ]
 
-  : > "$GH_LOG"
+  : >"$GH_LOG"
   GH_SCENARIO=exists RELEASE_APP_ID=1 RELEASE_APP_PRIVATE_KEY=key \
     run scaffold publish "$PROJECT"
   assert_ok
@@ -251,6 +258,9 @@ _project() {
   run bash -c "awk '/^\{\$/{f=1} f{print} /^\}\$/{if(f) exit}' '${SCAFFOLD_ROOT}/lib/publish.sh' \
     | jq -r '[.rules[].type] | sort | join(\",\")'"
   assert_ok
-  [ "$output" = "deletion,non_fast_forward,pull_request" ] \
-    || { echo "rules are: ${output}"; false; }
+  [ "$output" = "deletion,non_fast_forward,pull_request" ] ||
+    {
+      echo "rules are: ${output}"
+      false
+    }
 }

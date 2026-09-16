@@ -120,8 +120,8 @@ resolve_project() {
   if [ -n "$rel" ]; then
     project="$(cd "$rel" 2>/dev/null && pwd)" || die "no such directory: ${rel}"
   else
-    project="$(git rev-parse --show-toplevel 2>/dev/null)" \
-      || die "not inside a git repository: run 'scaffold ${command}' from inside a project created by 'scaffold new', or give its path"
+    project="$(git rev-parse --show-toplevel 2>/dev/null)" ||
+      die "not inside a git repository: run 'scaffold ${command}' from inside a project created by 'scaffold new', or give its path"
   fi
 
   is_scaffold_project "$project" || die "not a scaffold project (${project})"
@@ -182,8 +182,14 @@ cmd_list() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --adapters) want_adapters=1; shift ;;
-      --services) want_services=1; shift ;;
+      --adapters)
+        want_adapters=1
+        shift
+        ;;
+      --services)
+        want_services=1
+        shift
+        ;;
       *) die "unknown option: ${1}" ;;
     esac
   done
@@ -236,7 +242,7 @@ parse_new_flags() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --web|--api|--app)
+      --web | --api | --app)
         [ $# -ge 2 ] || die "${1} requires an adapter name"
         # each role maps to one apps/<role> directory, so a repeated flag runs
         # a second generator over the first app's files, silently
@@ -266,7 +272,7 @@ parse_new_flags() {
 project_has_backend() {
   local entry
   for entry in ${NEW_APPS[@]+"${NEW_APPS[@]}"}; do
-    case "$entry" in api:*|app:*) return 0 ;; esac
+    case "$entry" in api:* | app:*) return 0 ;; esac
   done
   return 1
 }
@@ -278,11 +284,11 @@ assert_service_connectable() {
   local flag="$1" kind="$2" service="$3"
 
   [ "$service" != none ] || return 0
-  project_has_backend \
-    || die "${flag} ${service} but there is no application to connect it — add --api or --app"
+  project_has_backend ||
+    die "${flag} ${service} but there is no application to connect it — add --api or --app"
   load_service "$service"
-  [ "$SERVICE_KIND" = "$kind" ] \
-    || die "${service} is a ${SERVICE_KIND}, not a ${kind}"
+  [ "$SERVICE_KIND" = "$kind" ] ||
+    die "${service} is a ${SERVICE_KIND}, not a ${kind}"
 }
 
 resolve_service_selection() {
@@ -310,8 +316,8 @@ install_adapters() {
     role="${entry%%:*}"
     adapter="${entry#*:}"
     load_adapter "$adapter"
-    [ "$ADAPTER_ROLE" = "$role" ] \
-      || die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${role}"
+    [ "$ADAPTER_ROLE" = "$role" ] ||
+      die "adapter ${adapter} has role ${ADAPTER_ROLE}, not ${role}"
     rel="$(role_path "$ADAPTER_ROLE")"
     # Before the adapter: apply_adapter runs the service drivers, and a
     # driver's compose environment merges into this app's own service.
@@ -365,7 +371,8 @@ print_next_steps() {
 cmd_new() {
   [ $# -gt 0 ] || die "new requires a project name"
 
-  local target="$1"; shift
+  local target="$1"
+  shift
   # Absolute once here: apply_service_drivers exports it as
   # SCAFFOLD_PROJECT_ROOT into a driver's child, whose cwd is the app directory.
   case "$target" in
@@ -421,10 +428,10 @@ cmd_add_cleanup() {
 # inside an existing app.
 add_project_root() {
   local project
-  project="$(git rev-parse --show-toplevel 2>/dev/null)" \
-    || die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
-  is_scaffold_project "$project" \
-    || die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
+  project="$(git rev-parse --show-toplevel 2>/dev/null)" ||
+    die "not inside a git repository: run 'scaffold add' from inside a project created by 'scaffold new'"
+  is_scaffold_project "$project" ||
+    die "not a scaffold project (${project}): run 'scaffold add' from inside a project created by 'scaffold new'"
   printf '%s' "$project"
 }
 
@@ -451,9 +458,9 @@ load_recorded_services() {
 joins_shared_workspace() {
   local workspace_file="${1}/${WORKSPACE_FILE}"
 
-  [ -f "$workspace_file" ] \
-    && [ "$(yq -r '.packages // "absent"' "$workspace_file")" != "absent" ] \
-    && adapter_is_typescript "$2"
+  [ -f "$workspace_file" ] &&
+    [ "$(yq -r '.packages // "absent"' "$workspace_file")" != "absent" ] &&
+    adapter_is_typescript "$2"
 }
 
 reconcile_shared_workspace() {
@@ -476,7 +483,7 @@ reconcile_standalone_app() {
 
   if adapter_is_typescript "$adapter" && [ ! -f "$workspace_file" ]; then
     yq '{"allowBuilds": .allowBuilds}' \
-      "${SCAFFOLD_ROOT}/common/${WORKSPACE_FILE}" > "$workspace_file"
+      "${SCAFFOLD_ROOT}/common/${WORKSPACE_FILE}" >"$workspace_file"
   fi
 
   # Install from the app, record in the root: the app is where pnpm resolves its
@@ -506,7 +513,8 @@ stage_new_app() {
 cmd_add() {
   [ $# -ge 3 ] || die "usage: scaffold add <dir> --adapter <adapter>"
 
-  local rel="$1"; shift
+  local rel="$1"
+  shift
   local adapter=""
 
   while [ $# -gt 0 ]; do
@@ -522,7 +530,8 @@ cmd_add() {
 
   [ -n "$adapter" ] || die "--adapter is required"
 
-  local project; project="$(add_project_root)"
+  local project
+  project="$(add_project_root)"
   confine_mise_to "$project"
   load_recorded_services "$project"
 
@@ -593,10 +602,11 @@ update_source_commit() {
 
   case "$from" in
     *-dirty)
-      die "${SCAFFOLD_MANIFEST} records ${from}: this project was generated from uncommitted edits, so there is no commit to diff against" ;;
+      die "${SCAFFOLD_MANIFEST} records ${from}: this project was generated from uncommitted edits, so there is no commit to diff against"
+      ;;
   esac
-  git -C "$SCAFFOLD_ROOT" rev-parse --verify --quiet "${from}^{commit}" >/dev/null \
-    || die "this toolbox has no commit ${from} — the checkout that generated ${project} is not this one, or its history was rewritten"
+  git -C "$SCAFFOLD_ROOT" rev-parse --verify --quiet "${from}^{commit}" >/dev/null ||
+    die "this toolbox has no commit ${from} — the checkout that generated ${project} is not this one, or its history was rewritten"
 
   printf '%s' "$from"
 }
@@ -628,20 +638,28 @@ cmd_update() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --dry-run) dry_run=1; shift ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
       -*) die "unknown option: ${1}" ;;
       *)
         [ -z "$rel" ] || die "update takes at most one directory"
-        rel="$1"; shift ;;
+        rel="$1"
+        shift
+        ;;
     esac
   done
 
-  local project; project="$(resolve_project "$rel" update)"
-  local from; from="$(update_source_commit "$project")"
+  local project
+  project="$(resolve_project "$rel" update)"
+  local from
+  from="$(update_source_commit "$project")"
   SCAFFOLD_UPDATE_FROM="$from"
 
-  local patch; patch="$(mktemp)"
-  update_patch "$project" > "$patch"
+  local patch
+  patch="$(mktemp)"
+  update_patch "$project" >"$patch"
 
   if [ ! -s "$patch" ]; then
     rm -f "$patch"
@@ -657,8 +675,11 @@ cmd_update() {
 
   # A dirty tree would make the result unreadable: `git diff` after this is the
   # only review anyone gets, and it has to show this run's changes alone.
-  [ -z "$(git -C "$project" status --porcelain)" ] \
-    || { rm -f "$patch"; die "${project} has uncommitted changes — commit or stash them first, so 'git diff' afterwards shows only what this brought in"; }
+  [ -z "$(git -C "$project" status --porcelain)" ] ||
+    {
+      rm -f "$patch"
+      die "${project} has uncommitted changes — commit or stash them first, so 'git diff' afterwards shows only what this brought in"
+    }
 
   local status=0
   git -C "$project" apply --reject --whitespace=nowarn "$patch" || status=$?
@@ -725,26 +746,43 @@ cmd_publish() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --public) visibility=public; shift ;;
-      --private) visibility=private; shift ;;
-      --no-protect) protect=0; shift ;;
-      --dry-run) dry_run=1; shift ;;
+      --public)
+        visibility=public
+        shift
+        ;;
+      --private)
+        visibility=private
+        shift
+        ;;
+      --no-protect)
+        protect=0
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
       -*) die "unknown option: ${1}" ;;
       *)
         [ -z "$rel" ] || die "publish takes at most one directory"
-        rel="$1"; shift ;;
+        rel="$1"
+        shift
+        ;;
     esac
   done
 
-  command -v gh >/dev/null 2>&1 \
-    || die "publish needs the GitHub CLI: install gh and run 'gh auth login'"
-  gh auth status >/dev/null 2>&1 \
-    || die "not signed in to GitHub: run 'gh auth login'"
+  command -v gh >/dev/null 2>&1 ||
+    die "publish needs the GitHub CLI: install gh and run 'gh auth login'"
+  gh auth status >/dev/null 2>&1 ||
+    die "not signed in to GitHub: run 'gh auth login'"
 
-  local project; project="$(resolve_project "$rel" publish)"
+  local project
+  project="$(resolve_project "$rel" publish)"
 
-  local slug; slug="$(repo_slug "$project")"
-  local exists=0; gh_repo_exists "$slug" && exists=1
+  local slug
+  slug="$(repo_slug "$project")"
+  local exists=0
+  gh_repo_exists "$slug" && exists=1
 
   [ "$exists" -eq 1 ] || assert_repo_creatable "$project" "$slug"
 
@@ -770,11 +808,12 @@ cmd_publish() {
 assert_repo_creatable() {
   local project="$1" slug="$2"
 
-  local branch; branch="$(git -C "$project" rev-parse --abbrev-ref HEAD)"
-  [ "$branch" = main ] \
-    || die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
-  [ -z "$(git -C "$project" status --porcelain)" ] \
-    || die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
+  local branch
+  branch="$(git -C "$project" rev-parse --abbrev-ref HEAD)"
+  [ "$branch" = main ] ||
+    die "publish creates ${slug} from the branch you are on, and that branch becomes its default — check out main first (you are on ${branch})"
+  [ -z "$(git -C "$project" status --porcelain)" ] ||
+    die "${project} has uncommitted changes — commit them first, so what reaches ${slug} is what you reviewed"
 
   # An origin pointing somewhere else, while ${slug} does not exist, means this
   # project is already pushing to a repository that is not the one it names.
@@ -833,7 +872,7 @@ _wizard_confirm() {
   printf '%b' "${BOLD}${1} [y/N] ${RESET}" >&2
   local reply=""
   IFS= read -r reply || true
-  case "$reply" in y|Y) return 0 ;; *) return 1 ;; esac
+  case "$reply" in y | Y) return 0 ;; *) return 1 ;; esac
 }
 
 _wizard_update() {
@@ -874,7 +913,7 @@ ask_shape_questions() {
   local -a kinds options
 
   WIZARD_ANSWERS=()
-  mapfile -t kinds <<< "$(wizard_questions "$shape")"
+  mapfile -t kinds <<<"$(wizard_questions "$shape")"
   for kind in "${kinds[@]}"; do
     mapfile -t options < <(wizard_order_options "$kind" "$listing")
     _wizard_select_or_cancel "$(wizard_prompt_for "$kind")" "${options[@]}"
@@ -910,12 +949,20 @@ cmd_wizard() {
   fi
 
   case "$action" in
-    update) _wizard_update "$here"; return ;;
-    publish) _wizard_publish "$here"; return ;;
+    update)
+      _wizard_update "$here"
+      return
+      ;;
+    publish)
+      _wizard_publish "$here"
+      return
+      ;;
   esac
 
-  local name; name="$(tui_prompt_name)"
-  local listing; listing="$(cmd_list)"
+  local name
+  name="$(tui_prompt_name)"
+  local listing
+  listing="$(cmd_list)"
 
   local -a shape_options
   mapfile -t shape_options < <(wizard_shapes)
@@ -947,7 +994,11 @@ main() {
   # something is wrong with the install, so it must not itself fail with
   # "missing required tool(s): yq".
   case "${1:-}" in
-    -v|--version) scaffold_version; printf '\n'; return ;;
+    -v | --version)
+      scaffold_version
+      printf '\n'
+      return
+      ;;
   esac
 
   load_toolchain_env
@@ -956,12 +1007,16 @@ main() {
   # A terminal, and only a terminal: a bare call that opened a menu in a script,
   # in CI or in this repository's tests would hang as a timeout, not fail.
   if [ $# -eq 0 ]; then
-    [ -t 0 ] || { usage >&2; exit 1; }
+    [ -t 0 ] || {
+      usage >&2
+      exit 1
+    }
     cmd_wizard
     return
   fi
 
-  local command="$1"; shift
+  local command="$1"
+  shift
   case "$command" in
     new) cmd_new "$@" ;;
     add) cmd_add "$@" ;;
@@ -969,7 +1024,7 @@ main() {
     publish) cmd_publish "$@" ;;
     list) cmd_list "$@" ;;
     lint) cmd_lint "$@" ;;
-    -h|--help) usage ;;
+    -h | --help) usage ;;
     *) die "unknown command: ${command}" ;;
   esac
 }

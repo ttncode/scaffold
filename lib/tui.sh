@@ -86,18 +86,20 @@ _TUI_LOGO_WIDTH=${#_TUI_LOGO[0]}
 # The wordmark is width-checked before it is drawn, because below that _tui_fit
 # hands back four ellipsised fragments, which reads as damage, not a logo.
 tui_header() {
-  local term_lines; term_lines="$(tput lines 2>/dev/null || echo "$DEFAULT_TERM_LINES")"
-  if (( term_lines < MIN_TERM_LINES_FOR_HEADER )); then
+  local term_lines
+  term_lines="$(tput lines 2>/dev/null || echo "$DEFAULT_TERM_LINES")"
+  if ((term_lines < MIN_TERM_LINES_FOR_HEADER)); then
     echo -e "${BOLD}${GREEN}scaffold — project generator${RESET}"
     return
   fi
 
-  local cols width; cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
-  width=$(( cols - 1 ))
+  local cols width
+  cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
+  width=$((cols - 1))
 
   _tui_header_edge '╭' '╮' 'Scaffold' "$width"
   _tui_header_row '' '' "$width"
-  if (( width - 2 >= _TUI_LOGO_WIDTH )); then
+  if ((width - 2 >= _TUI_LOGO_WIDTH)); then
     local line
     for line in "${_TUI_LOGO[@]}"; do
       _tui_header_row bold "$line" "$width"
@@ -120,15 +122,17 @@ tui_header() {
 _tui_header_edge() {
   local -r left="$1" right="$2" width="$4"
   local label="$3"
-  local -r inner=$(( width - 2 ))
+  local -r inner=$((width - 2))
 
   _tui_fit " ${label} " "$inner"
   label="$REPLY"
-  local -r side=$(( (inner - ${#label}) / 2 ))
-  local -r extra=$(( inner - ${#label} - side * 2 ))
+  local -r side=$(((inner - ${#label}) / 2))
+  local -r extra=$((inner - ${#label} - side * 2))
   local l r
-  printf -v l '%*s' "$side" ''; l="${l// /─}"
-  printf -v r '%*s' "$(( side + extra ))" ''; r="${r// /─}"
+  printf -v l '%*s' "$side" ''
+  l="${l// /─}"
+  printf -v r '%*s' "$((side + extra))" ''
+  r="${r// /─}"
 
   echo -e "${BOLD}${GREEN}${left}${l}${label}${r}${right}${RESET}"
 }
@@ -138,11 +142,12 @@ _tui_header_edge() {
 _tui_header_row() {
   local -r style="$1" width="$3"
   local text="$2"
-  local -r inner=$(( width - 2 ))
+  local -r inner=$((width - 2))
 
   _tui_fit "$text" "$inner"
   text="$REPLY"
-  local pad; printf -v pad '%*s' "$(( inner - ${#text} ))" ''
+  local pad
+  printf -v pad '%*s' "$((inner - ${#text}))" ''
   local styled="$text"
   [ "$style" = dim ] && styled="${DIM}${text}${RESET}"
   [ "$style" = bold ] && styled="${BOLD}${text}${RESET}"
@@ -170,7 +175,10 @@ tui_prompt_name() {
     # Cyan opens before the read and closes after every exit from it, Esc
     # included: a cancelled wizard must not leave the terminal painted.
     printf '%b' "${BOLD}? Project name: ${RESET}${CYAN}" >&2
-    _tui_read_line || { printf '%b\n' "$RESET" >&2; exit 130; }
+    _tui_read_line || {
+      printf '%b\n' "$RESET" >&2
+      exit 130
+    }
     printf '%b' "$RESET" >&2
     name="$REPLY"
     tui_name_is_usable "$name" && break
@@ -214,7 +222,7 @@ _tui_read_line() {
         fi
         return 1
         ;;
-      $'\x7f'|$'\b')
+      $'\x7f' | $'\b')
         [ -n "$REPLY" ] || continue
         REPLY="${REPLY%?}"
         # Back up, overwrite with a space, back up again: the terminal has
@@ -226,7 +234,10 @@ _tui_read_line() {
         # land in the name, where project_name_is_usable would reject it with a
         # message about a character the user cannot see.
         case "$key" in
-          [[:print:]]) REPLY+="$key"; printf '%s' "$key" >&2 ;;
+          [[:print:]])
+            REPLY+="$key"
+            printf '%s' "$key" >&2
+            ;;
         esac
         ;;
     esac
@@ -240,7 +251,8 @@ _tui_read_line() {
 # value in TUI_CHOICE; returns 1 on Esc rather than dying, so the caller decides
 # what cancelling the wizard means.
 tui_select() {
-  local -r prompt="$1"; shift
+  local -r prompt="$1"
+  shift
   local -a options=("$@")
   local cursor=0 key i value
 
@@ -257,8 +269,8 @@ tui_select() {
       $'\x1b')
         if read -rsn2 -t "$ESC_SEQUENCE_TIMEOUT" key; then
           case "$key" in
-            "[A") cursor=$(( (cursor - 1 + ${#options[@]}) % ${#options[@]} )) ;;
-            "[B") cursor=$(( (cursor + 1) % ${#options[@]} )) ;;
+            "[A") cursor=$(((cursor - 1 + ${#options[@]}) % ${#options[@]})) ;;
+            "[B") cursor=$(((cursor + 1) % ${#options[@]})) ;;
           esac
         else
           return 1
@@ -277,7 +289,7 @@ tui_select() {
         # caller, which is the only thing that knows every question it will ask.
         printf '  %b✔%b  %s%*s  %b%s%b\n' \
           "$GREEN" "$RESET" "$prompt" \
-          "$(( ${TUI_ANSWER_COLUMN:-0} - ${#prompt} ))" "" \
+          "$((${TUI_ANSWER_COLUMN:-0} - ${#prompt}))" "" \
           "$CYAN" "$TUI_CHOICE" "$RESET"
         return 0
         ;;
@@ -307,13 +319,14 @@ tui_select() {
 _TUI_RENDER_HEIGHT=0
 
 _tui_render() {
-  local -r prompt="$1" cursor="$2"; shift 2
+  local -r prompt="$1" cursor="$2"
+  shift 2
   local -a options=("$@")
   local cols limit
   cols="$(tput cols 2>/dev/null || echo "$DEFAULT_TERM_COLS")"
-  limit=$(( cols - 1 ))
+  limit=$((cols - 1))
 
-  (( _TUI_RENDER_HEIGHT > 0 )) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
+  ((_TUI_RENDER_HEIGHT > 0)) && printf '\033[%dA' "$_TUI_RENDER_HEIGHT"
 
   # The blank belongs to the question, not to the transcript above it: the
   # collapse in tui_select rewinds over everything this function printed, so the
@@ -330,7 +343,7 @@ _tui_render() {
     pointer=" "
     [ "$i" -eq "$cursor" ] && pointer="»"
 
-    _tui_fit "$value" $(( limit - 4 ))
+    _tui_fit "$value" $((limit - 4))
     value="$REPLY"
     # An empty meta means the caller had nothing to add beyond the value itself
     # — "mysql ()" would say less than plain "mysql". Dim, because it qualifies
@@ -345,7 +358,7 @@ _tui_render() {
   done
 
   echo -e "\033[K"
-  _TUI_RENDER_HEIGHT=$(( ${#options[@]} + 3 ))
+  _TUI_RENDER_HEIGHT=$((${#options[@]} + 3))
 }
 
 # _tui_fit <text> <limit> — sets REPLY rather than echoing, so it can run once
@@ -353,9 +366,9 @@ _tui_render() {
 # sending bytes at the (echo-disabled) tty.
 _tui_fit() {
   local -r text="$1" limit="$2"
-  if (( ${#text} <= limit )); then
+  if ((${#text} <= limit)); then
     REPLY="$text"
-  elif (( limit <= 1 )); then
+  elif ((limit <= 1)); then
     REPLY="${text:0:limit}"
   else
     REPLY="${text:0:limit-1}…"

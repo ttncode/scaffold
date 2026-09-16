@@ -53,9 +53,16 @@ teardown() {
   # never appeared at all.
   run scaffold new "$PROJECT"
   assert_ok
-  [[ "$output" == *"→ "* ]] || { echo "no step lines:"; echo "$output"; false; }
-  [[ "$output" != *"Progress: resolved"* ]] \
-    || { echo "package manager output reached the terminal"; false; }
+  [[ "$output" == *"→ "* ]] || {
+    echo "no step lines:"
+    echo "$output"
+    false
+  }
+  [[ "$output" != *"Progress: resolved"* ]] ||
+    {
+      echo "package manager output reached the terminal"
+      false
+    }
   # And says what to do with what it just made.
   [[ "$output" == *"next:"* ]]
   [[ "$output" == *"scaffold publish"* ]]
@@ -156,7 +163,7 @@ teardown() {
 # directory's config it did not create (mise trust -a walks parents too).
 @test "new does not trust a parent config it did not create" {
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = [\n  "x",\n]\n' \
-    > "${WORKDIR}/mise.toml"
+    >"${WORKDIR}/mise.toml"
   # No skip guard. There used to be one, for the true reason that `CI=true`
   # makes mise trust every config it finds — but its only two outcomes were
   # "skipped on a runner" and "failed everywhere else", so the property was
@@ -165,14 +172,20 @@ teardown() {
   # from the run below, so the precondition holds in both environments.
   run env -u CI -u MISE_YES -u GITHUB_ACTIONS mise trust --show -C "$WORKDIR"
   [[ "$output" == *"${WORKDIR}: untrusted"* ]] || {
-    echo "precondition failed; trust --show reported:"; echo "$output"; false
+    echo "precondition failed; trust --show reported:"
+    echo "$output"
+    false
   }
 
   env -u CI -u MISE_YES -u GITHUB_ACTIONS scaffold new "$PROJECT"
 
   run env -u CI -u MISE_YES -u GITHUB_ACTIONS mise trust --show -C "$PROJECT"
-  [[ "$output" == *"${WORKDIR}: untrusted"* ]] \
-    || { echo "trust --show reported:"; echo "$output"; false; }
+  [[ "$output" == *"${WORKDIR}: untrusted"* ]] ||
+    {
+      echo "trust --show reported:"
+      echo "$output"
+      false
+    }
   [[ "$output" == *"${PROJECT}: trusted"* ]]
 }
 
@@ -196,7 +209,7 @@ teardown() {
 # a rejected `new` untouched, contents included.
 @test "a pre-existing target survives a rejected new" {
   mkdir -p "$PROJECT"
-  echo "keep me" > "${PROJECT}/marker"
+  echo "keep me" >"${PROJECT}/marker"
 
   run "${SCAFFOLD_ROOT}/tests/fixtures/no-common/scaffold" new "$PROJECT"
   [ "$status" -eq 1 ]
@@ -245,14 +258,21 @@ collect_roots() {
   # maintainer listed there. GitHub treats an unresolvable owner as a syntax
   # error, so the security contact was a name that cannot receive anything.
   run grep -rn '@you\b\|you/' "$PROJECT" --include='*.yml' --include='*.md' --include='CODEOWNERS'
-  [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+  [ -z "$output" ] || {
+    echo "placeholder left in:"
+    echo "$output"
+    false
+  }
 
   # Absence of the placeholder is not presence of the owner: a hardcoded or
   # mistyped account passes the grep above. tests/helpers/setup.bash exports
   # SCAFFOLD_GITHUB_OWNER=test-owner.
   run cat "${PROJECT}/CODEOWNERS"
-  [ "$output" = "* @test-owner" ] \
-    || { echo "CODEOWNERS says '${output}', not the account this run resolved"; false; }
+  [ "$output" = "* @test-owner" ] ||
+    {
+      echo "CODEOWNERS says '${output}', not the account this run resolved"
+      false
+    }
 }
 
 @test "no @PROJECT_ placeholder survives into the generated project" {
@@ -264,7 +284,11 @@ collect_roots() {
   # second copy that goes stale.
   run grep -rn --exclude-dir=node_modules --exclude-dir=.git \
     '@PROJECT_NAME@\|@PROJECT_TITLE@' "$PROJECT"
-  [ -z "$output" ] || { echo "placeholder left in:"; echo "$output"; false; }
+  [ -z "$output" ] || {
+    echo "placeholder left in:"
+    echo "$output"
+    false
+  }
 }
 
 @test "register_config_root fails loudly when it cannot find its anchor" {
@@ -276,7 +300,7 @@ collect_roots() {
   local p="${WORKDIR}/reformatted"
   mkdir -p "$p"
   printf 'monorepo_root = true\n\n[monorepo]\nconfig_roots = ["docs"]\n\n[tasks.checklist]\nrun = [{ task = "//docs:checklist" }]\n' \
-    > "${p}/mise.toml"
+    >"${p}/mise.toml"
 
   run bash -c "source '${SCAFFOLD_ROOT}/lib/log.sh'; source '${SCAFFOLD_ROOT}/lib/manifest.sh'; register_config_root '$p' apps/web"
   [ "$status" -ne 0 ]

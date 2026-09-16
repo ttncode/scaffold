@@ -80,11 +80,11 @@ wizard_prompt_for() {
 wizard_prompt_width() {
   local kind text width=${#WIZARD_SHAPE_PROMPT}
 
-  (( ${#WIZARD_ACTION_PROMPT} > width )) && width=${#WIZARD_ACTION_PROMPT}
-  (( ${#WIZARD_VISIBILITY_PROMPT} > width )) && width=${#WIZARD_VISIBILITY_PROMPT}
+  ((${#WIZARD_ACTION_PROMPT} > width)) && width=${#WIZARD_ACTION_PROMPT}
+  ((${#WIZARD_VISIBILITY_PROMPT} > width)) && width=${#WIZARD_VISIBILITY_PROMPT}
   for kind in "${WIZARD_QUESTION_KINDS[@]}"; do
     text="$(wizard_prompt_for "$kind")"
-    (( ${#text} > width )) && width=${#text}
+    ((${#text} > width)) && width=${#text}
   done
   printf '%s' "$width"
 }
@@ -96,9 +96,9 @@ wizard_options() {
   local -r listing="$1" kind="$2"
 
   case "$kind" in
-    web|api|app)
+    web | api | app)
       awk -F'\t' -v role="$kind" \
-        '$2 == role { printf "%s\ttier %s\n", $1, $3 }' <<< "$listing"
+        '$2 == role { printf "%s\ttier %s\n", $1, $3 }' <<<"$listing"
       # The frontend of a web+api project is optional in a way the api is not,
       # and the flags allow it, so the wizard does too.
       #
@@ -111,11 +111,11 @@ wizard_options() {
     database)
       # No meta column: the kind is the only thing the listing carries per
       # service, and the question is already titled "Database".
-      awk -F'\t' '$2 == "database" { printf "%s\t\n", $1 }' <<< "$listing"
+      awk -F'\t' '$2 == "database" { printf "%s\t\n", $1 }' <<<"$listing"
       printf 'none\tno database service\n'
       ;;
     cache)
-      awk -F'\t' '$2 == "cache" { printf "%s\t\n", $1 }' <<< "$listing"
+      awk -F'\t' '$2 == "cache" { printf "%s\t\n", $1 }' <<<"$listing"
       printf 'none\tno cache service\n'
       ;;
     *) die "unknown question kind: ${kind}" ;;
@@ -143,12 +143,12 @@ wizard_order_options() {
     if [ "${line%%$'\t'*}" = "$default" ]; then
       printf '%s\n' "$line"
     fi
-  done <<< "$(wizard_options "$listing" "$kind")"
+  done <<<"$(wizard_options "$listing" "$kind")"
   while IFS= read -r line; do
     if [ "${line%%$'\t'*}" != "$default" ]; then
       printf '%s\n' "$line"
     fi
-  done <<< "$(wizard_options "$listing" "$kind")"
+  done <<<"$(wizard_options "$listing" "$kind")"
   # the loop's own status is read's EOF failure, not this function's; without
   # this the default branch always reports failure on an otherwise-fine run.
   return 0
@@ -164,7 +164,7 @@ wizard_new_args() {
     kind="${pair%%=*}"
     value="${pair#*=}"
     case "$kind" in
-      web|api|app)
+      web | api | app)
         if [ "$value" != none ]; then
           printf -- '--%s\n%s\n' "$kind" "$value"
         fi
@@ -180,8 +180,10 @@ wizard_new_args() {
 # What the answers would have been typed as. Printed before the run so the
 # second project is scripted rather than clicked.
 wizard_command() {
-  local -r name="$1"; shift
-  local -a args; mapfile -t args < <(wizard_new_args "$@")
+  local -r name="$1"
+  shift
+  local -a args
+  mapfile -t args < <(wizard_new_args "$@")
   local out="scaffold new ${name}"
   [ "${#args[@]}" -eq 0 ] || out+=" ${args[*]}"
   printf '%s\n' "$out"
@@ -195,8 +197,8 @@ wizard_echo_command() {
   local token out="${CYAN}!${RESET}"
   for token in $1; do
     case "$token" in
-      --*|scaffold) out+=" ${CYAN}${token}${RESET}" ;;
-      *)            out+=" ${token}" ;;
+      --* | scaffold) out+=" ${CYAN}${token}${RESET}" ;;
+      *) out+=" ${token}" ;;
     esac
   done
   printf '%b\n' "$out" >&2

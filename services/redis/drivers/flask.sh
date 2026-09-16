@@ -12,8 +12,8 @@ service_driver_apply() {
   write_env_lines .env.example \
     "REDIS_HOST=localhost" \
     "REDIS_PORT=6379" \
-    "REDIS_PASSWORD=app" \
-    || return 1
+    "REDIS_PASSWORD=app" ||
+    return 1
 }
 
 service_driver_dockerfile() {

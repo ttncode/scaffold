@@ -18,8 +18,8 @@ service_driver_apply() {
   write_env_lines .env.example \
     "DB_CONNECTION=mongodb" \
     "DB_URI=mongodb://app:app@database:27017/app?authSource=admin" \
-    "DB_DATABASE=app" \
-    || return 1
+    "DB_DATABASE=app" ||
+    return 1
 
   register_mongodb_connection config/database.php
 
@@ -44,9 +44,9 @@ service_driver_apply() {
   rm -f routes/health.php.bak
 
   # shellcheck disable=SC2015 # deliberate: die must fire when either grep fails
-  grep -q "DB::connection('mongodb')->getMongoDB()->command" routes/health.php \
-    && grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php \
-    || die "could not splice the database probe into routes/health.php — has the anchor moved?"
+  grep -q "DB::connection('mongodb')->getMongoDB()->command" routes/health.php &&
+    grep -q "return response()->json(\['status' => 'ok'\]);" routes/health.php ||
+    die "could not splice the database probe into routes/health.php — has the anchor moved?"
 }
 
 service_driver_dockerfile() {
@@ -98,9 +98,9 @@ register_mongodb_connection() {
   ANCHOR="$anchor" BLOCK="$block" awk '
     { print }
     $0 == ENVIRON["ANCHOR"] { print ENVIRON["BLOCK"] }
-  ' "$file" > "${file}.tmp"
+  ' "$file" >"${file}.tmp"
   mv "${file}.tmp" "$file"
 
-  grep -Fxq "        'mongodb' => [" "$file" \
-    || die "the Laravel skeleton's config/database.php no longer has the expected shape"
+  grep -Fxq "        'mongodb' => [" "$file" ||
+    die "the Laravel skeleton's config/database.php no longer has the expected shape"
 }

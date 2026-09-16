@@ -19,7 +19,10 @@ lockfile = true
 [tasks.lint]
 # discovers tracked shell files rather than listing them, so a new one is
 # caught automatically; xargs -r skips the run when nothing matches yet.
-run = "git ls-files -z -- scaffold '*.sh' '*.bash' '*.bats' | xargs -0 -r shellcheck"
+run = [
+  "git ls-files -z -- scaffold '*.sh' '*.bash' '*.bats' | xargs -0 -r shellcheck",
+  "git ls-files -z -- scaffold '*.sh' '*.bash' '*.bats' | xargs -0 -r shfmt -i 2 -ci -d",
+]
 
 [tasks.test]
 # --jobs changes no isolation: bats already gives every test its own process
