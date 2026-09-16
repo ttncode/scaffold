@@ -8,13 +8,11 @@ on:
 permissions: {}
 jobs:
   security:
-    # no more than app-security's own jobs ask for; the workflow-level
-    # `permissions: {}` above grants nothing to inherit.
+    # what app-security's jobs need; `permissions: {}` above leaves nothing to inherit.
     permissions:
       contents: read
       security-events: write
       pull-requests: read
       actions: read
-    # `@v1` moves on purpose: one fix reaches every project, and that same
-    # channel outlives the engagement (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
     uses: you/.github/.github/workflows/app-security.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]

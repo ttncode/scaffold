@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# python3.13-bookworm-slim is not published for this uv release — only
-# python3.13-trixie-slim is; python:3.13-slim below already resolves to
-# slim-trixie, so this keeps both stages on the same Debian release.
+# trixie, matching python:3.13-slim below; uv publishes no bookworm-slim tag.
 FROM ghcr.io/astral-sh/uv:0.12.13-python3.13-trixie-slim@sha256:c0ba49559fc5622531fd05a5747b52afb49ffa883574bbf8eb719ebd103efb84 AS deps
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./

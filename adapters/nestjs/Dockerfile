@@ -3,9 +3,8 @@
 FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS build
 WORKDIR /app
 RUN corepack enable
-# pnpm-workspace.yaml carries the allowBuilds decisions ADR-0017 records —
-# without it in the build context, pnpm has nothing to check unrs-resolver's
-# postinstall build against and refuses non-interactively.
+# pnpm-workspace.yaml holds the allowBuilds policy (ADR-0017); without it pnpm
+# refuses unrs-resolver's postinstall build non-interactively.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -17,17 +16,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-# `pris[m]a`, not `prisma`: a bracket glob that matches nothing copies
-# nothing instead of failing the build, which a bare `prisma` would do on a
-# --db none project that never ran the driver that creates this directory.
-# Needed for the migrate service (see services/shared/nest.sh) to find its
-# schema — schema.prisma is not itself an artifact `nest build` produces, so
-# nothing else in this image carries it forward from the build context.
+# The migrate service reads the schema from here. `pris[m]a` copies nothing on a
+# --db none project, where a bare `prisma` would fail the build.
 COPY --from=build /app/pris[m]a ./prisma
 USER node
-# 8080 because that is the container port common/compose.yaml publishes, and
-# nothing rewrites it — an adapter listening anywhere else publishes a dead
-# port. Nest reads PORT in main.ts's `app.listen(process.env.PORT ?? 3000)`.
+# The container port compose.yaml publishes; main.ts reads PORT.
 ENV PORT=8080
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \

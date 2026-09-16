@@ -1,8 +1,6 @@
 [tasks.install]
-# this package joins the workspace only after the app it ships alongside
-# has already installed once, so this is always the first frozen install
-# to see both together; pnpm needs to relink node_modules for that and
-# must not stop to ask — every contract task runs non-interactively.
+# The first frozen install after this package joins the workspace relinks
+# node_modules, and pnpm must not stop to ask.
 env = { npm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 

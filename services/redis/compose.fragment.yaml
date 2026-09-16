@@ -1,9 +1,7 @@
 services:
   cache:
-    # Block style, and it has to be block *here*: yq's merge keeps the style of
-    # its first input, so the prod fragment below inherits it. In flow style the
-    # assembled prod command runs past prettier's print width, and the project's
-    # own pre-commit hook rewrites the compose.yaml scaffold just handed it.
+    # Block style here: yq's merge keeps its first input's style, and a flow-style
+    # prod command overruns prettier's print width.
     command:
       - redis-server
       - --requirepass

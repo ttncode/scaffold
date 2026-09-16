@@ -2,10 +2,8 @@ packages:
   - apps/*
   - packages/*
   - docs
-# pnpm blocks an unreviewed postinstall build rather than warning, which would
-# abort ci-unit non-interactively — so each has to be decided here. esbuild is
-# allowed because its postinstall fetches the binary vite actually runs; the
-# other two have pure-js fallbacks and are denied. See ADR-0017 in the toolbox.
+# pnpm blocks an unreviewed postinstall build, aborting ci-unit (ADR-0017).
+# esbuild fetches the binary vite runs; the others have pure-js fallbacks.
 allowBuilds:
   unrs-resolver: false
   esbuild: true

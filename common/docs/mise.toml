@@ -1,7 +1,5 @@
 [tasks.install]
-# docs joins the same workspace apps/packages-types do; see the scaffold
-# toolbox's ADR-0017 (not shipped here) for why this env is needed on a
-# frozen install.
+# A frozen install that relinks node_modules must not stop to ask (ADR-0017).
 env = { npm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 

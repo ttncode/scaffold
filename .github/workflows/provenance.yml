@@ -14,10 +14,7 @@ permissions: {}
 
 jobs:
   self-test:
-    # "does the checker work" belongs on every change; "has upstream moved"
-    # (the check job below) belongs on a schedule — different questions.
-    # workflow_dispatch is included here, rather than duplicating this job's
-    # bats step inside check, so a manual run exercises both jobs.
+    # Tests the checker on every change; `check` asks whether upstream moved.
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
@@ -30,9 +27,6 @@ jobs:
           persist-credentials: false
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      # tests/provenance.bats needs a local upstream clone the same as
-      # check does below — its own copy here, the way adapters.yml's
-      # tier-b matrix legs each do their own generation independently.
       - name: Clone upstream immich
         run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
       - name: Run the provenance self-test
@@ -52,9 +46,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # check-provenance.sh has no network fallback of its own (a denied
-      # fetch must fail loudly, not read as "everything drifted"); a
-      # partial clone gets the full commit graph without every blob.
+      # check-provenance.sh never fetches; blob:none still gives the full commit graph.
       - name: Clone upstream immich
         run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
       - name: Check for upstream drift
@@ -62,11 +54,7 @@ jobs:
         env:
           SCAFFOLD_UPSTREAM_CLONE: ${{ runner.temp }}/immich
         run: ./scripts/check-provenance.sh | tee "${RUNNER_TEMP}/report.txt"
-      # a bare custom if: is implicitly ANDed with success() — on a real
-      # check failure the job is already failing, success() is false, and
-      # this step would silently never run. failure() first makes the
-      # step eligible; steps.check.outcome narrows it to the real check
-      # specifically, not some other step failing.
+      # A bare if: is ANDed with success(), so it would never run after a failure.
       - name: Open an issue for upstream drift
         if: failure() && steps.check.outcome == 'failure'
         env:

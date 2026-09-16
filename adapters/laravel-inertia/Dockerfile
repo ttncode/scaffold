@@ -6,12 +6,8 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-interaction \
     --prefer-dist --optimize-autoloader
 
-# @laravel/vite-plugin-wayfinder shells out to `php artisan` during the vite
-# build itself, so this stage needs both php and node, and only one base can
-# be pinned by digest. Pin php: it decides whether artisan runs at all (the
-# app declares php: ^8.3), while node here only compiles assets and never
-# reaches the runtime image, which inherits nothing from this stage but
-# public/build.
+# wayfinder runs `php artisan` inside the vite build, so this stage needs php and
+# node. Only one base can be digest-pinned: php, which decides whether artisan runs.
 FROM php:8.3.21-fpm-alpine@sha256:d2170b0f8da574062b289566a05f25ab57173315a356c9f7519b5e444ae96dac AS assets
 RUN apk add --no-cache nodejs npm
 WORKDIR /app
@@ -21,11 +17,8 @@ COPY --from=vendor /app/vendor ./vendor
 COPY . .
 RUN npm run build
 
-# FrankenPHP, because php-fpm speaks FastCGI and this stack has no web server
-# in front of it: nothing served HTTP at all, and compose published a dead
-# port. Documented as a first-class server in laravel.com/docs/13.x/deployment,
-# part of the PHP Foundation since May 2025, and what Laravel Cloud runs.
-# Alpine specifically: services/mongodb/drivers/laravel.sh emits `apk add`.
+# FrankenPHP: php-fpm speaks FastCGI and nothing fronts it.
+# Alpine: the mongodb driver emits `apk add`.
 FROM dunglas/frankenphp:1.12.7-php8.3-alpine@sha256:049b8d8356efceb93c91ed42866de890534310bcef4ad4dde902029e4a0d20c3 AS runtime
 RUN docker-php-ext-install opcache
 # @SERVICE_SETUP@
@@ -34,15 +27,12 @@ COPY --from=vendor /app/vendor ./vendor
 COPY . .
 COPY --from=assets /app/public/build ./public/build
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
-# :8080 is how frankenphp listens on an unprivileged port and declines to
-# provision TLS, which belongs to whatever proxy this lands behind.
+# A bare port: unprivileged, and no TLS, which belongs to the proxy in front.
 ENV SERVER_NAME=:8080
-# laravel's default `stack` channel writes to storage/logs, which nothing
-# reads in a container; the readiness probe's failure reason is logged.
+# Nothing reads storage/logs in a container; the readiness probe logs failures.
 ENV LOG_CHANNEL=stderr
-# Caddy writes here and will not start if it may not. The app tree needs the
-# same: COPY runs as root, the server runs as www-data, and the first request
-# that compiles a blade view or writes a log fails without this.
+# Caddy will not start without writable config and data dirs, and www-data
+# must write storage/ and bootstrap/cache/ that COPY left owned by root.
 ENV XDG_CONFIG_HOME=/config XDG_DATA_HOME=/data
 RUN mkdir -p /config /data \
  && chown -R www-data:www-data /config /data \
@@ -51,8 +41,6 @@ USER www-data
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget -qO- http://localhost:8080/up || exit 1
-# CMD replaces the base image's default args entirely rather than extending
-# them, and those args are what point frankenphp at the Caddyfile that
-# defines the :8080 site block; without them it starts only the admin API on
-# 127.0.0.1:2019 and nothing ever listens on 8080.
+# The base image's args, restated: CMD replaces them, and without the Caddyfile
+# only the admin API starts and nothing listens on 8080.
 CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--adapter", "caddyfile"]

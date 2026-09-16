@@ -1,14 +1,12 @@
 # syntax=docker/dockerfile:1
 
-# used instead of Dockerfile when every app in the project is typescript:
-# apps/web is then a pnpm workspace member with no manifests of its own —
-# see docs/PROVENANCE.md and immich's server/Dockerfile, which this follows.
+# Used instead of Dockerfile when every app is typescript: apps/web is then a
+# pnpm workspace member with no manifests of its own.
 FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS deps
 WORKDIR /app
 RUN corepack enable
-# pnpm-workspace.yaml carries the allowBuilds decisions ADR-0017 records —
-# without it in the build context, pnpm has nothing to check unrs-resolver's
-# postinstall build against and refuses non-interactively.
+# pnpm-workspace.yaml holds the allowBuilds policy (ADR-0017); without it pnpm
+# refuses unrs-resolver's postinstall build non-interactively.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/@APP_FILTER@/package.json apps/@APP_FILTER@/package.json
 RUN pnpm --filter @APP_FILTER@ install --frozen-lockfile
@@ -26,20 +24,14 @@ RUN pnpm exec next build
 FROM node:24.15.0-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-# next standalone output carries only the server files it actually needs
 COPY --from=build /app/apps/@APP_FILTER@/.next/standalone ./
 COPY --from=build /app/apps/@APP_FILTER@/.next/static ./apps/@APP_FILTER@/.next/static
 COPY --from=build /app/apps/@APP_FILTER@/public ./apps/@APP_FILTER@/public
 USER node
-# 8080 because that is the container port common/compose.yaml publishes, and
-# nothing rewrites it — an adapter listening anywhere else publishes a dead
-# port. next's standalone server.js reads PORT itself.
+# The container port compose.yaml publishes; server.js reads PORT.
 ENV PORT=8080
-# Docker sets HOSTNAME to the container's own id, and the standalone
-# server.js binds to `process.env.HOSTNAME || '0.0.0.0'` — so without this it
-# listens on that id-derived address. Traffic from outside still reaches it,
-# but the HEALTHCHECK below dials localhost from inside the container and
-# fails forever while the app answers everyone else.
+# Docker sets HOSTNAME to the container id, which server.js would bind to, and
+# the HEALTHCHECK's loopback dial would never connect.
 ENV HOSTNAME="0.0.0.0"
 EXPOSE 8080
 # 127.0.0.1, not localhost: "0.0.0.0" above is an IPv4-only bind, but this

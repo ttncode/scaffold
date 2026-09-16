@@ -1,6 +1,5 @@
-# composer only: mise's php backends compile from source and fail here, so php
-# comes from the system (ADR-0016). It stays declared in this file alone — the
-# root mise.toml never learns this app is php.
+# composer only: mise's php backends compile from source and fail, so php comes
+# from the system (ADR-0016).
 [tools]
 "ubi:composer/composer" = "2.10.2"
 
@@ -17,8 +16,7 @@ run = "./vendor/bin/pint --test"
 [tasks."format-fix"]
 run = "./vendor/bin/pint"
 
-# pint is both formatter and linter; an honest duplicate beats inventing a
-# second linter to fill the slot
+# pint is formatter and linter both
 [tasks.lint]
 run = "./vendor/bin/pint --test"
 
@@ -26,27 +24,19 @@ run = "./vendor/bin/pint --test"
 run = "./vendor/bin/phpstan analyse --no-progress --memory-limit=512M"
 
 [tasks.test]
-# APP_KEY lives in the uncommitted .env, so a fresh checkout has none and every
-# test that boots the app dies on MissingAppKeyException. A throwaway key beats
-# committing a real one into every project this toolbox makes.
+# APP_KEY lives in the uncommitted .env; a throwaway key lets tests boot the app.
 run = "APP_KEY=base64:$(head -c 32 /dev/urandom | base64) ./vendor/bin/phpunit"
 
 [tasks.build]
-# --no-dev strips pint, phpstan and phpunit from vendor/, and the pre-commit
-# hook calls ./vendor/bin/pint directly — so the next commit fails on a missing
-# binary. Put them back; `status=$?` keeps the production install's exit code.
-# The real artifact is the Dockerfile's own --no-dev install.
+# The second install restores pint for the pre-commit hook; `status=$?` keeps
+# the --no-dev install's exit code. The image does its own --no-dev install.
 run = "composer.phar install --no-dev --optimize-autoloader --classmap-authoritative; status=$?; composer.phar install --no-interaction --prefer-dist --quiet; exit $status"
 
 [tasks.migrate]
 run = "php artisan migrate --force"
 
 [tasks.ci-unit]
-# :lint runs the same pint invocation as :format here, so this repeats about
-# half a second of work. Listed anyway: every other adapter runs all five, and
-# an omission that reads as deliberate is indistinguishable from one that is
-# not — the day pint stops being both halves, the missing call would go
-# unnoticed in CI.
+# :lint repeats :format's pint call on purpose: every adapter runs all five.
 run = [
   { task = ":install" },
   { task = ":format" },
