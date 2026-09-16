@@ -64,7 +64,7 @@ pnpm_install() {
   log="$(mktemp)"
 
   (
-    cd "$dir"
+    cd "$dir" || exit 1
     # This install exists to rewrite the lockfile a generator just produced.
     mise exec -- pnpm install \
       --no-frozen-lockfile \

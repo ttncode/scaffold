@@ -27,7 +27,7 @@ run = "bats --jobs $(nproc) --parallel-binary-name rush tests/"
 description = "the suites with no adapter generator anywhere in setup — genuinely offline"
 # Listed, not globbed: new-project.bats generates no adapter; provenance.bats
 # needs an upstream clone (runs in provenance.yml).
-run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/install.bats tests/new-project.bats tests/publish.bats tests/service.bats tests/update.bats tests/wizard.bats"
+run = "bats --jobs $(nproc) --parallel-binary-name rush tests/add-app-errors.bats tests/cli.bats tests/contract.bats tests/documentation.bats tests/install.bats tests/new-project.bats tests/pnpm.bats tests/publish.bats tests/service.bats tests/update.bats tests/wizard.bats"
 
 [tasks."test-integration"]
 description = "suites that generate a real adapter project as a fixture (not a per-adapter smoke test — see tests/new-*.bats for those)"
