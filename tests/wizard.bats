@@ -219,10 +219,10 @@ strip_ansi() {
 }
 
 @test "every kind wizard_questions yields is accepted by wizard_prompt_for, wizard_options and wizard_new_args" {
-  # wizard_prompt_for used to live in scaffold, unreachable by any unit test —
-  # a kind added to wizard_questions and not there died mid-wizard, after the
-  # name and shape screens were already answered. wizard_shapes' own test
-  # closed this hole for shapes; this closes it for kinds.
+  # wizard_prompt_for must handle every kind wizard_questions can yield — a
+  # kind missing here dies mid-wizard, after the name and shape screens are
+  # already answered. wizard_shapes' own test covers shapes; this covers
+  # kinds.
   local shape kind
   for shape in $(wizard_shapes | cut -f1); do
     for kind in $(wizard_questions "$shape"); do
@@ -498,13 +498,12 @@ EOF
 }
 
 @test "typing an option's first letter selects it, not whatever Enter would default to" {
-  # tui_select used to read only arrows and Enter — every typed letter was
-  # silently discarded, so a first-time user who types the walkthrough's
-  # answer ("postgres") actually got whatever was already highlighted
-  # (mysql, the flags' own default) with no error and no sign anything went
-  # wrong. mysql sorts before postgres in the database menu, so reaching
-  # postgres here proves typing moved the cursor rather than Enter's default
-  # winning by coincidence.
+  # tui_select must accept a typed first letter, not just arrows and Enter,
+  # or a first-time user who types the walkthrough's answer ("postgres")
+  # silently gets whatever was already highlighted (mysql, the flags' own
+  # default) instead. mysql sorts before postgres in the database menu, so
+  # reaching postgres here proves typing moved the cursor rather than
+  # Enter's default winning by coincidence.
   command -v script >/dev/null || skip "script(1) not available"
 
   local out="${BATS_TEST_TMPDIR}/session.log"

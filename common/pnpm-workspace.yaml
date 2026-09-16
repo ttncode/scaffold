@@ -2,7 +2,7 @@ packages:
   - apps/*
   - packages/*
   - docs
-# pnpm blocks an unreviewed postinstall build, aborting ci-unit (ADR-0017).
+# pnpm blocks an unreviewed postinstall build, aborting ci-unit (toolbox ADR-0017).
 # esbuild fetches the binary vite runs; the others have pure-js fallbacks.
 allowBuilds:
   unrs-resolver: false

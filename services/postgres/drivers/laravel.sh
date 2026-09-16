@@ -8,5 +8,5 @@ LARAVEL_SETUP="RUN apk add --no-cache postgresql-dev \\
  && docker-php-ext-install pdo_pgsql"
 LARAVEL_COMPOSE_ENV="DB_HOST: database
 DB_PORT: 5432"
-# shellcheck source=/dev/null
+# shellcheck source=services/shared/laravel.sh
 . "${SCAFFOLD_ROOT}/services/shared/laravel.sh"

@@ -51,11 +51,9 @@ teardown() {
 
 @test "a mixed-language project keeps the supply-chain policy" {
   scaffold new "$PROJECT" --api laravel-api --web nextjs
-  # allowBuilds is ADR-0017's policy and applies to any typescript app, but it
-  # lived in the root pnpm-workspace.yaml, which this branch used to delete
-  # outright — so one PHP app in the project removed the policy protecting the
-  # TypeScript one. The packages: list does go, since there is no shared
-  # workspace without a fully TypeScript project; the settings stay.
+  # ADR-0017's allowBuilds lives in the root pnpm-workspace.yaml, so a mixed-
+  # language project keeps the file — deleting it outright would also drop
+  # the TypeScript app's build policy.
   [ -f "${PROJECT}/pnpm-workspace.yaml" ]
   run yq -r '.allowBuilds | keys | .[]' "${PROJECT}/pnpm-workspace.yaml"
   assert_ok
@@ -73,9 +71,9 @@ teardown() {
 
 @test "the adapter's docker directory reaches the generated app" {
   scaffold new "$PROJECT" --api laravel-api
-  # apply_adapter copies a docker/ subtree separately from the flat files, and
-  # nothing asserted it: deleting that line left every test green while the
-  # Dockerfile went on COPYing a file that was no longer there.
+  # apply_adapter copies a docker/ subtree separately from the flat files;
+  # this asserts it independently, so a Dockerfile that COPYs a file no
+  # longer shipped fails here instead of passing silently.
   [ -f "${PROJECT}/apps/api/docker/opcache.ini" ]
   run grep -c 'docker/opcache.ini' "${PROJECT}/apps/api/Dockerfile"
   [ "$output" != "0" ]
@@ -101,10 +99,8 @@ teardown() {
   cd "$PROJECT"
 
   # commitlint backs the commit-msg hook and installs from the project root,
-  # not from an app dir — the one place record_release_age_exceptions used to
-  # skip in this branch, so a violation among commitlint's own dependencies
-  # (too fresh at generation time) surfaced only here, minutes later, on the
-  # first commit.
+  # not from an app dir, so record_release_age_exceptions must cover the root
+  # too or a too-fresh commitlint dependency fails the first commit.
   run mise exec -- pnpm exec commitlint --version
   assert_ok
 }
@@ -128,8 +124,8 @@ teardown() {
 @test "a php-only project still ships the build policy" {
   scaffold new "$PROJECT" --api laravel-api
   # The root package.json is node tooling — commitlint backs the commit-msg
-  # hook — so ADR-0017's allowBuilds applies even with no TypeScript app. This
-  # branch used to delete the file that carries it outright.
+  # hook — so ADR-0017's allowBuilds applies even to a php-only project;
+  # pnpm-workspace.yaml must not be deleted for lack of a TypeScript app.
   [ -f "${PROJECT}/pnpm-workspace.yaml" ]
   run yq -r '.allowBuilds | keys | .[]' "${PROJECT}/pnpm-workspace.yaml"
   assert_ok

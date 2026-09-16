@@ -9,5 +9,5 @@ LARAVEL_PACKAGE=""
 LARAVEL_SETUP="RUN docker-php-ext-install pdo_mysql"
 LARAVEL_COMPOSE_ENV="DB_HOST: database
 DB_PORT: 3306"
-# shellcheck source=/dev/null
+# shellcheck source=services/shared/laravel.sh
 . "${SCAFFOLD_ROOT}/services/shared/laravel.sh"

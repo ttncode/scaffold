@@ -77,7 +77,7 @@ still carries a known, open gap.
 `cmd_add` relaxes `confirmModulesPurge` in `pnpm-workspace.yaml` then
 strips the line back out by blind text match; if the caller had already
 added that exact line themselves, on purpose, this silently deletes it
-too — known, not fixed, see the comment above `reconcile=` in `scaffold`
+too — known, not fixed, see `restore_pnpm_workspace` in `lib/pnpm.sh`
 and ADR-0017's Consequences):
 
 ```bash

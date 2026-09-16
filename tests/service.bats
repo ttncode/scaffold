@@ -183,10 +183,9 @@ setup() {
 }
 
 @test "the nest probe guard rejects a controller whose fallback throw survived" {
-  # The guard used to check for `return { status: 'ok' };`, which live() already
-  # returns — so a controller with three splices applied and the fourth missed
-  # passed it, and the project shipped a readiness route that was permanently
-  # 503 with nothing said about it.
+  # assert_nest_probe_spliced must fail on the surviving fallback throw
+  # alone: checking only for live()'s own `return { status: 'ok' };` would
+  # pass a controller with the readiness splice missed.
   source "${SCAFFOLD_ROOT}/services/shared/nest.sh"
 
   local file="${BATS_TEST_TMPDIR}/health.controller.ts"
@@ -590,9 +589,8 @@ EOF
   run yq -e '.services.database != null and .services.cache != null' \
     "${project}/compose.yaml"
   assert_ok
-  # assemble_compose no longer touches an application service — a project has
-  # one per application now, and add_app_service is what makes each of them
-  # wait on the services it was generated against (ADR-0022).
+  # assemble_compose wires only the shared database and cache services;
+  # add_app_service is what makes each application wait on them (ADR-0022).
   # Compared as a joined string: yq's `==` on two sequences returns a
   # sequence of per-element results, not one boolean, so `-e` reads it as no
   # match and the test fails whatever the keys are.
@@ -793,7 +791,7 @@ _password_literal_report() {
   block="$(
     . "${SCAFFOLD_ROOT}/lib/service.sh"
     SERVICE_DIR="$(dirname "$(dirname "$driver")")"
-    # shellcheck source=/dev/null
+    # shellcheck source=/dev/null # path varies by driver
     . "$driver"
     service_driver_compose_env
   )"
@@ -898,7 +896,7 @@ _password_literal_report() {
   for service in mysql postgres mongodb; do
     block="$(
       . "${SCAFFOLD_ROOT}/lib/service.sh"
-      # shellcheck source=/dev/null
+      # shellcheck source=/dev/null # path varies by service
       . "${SCAFFOLD_ROOT}/services/${service}/drivers/laravel.sh"
       service_driver_compose_env
     )"
@@ -916,7 +914,7 @@ _password_literal_report() {
   for service in mysql postgres mongodb; do
     block="$(
       . "${SCAFFOLD_ROOT}/lib/service.sh"
-      # shellcheck source=/dev/null
+      # shellcheck source=/dev/null # path varies by service
       . "${SCAFFOLD_ROOT}/services/${service}/drivers/nest.sh"
       service_driver_compose_env
     )"

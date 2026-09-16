@@ -5,7 +5,7 @@
 ```sh
 mise install            # every tool this repository uses, pinned in mise.toml
 mise exec -- lefthook install   # shellcheck, gitleaks, commit-message check
-mise run lint           # shellcheck over scaffold, lib/, scripts/, common/
+mise run lint           # shellcheck + shfmt over every tracked shell file
 mise run test-unit      # the offline suites
 ```
 
@@ -22,7 +22,7 @@ anything else, so it needs no wrapper — from the clone, a symlink, or `PATH`.
 
 | Task | What it runs |
 | --- | --- |
-| `lint` | shellcheck over every shell file the repository tracks |
+| `lint` | shellcheck + shfmt (`-i 2 -ci`) over every shell file the repository tracks |
 | `test-unit` | the suites that never invoke an adapter's generator — offline and quick |
 | `test-integration` | the suites that generate a real project as a fixture |
 | `test` | every suite, including the per-adapter smoke tests |
