@@ -15,11 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # ci-unit is lint plus test-unit, and test-unit is genuinely offline — no
-    # adapter generator anywhere in its setup(), asserted by
-    # tests/contract.bats rather than promised by this comment — so no
-    # pnpm/php provisioning is needed here. The whole job measured 79 seconds
-    # on a runner, which is what the timeout below leaves room around.
+    # No pnpm/php: tests/contract.bats asserts test-unit generates no adapter.
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -35,20 +31,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # add-app.bats, compose.bats, docs.bats and workflows.bats each
-    # generate a real nestjs/laravel-api project as a fixture — same cost
-    # class as tier a in adapters.yml (bounded, not tier b's ~25 minutes),
-    # moved here because ADR-0012's tiers are about per-adapter smoke
-    # tests, not these cross-cutting mechanics suites.
     timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # workflows.bats walks this repository's own history to find the
-          # commit that introduced an adapter, then diffs against its parent.
-          # A default checkout has one commit and no parent, so the test fails
-          # on `unknown revision` rather than on anything it is testing.
+          # workflows.bats diffs the commit that introduced an adapter against its parent.
           fetch-depth: 0
           persist-credentials: false
       - name: Setup mise
@@ -74,12 +62,7 @@ jobs:
           persist-credentials: false
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      # Only this repository's own workflows. common/ holds templates whose
-      # `uses: you/.github/...` names no real repository, so ref-confusion
-      # cannot resolve it and the audit errors out rather than reporting a
-      # finding — a failure about the placeholder, not about the pipeline.
-      # What a generated project's call sites get instead is structural:
-      # tests/workflows.bats asserts sha-pinned actions, closed permission
-      # sets and shared-repository-only `uses:`. No audit runs on them.
+      # Not common/: its placeholder `uses: you/.github/...` makes ref-confusion
+      # error out. tests/workflows.bats checks those call sites structurally.
       - name: Run zizmor
         run: mise exec -- zizmor .github/workflows/
