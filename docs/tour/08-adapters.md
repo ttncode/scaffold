@@ -4,7 +4,10 @@
 
 An adapter is an overlay, not a vendored application: `scaffold` invokes a
 framework's own generator (`create-next-app`, `nest new`, `composer
-create-project`) and then copies its own files on top of the result.
+create-project`) and then copies its own files on top of the result. Where a
+framework ships no generator, the package manager's project init stands in —
+`flask` runs `uv init --bare`, which writes a `pyproject.toml` and nothing
+else, and the overlay supplies the application itself.
 `lib/lint.sh` requires four of them — `adapter.env`, `mise.toml`,
 `Dockerfile`, `.env.example` — and an adapter may ship more: `nextjs` adds
 `next.config.ts` and `.prettierignore`, `laravel-api` adds `phpstan.neon`

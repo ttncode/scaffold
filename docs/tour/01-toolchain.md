@@ -16,6 +16,10 @@ and, in a generated project, `common/mise.root.toml`'s (`node`, `pnpm`,
   any adapter.
 - `adapters/laravel-api/mise.toml` — a language declared in a local
   `[tools]` block so it never reaches the project root (see 08 — Adapters).
+- `adapters/flask/mise.toml` — the same rule with the pin somewhere else
+  again: it declares `uv` and no python, because uv resolves its own managed
+  interpreter and would install a mise-pinned one only to ignore it.
+  `adapters/flask/.python-version` is the file uv actually reads.
 - Upstream for comparison: immich's own root
   `https://github.com/immich-app/immich/blob/351be95/mise.toml`, which pins
   every service's language in one place — the opposite of this project's
