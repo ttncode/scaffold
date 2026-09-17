@@ -4,34 +4,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A bash toolbox that generates fully configured client projects. Every generated
-application implements the same nine-task contract — `install`, `format`,
-`format-fix`, `lint`, `check`, `test`, `build`, `ci-unit`, `checklist` — so CI
-runs one command per config root and never learns the language.
+application implements the same nine-task contract, so CI runs one command per
+config root and never learns the language.
 
 ## Install
 
-The toolbox needs `git`, `mise`, `jq` and `yq`. `mise` supplies the last two,
-so install it first ([instructions](https://mise.jdx.dev/getting-started.html)),
-then:
+Needs `git` and [`mise`](https://mise.jdx.dev/getting-started.html); `mise install` supplies `jq`, `yq` and the rest.
 
 ```sh
 git clone https://github.com/ttncode/scaffold.git
 cd scaffold
-mise install            # jq, yq, bats, shellcheck, zizmor, rush — pinned in mise.toml
+mise install
 ./scaffold list
+export PATH="$PWD:$PATH"   # optional: run `scaffold` from anywhere
 ```
 
-`scaffold` loads its own pinned `jq` and `yq` from this toolbox's `mise.toml`
-before it does anything else, so it runs the same from a clone, from a symlink,
-or from `PATH`:
-
-```sh
-ln -s "$PWD/scaffold" ~/.local/bin/scaffold
-```
-
-It reads that environment without changing directory, so a relative target is
-always created where the command was run, not inside the toolbox. It still
-refuses to run when `git` or `mise` itself is missing, and names which.
+`scaffold` loads its pinned `jq` and `yq` itself, and creates a relative target where you run it.
+Call it by its path or through `PATH`; a symlink to it does not work.
 
 ## Usage
 
@@ -41,99 +30,42 @@ scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
                     [--db <service>] [--cache <service>]
 scaffold add <dir> --adapter <adapter>
 scaffold update [dir] [--dry-run]
-scaffold publish [dir] [--public] [--no-protect] [--dry-run]
-scaffold list
+scaffold publish [dir] [--public | --private] [--no-protect] [--dry-run]
+scaffold list [--adapters] [--services]
 scaffold lint
 scaffold --version
 ```
 
-Run with no arguments in a terminal, `scaffold` walks you to a complete
-`new` command instead of printing usage — see
-[09-wizard](docs/tour/09-wizard.md). Anywhere else — a script, CI, no
-terminal attached — it keeps exactly the behaviour below.
-
-`new` creates a project. `add` installs another application into one that
-already exists. `update` brings a project that already exists up to this
-toolbox — it diffs `common/` and each adapter between the commit the project
-records in its own `.scaffold.toml` and this one, and applies the result to
-the project's own paths; `--dry-run` prints that patch instead. `publish` creates the GitHub
-repository the project already names and applies the settings a generated
-project needs but cannot carry in a file — see
-[ADR-0024](docs/decisions/0024-publishing-a-project-is-part-of-generating-it.md).
-`list` reports the adapters and their tiers. `lint` checks every adapter and every service
-against the contract. `--version` reports
-which commit of this toolbox is installed — `git describe`, so a working tree
-with uncommitted edits says `-dirty`.
-
-`new` prints one line per step rather than a package manager's output, and the
-commands to run next when it finishes. `SCAFFOLD_VERBOSE=1` passes everything
-through instead; a failing step prints its whole output either way.
-
-`--db` and `--cache` select a database and a cache; each defaults to `none`
-except `--db`, which defaults to `mysql` for a project with an `--api` or
-`--app` adapter. Requesting either on a project with neither is refused —
-the `web` tier has no driver, so nothing in the project could reach it. See
-[ADR-0020](docs/decisions/0020-database-default-is-derived-from-requested-adapters.md).
-
-The generated workflows call this account's reusable CI (`dot-github`) and
-publish to its `ghcr.io` namespace. `scaffold new` resolves the account from
-`SCAFFOLD_GITHUB_OWNER`, then `gh api user`, then `git config github.user`,
-and refuses to generate if none of the three resolves.
+What each command does, its defaults and its decision: [Commands](docs/README.md#commands).
 
 ## Adapter support tiers
 
-"Supported" and "guaranteed" are different words. Tier membership is read
-from each adapter's own `ADAPTER_TIER` (`adapters/*/adapter.env`) — see
-[ADR-0012](docs/decisions/0012-tiered-adapter-support.md).
+Each adapter's tier is `ADAPTER_TIER` in its `adapter.env` ([ADR-0012](docs/decisions/0012-tiered-adapter-support.md)).
 
 | Tier | Adapters | CI runs it | Guarantee |
 | --- | --- | --- | --- |
 | A | `nextjs`, `nestjs`, `laravel-api`, `flask` | every pull request, and nightly | stays green through every dependency bump |
-| B | `laravel-inertia` | when `adapters/laravel-inertia/**` changes, and weekly | verified regularly, not on every push — a full generation measures ~5 minutes per test |
-| C | none currently | not automatically verified | may rot; no guarantee at all |
+| B | `laravel-inertia` | a pull request that changes `adapters/laravel-inertia/`, weekly, or on manual dispatch | verified regularly, not on every push |
+| C | none currently | not automatically verified | none |
 
 ## Services
 
-A database or cache is a directory under `services/`, not an adapter — see
-[ADR-0019](docs/decisions/0019-services-are-not-adapters.md). Each ships a
-driver per adapter family (`laravel`, `nest`, `next`, `flask`); `scaffold lint`
-requires the full matrix before an adapter in a new family can merge.
+A database or cache is a directory under `services/`, not an adapter ([ADR-0019](docs/decisions/0019-services-are-not-adapters.md)).
 
 | Slot | Services | Default |
 | --- | --- | --- |
-| `--db` | `mysql`, `postgres`, `mongodb`, `none` | `mysql` (with `--api` or `--app`), otherwise `none` |
+| `--db` | `mysql`, `postgres`, `mongodb`, `none` | `mysql` with `--api` or `--app`, otherwise `none` ([ADR-0020](docs/decisions/0020-database-default-is-derived-from-requested-adapters.md)) |
 | `--cache` | `redis`, `none` | `none` |
-
-No DynamoDB: `compose.yaml` is attached to every release for a client to run
-(ADR-0014), and the only DynamoDB that fits a compose file is an emulator
-with no production counterpart in a self-hosted stack.
 
 ## Documentation
 
-- [Start here](docs/README.md) — what the toolbox is, map, commands, glossary
+- [Start here](docs/README.md) — what the toolbox is, map, commands, glossary, [reading path](docs/README.md#reading-path)
 - [Tour](docs/tour/) — how the pieces fit, nine pages
 - [Decisions](docs/decisions/) — why they fit that way
 - [Runbooks](docs/runbook/) — what to do when something specific happens
 - [Provenance](docs/PROVENANCE.md) — what is copied from immich, and where it drifted
-- [Contributing](CONTRIBUTING.md) — the tasks, the tests, and how to add an adapter
-
-### Reading path
-
-New to this toolbox: [01-toolchain](docs/tour/01-toolchain.md) through
-[03-ci](docs/tour/03-ci.md). That is day one — enough to generate a project and
-understand what CI does with it.
-
-Owning it for real, over the first week: the rest of the tour
-([04-guardrails](docs/tour/04-guardrails.md) through
-[09-wizard](docs/tour/09-wizard.md)), plus ADR-0001, ADR-0003 and ADR-0011.
-
-`docs/runbook/` is not reading material — consult it when the situation that
-names it actually arises.
+- [Contributing](CONTRIBUTING.md) — tasks, tests, adding an adapter or a service
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
-
-That covers this toolbox. A project it generates carries no licence of its own:
-the toolbox does not write one, because who owns generated work and on what
-terms is a question for the engagement it was generated for, not a default.
+MIT — see [LICENSE](LICENSE). A generated project gets no licence file: its terms belong to the engagement it was generated for.

@@ -69,6 +69,11 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 | `scaffold --version` | also `-v` | `git describe` of this toolbox, `-dirty` for uncommitted edits | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
 | `scaffold --help` | also `-h` | Prints usage | none |
 
+| Variable | Effect |
+| --- | --- |
+| `SCAFFOLD_GITHUB_OWNER` | The account substituted for `you/`; otherwise `gh api user`, then `git config github.user`, else `scaffold new` refuses |
+| `SCAFFOLD_VERBOSE=1` | Streams every step's output; by default a step's output is shown only when it fails |
+
 ## Glossary
 
 | Term | Meaning | Where |

@@ -2,122 +2,76 @@
 
 ## Setup
 
-```sh
-mise install            # every tool this repository uses, pinned in mise.toml
-mise exec -- lefthook install   # shellcheck, gitleaks, commit-message check
-mise run lint           # shellcheck + shfmt over every tracked shell file
-mise run test-unit      # the offline suites
-```
+1. `mise install` — every tool this repository uses, pinned in `mise.toml`.
+2. `mise exec -- lefthook install` — the git hooks (`lefthook` is pinned, not on `PATH`).
+3. `mise run lint`
+4. `mise run test-unit`
 
-`lefthook` is pinned here, not on your PATH, so the bare command works only if
-your shell already runs `mise activate`. The hooks are deliberately cheap —
-`lint` and a secret scan at `pre-commit`, a Conventional Commit check at
-`commit-msg`, and no `pre-push` gate: the suites run in this repository's CI on
-every push, and paying two minutes locally to learn the same thing is a tax.
-
-`./scaffold` loads this repository's own pinned `jq` and `yq` before it does
-anything else, so it needs no wrapper — from the clone, a symlink, or `PATH`.
+| Hook | Runs |
+| --- | --- |
+| `pre-commit` | `mise run lint`, gitleaks on staged changes |
+| `commit-msg` | Conventional Commit check (a grep; this repository has no node) |
+| `pre-push` | nothing: CI runs the suites on every push |
 
 ## Tasks
 
-| Task | What it runs |
+| Task | Runs |
 | --- | --- |
-| `lint` | shellcheck + shfmt (`-i 2 -ci`) over every shell file the repository tracks |
-| `test-unit` | the suites that never invoke an adapter's generator — offline and quick |
-| `test-integration` | the suites that generate a real project as a fixture |
-| `test` | every suite, including the per-adapter smoke tests |
-| `test-runner` | `test-unit` and `test-integration` under the environment a GitHub runner has |
-| `ci-unit` | `lint` + `test-unit` — what CI runs on a pull request |
-| `checklist` | `lint` + `test` — the pre-push gate |
+| `lint` | shellcheck + shfmt (`-i 2 -ci`) over every tracked shell file |
+| `test-unit` | The offline suites, listed by name in `mise.toml` |
+| `test-integration` | The suites that generate a real project as a fixture |
+| `test` | Every suite in `tests/`, including the per-adapter smoke tests |
+| `test-runner` | `test-unit` and `test-integration` with `CI`, `GITHUB_ACTIONS` and `MISE_YES` set, as on a runner |
+| `ci-unit` | `lint` + `test-unit`: the `unit` job in `.github/workflows/ci.yml` |
+| `checklist` | `lint` + `test` |
 
-`mise run test-runner` matters more than its name suggests. `pnpm` turns on
-`--frozen-lockfile` when `CI` is set, and `mise` trusts every config it finds
-for the same reason; a suite that passes without those variables says nothing
-about the runner. Several failures have only ever appeared there.
+`test-runner` matters: with `CI` set, pnpm uses `--frozen-lockfile`, so a suite can pass locally and fail on a runner.
+
+## Test lanes
+
+| Suite | Lane | Where CI runs it |
+| --- | --- | --- |
+| Listed in `test-unit` | unit | `.github/workflows/ci.yml`, `unit` job |
+| Listed in `test-integration` | integration | `.github/workflows/ci.yml`, `integration` job |
+| `tests/new-<adapter>.bats` | smoke, per adapter tier | `.github/workflows/adapters.yml` |
+| `tests/provenance.bats` | provenance | `.github/workflows/provenance.yml` |
+
+`tests/contract.bats` fails when a suite is in no lane, or when a `test-unit` suite runs an adapter generator.
 
 ## Writing a test
 
-Assert with `assert_ok` rather than `[ "$status" -eq 0 ]`. bats captures the
-command's output into `$output` and prints none of it, so a bare status check
-reports the line that failed and nothing about why — every diagnosis in this
-repository has started by adding that output back by hand.
-
-Each test generates its own project. That is slow, and deliberately so: a
-shared fixture makes one test's mess into the next test's failure, and a suite
-whose result depends on execution order cannot say what broke. The suites run
-with `--jobs` instead, which overlaps independent work without sharing any.
-
-When a test cannot hold its own precondition — `mise` pre-trusts every config
-on a runner, `gh` has no credentials there — `skip` with the reason rather than
-failing. A red that is about the environment teaches nothing.
+- Assert with `assert_ok` (`tests/helpers/setup.bash`), not `[ "$status" -eq 0 ]`: it prints the captured output on failure.
+- Each test builds its own fixtures; no suite uses `setup_file`. Suites run in parallel with `--jobs`.
+- When the environment cannot hold a precondition, `skip` with the reason instead of failing.
 
 ## Adding an adapter
 
-See [docs/runbook/add-an-adapter.md](docs/runbook/add-an-adapter.md). In short:
-an adapter invokes a framework's own generator and overlays its own files on
-the result. It must ship `adapter.env`, `mise.toml`, `Dockerfile` and
-`.env.example`, implement all nine contract tasks, and pass `scaffold lint`.
-
-`format`, `lint` and `check` must report without repairing. The linter enforces
-this by rejecting a writing flag in their `run` — see
-[ADR-0011](docs/decisions/0011-task-contract-names-follow-immich.md).
-
-Nothing needs doing for the wizard: it builds its questions from `scaffold
-list`, so a new adapter appears there as soon as `scaffold lint` passes —
-see [09-wizard](docs/tour/09-wizard.md).
+Follow [docs/runbook/add-an-adapter.md](docs/runbook/add-an-adapter.md). The wizard needs no change: it reads `scaffold list`.
 
 ## Adding a service
 
-A service is a directory under `services/`, not an adapter — see
-[ADR-0019](docs/decisions/0019-services-are-not-adapters.md). It must ship
-six files: `service.env` (`SERVICE_NAME`, `SERVICE_KIND`, a digest-pinned
-`SERVICE_IMAGE`), a shared `compose.fragment.yaml`, a `compose.prod.fragment.yaml`
-/ `compose.dev.fragment.yaml` / `compose.test.fragment.yaml` delta per lane,
-and an `env.fragment`. None of the compose fragments may carry their own
-`image:` line — `assemble_compose` writes the digest in from `service.env`.
+A service is a directory under `services/` ([ADR-0019](docs/decisions/0019-services-are-not-adapters.md)).
 
-It must also ship a driver, `drivers/<family>.sh`, for every adapter family
-whose role is `api` or `app` — `laravel` and `nest` today; `next` takes none,
-because `nextjs`'s role is `web` and the presentation tier opens no
-connection. `scaffold lint` derives that family list from the adapters
-themselves and fails a service that is missing any one of them, by name. A
-new adapter family is the same problem from the other direction: it cannot
-merge until every existing service has a `drivers/<that-family>.sh`, which is
-why the lint requires the full matrix rather than checking each service in
-isolation.
+1. Add `service.env` with `SERVICE_NAME`, `SERVICE_KIND` and a digest-pinned `SERVICE_IMAGE`.
+2. Add `compose.fragment.yaml` and the per-lane `compose.prod.fragment.yaml`, `compose.dev.fragment.yaml`, `compose.test.fragment.yaml`, none with an `image:` line.
+3. Add `env.fragment`.
+4. Add `drivers/<family>.sh` for every family of an `api` or `app` adapter — today `laravel`, `nest`, `flask`.
+5. Run `./scaffold lint`: it derives the families from the adapters and names any missing driver.
+
+A new adapter family is the same check from the other side: every service needs its driver before it merges.
 
 ## What a change reaches
 
-A change to `common/` or to an adapter reaches a project that already exists
-only when somebody runs `scaffold update` in it — see
-[ADR-0023](docs/decisions/0023-a-project-records-what-generated-it.md). A
-change to a reusable workflow in *you/.github* reaches every project the next
-time it runs, once `v1` moves (ADR-0005). Knowing which of the two you are
-writing decides whether anything has to be done afterwards.
+| Change | Reaches an existing project |
+| --- | --- |
+| `common/` or an adapter | When someone runs `scaffold update` in it ([ADR-0023](docs/decisions/0023-a-project-records-what-generated-it.md)) |
+| A reusable workflow in *you/.github* | On its next run, once `v1` moves (ADR-0005) |
 
-## Commits
+## Commits and versions
 
-Conventional Commits, enforced by lefthook at `commit-msg`. `feat:` and `fix:`
-move the version of a generated project; `chore:` and `docs:` do not.
-
-## Versions
-
-This toolbox is versioned by git tag and nothing else — there is no package to
-publish, and the tag is the artefact. `scaffold --version` is `git describe`
-against the checkout, and a generated project records that same string in its
-`.scaffold.toml`, which is what `scaffold update` later diffs from.
-
-Cut one from `main` after a change worth telling somebody about:
-
-```sh
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-Tagging is deliberately manual. Release Please is not set up here the way it is
-in a generated project, because nothing downstream installs this by version:
-what a tag buys is a readable answer in `--version` and in every
-`.scaffold.toml` written after it, not a distribution channel.
+- Conventional Commits, checked at `commit-msg`.
+- The toolbox is versioned by git tag only. `scaffold --version` is `git describe`, and `.scaffold.toml` records it.
+- Tagging is manual: `git tag v0.2.0 && git push origin v0.2.0`.
 
 ## Before opening a pull request
 
@@ -126,5 +80,4 @@ mise run lint
 mise run test-runner
 ```
 
-`mise run test` additionally covers the per-adapter smoke tests, including the
-tier B adapter, which takes about 25 minutes.
+`mise run test` adds the per-adapter smoke tests; tier B's five tests take about five minutes each.
