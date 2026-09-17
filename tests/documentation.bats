@@ -12,18 +12,32 @@ setup() {
   [ -z "$missing" ]
 }
 
-@test "every path named in the tour and runbooks exists" {
+@test "every path named in the docs exists" {
   run bash -c "
+    cd '${SCAFFOLD_ROOT}'
     grep -rhoE '\`((\w|[.-])+/)+(\w|[.-])+\`' \
-      '${SCAFFOLD_ROOT}/docs/tour' '${SCAFFOLD_ROOT}/docs/runbook' \
+      docs/tour docs/runbook README.md CONTRIBUTING.md \
+      \$(git ls-files docs/README.md) \
     | tr -d '\`' | sort -u \
     | while read -r p; do
         # apps/* names a path inside a *generated* project, which this
-        # repository has no copy of and cannot verify — the walkthrough has to
-        # name them to be followable. Everything else must exist here.
+        # repository has no copy of and cannot verify.
         case \"\$p\" in apps/*) continue ;; esac
-        [ -e \"${SCAFFOLD_ROOT}/\$p\" ] || echo \"missing: \$p\"
+        [ -e \"\$p\" ] || echo \"missing: \$p\"
       done"
+  [ -z "$output" ]
+}
+
+@test "every relative link and image in the docs resolves" {
+  run bash -c "
+    cd '${SCAFFOLD_ROOT}'
+    for page in README.md CONTRIBUTING.md \$(git ls-files 'docs/*.md'); do
+      grep -oE '\]\([^)#[:space:]]+' \"\$page\" | cut -c3- \
+        | grep -vE '^(https?:|mailto:)' \
+        | while read -r target; do
+            [ -e \"\$(dirname \"\$page\")/\$target\" ] || echo \"\$page: \$target\"
+          done
+    done"
   [ -z "$output" ]
 }
 
