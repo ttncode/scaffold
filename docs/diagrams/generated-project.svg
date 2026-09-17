@@ -1,62 +1,63 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg viewBox="0 0 1000 436" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="generated-project-title generated-project-desc">
   <title id="generated-project-title">What a generated project contains</title>
-  <desc id="generated-project-desc">Tree of a project generated with nestjs, nextjs and postgres: apps with api and web, packages/types, docs, the GitHub workflows, and root files such as .scaffold.toml and mise.toml.</desc>
+  <desc id="generated-project-desc">Tree of a project generated with nestjs, nextjs and postgres: apps with api and web, packages/types, docs, the GitHub workflows, and root files such as mise.toml and .scaffold.toml.</desc>
   <defs>
     <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
     <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
     <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
   </defs>
   <rect width="100%" height="100%" fill="#f5f5f5"/>
-  <path d="M500,96 V128" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M116,128 H884" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M116,128 V160" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M308,128 V160" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M500,128 V160" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M692,128 V160" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M884,128 V160" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M116,216 V248" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M116,248 H308" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M116,248 V280" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <path d="M308,248 V280" fill="none" stroke="#4f5d75" stroke-width="1"/>
-  <rect x="380" y="40" width="240" height="56" rx="6" fill="#f5f5f5"/>
-  <rect x="380" y="40" width="240" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
-  <text x="500" y="68" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">demo/</text>
-  <text x="500" y="84" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">one commit: feat: scaffold project</text>
+  <path d="M500,96 V128" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M116,128 H884" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M116,128 V160" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M308,128 V160" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M500,128 V160" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M692,128 V160" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M884,128 V160" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M116,216 V248" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M116,248 H308" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M116,248 V280" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M308,248 V280" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <rect x="360" y="40" width="280" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="360" y="40" width="280" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="500" y="65" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">demo/</text>
+  <text x="500" y="81" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">one commit: feat: scaffold project</text>
   <rect x="32" y="160" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="32" y="160" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="116" y="188" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/</text>
-  <text x="116" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">one directory per role</text>
+  <text x="116" y="185" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/</text>
+  <text x="116" y="201" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">one per role</text>
   <rect x="224" y="160" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="224" y="160" width="168" height="56" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="308" y="188" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">packages/types</text>
-  <text x="308" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">only if every app is TS</text>
+  <text x="308" y="185" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">packages/types</text>
+  <text x="308" y="201" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">if every app is TS</text>
   <rect x="416" y="160" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="416" y="160" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="500" y="188" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">docs/</text>
-  <text x="500" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">VitePress site · ADRs</text>
+  <text x="500" y="185" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">docs/</text>
+  <text x="500" y="201" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">VitePress · ADRs</text>
   <rect x="608" y="160" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="608" y="160" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="692" y="188" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">.github/workflows/</text>
-  <text x="692" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ci · build · release · +2</text>
+  <text x="692" y="185" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">.github/workflows/</text>
+  <text x="692" y="201" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">5 call sites</text>
   <rect x="800" y="160" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="800" y="160" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="884" y="188" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Root files</text>
-  <text x="884" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">.scaffold.toml · mise.toml</text>
+  <text x="884" y="178" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Root files</text>
+  <text x="884" y="194" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">mise.toml</text>
+  <text x="884" y="209" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">.scaffold.toml</text>
   <rect x="32" y="280" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="32" y="280" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="116" y="308" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/api</text>
-  <text x="116" y="324" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">nestjs · Dockerfile</text>
+  <text x="116" y="305" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/api</text>
+  <text x="116" y="321" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">nestjs · Dockerfile</text>
   <rect x="224" y="280" width="168" height="56" rx="6" fill="#f5f5f5"/>
   <rect x="224" y="280" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="308" y="308" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/web</text>
-  <text x="308" y="324" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">nextjs · Dockerfile</text>
+  <text x="308" y="305" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">apps/web</text>
+  <text x="308" y="321" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">nextjs · Dockerfile</text>
   <line x1="40" y1="376" x2="960" y2="376" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-  <text x="40" y="392" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+  <text x="40" y="392" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
   <rect x="40" y="404" width="24" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
-  <text x="72" y="414" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Project root</text>
-  <rect x="220" y="404" width="24" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-  <text x="252" y="414" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Directory or file group</text>
-  <rect x="400" y="404" width="24" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="432" y="414" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Depends on the apps</text>
+  <text x="72" y="414" fill="#4f5d75" font-size="11" font-family="'Geist', sans-serif">Project root</text>
+  <rect x="280" y="404" width="24" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="312" y="414" fill="#4f5d75" font-size="11" font-family="'Geist', sans-serif">Directory or file group</text>
+  <rect x="520" y="404" width="24" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="552" y="414" fill="#4f5d75" font-size="11" font-family="'Geist', sans-serif">Depends on the apps</text>
 </svg>
