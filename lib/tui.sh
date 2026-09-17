@@ -71,14 +71,19 @@ tui_header() {
     return
   fi
 
-  local cols width
+  tui_banner '  Up/down or type a letter to move' '  Press Enter to select' '  Press Esc to cancel'
+  echo
+}
+
+# tui_banner [dim-row]...: the boxed wordmark and tagline, then any dim rows.
+tui_banner() {
+  local cols width line
   cols="$(tput cols 2>/dev/null || printf '%s\n' "$DEFAULT_TERM_COLS")"
   width=$((cols - 1))
 
   _tui_header_edge '╭' '╮' 'Scaffold' "$width"
   _tui_header_row '' '' "$width"
   if ((width - 2 >= _TUI_LOGO_WIDTH)); then
-    local line
     for line in "${_TUI_LOGO[@]}"; do
       _tui_header_row bold "$line" "$width"
     done
@@ -86,12 +91,67 @@ tui_header() {
   fi
   _tui_header_row '' '  Pick a stack — CI, containers and a release you can install' "$width"
   _tui_header_row '' '' "$width"
-  _tui_header_row dim '  Up/down or type a letter to move' "$width"
-  _tui_header_row dim '  Press Enter to select' "$width"
-  _tui_header_row dim '  Press Esc to cancel' "$width"
-  _tui_header_row '' '' "$width"
+  if (($# > 0)); then
+    for line in "$@"; do
+      _tui_header_row dim "$line" "$width"
+    done
+    _tui_header_row '' '' "$width"
+  fi
   _tui_header_edge '╰' '╯' 'Project generator' "$width"
+}
+
+# Help screens in the layout of ~/.dotfiles/scripts/lib/usage.sh: flush-left
+# headings, items buffered per section so their columns line up.
+_TUI_USAGE_SEP=$'\x1f'
+_TUI_USAGE_ROWS=()
+
+tui_usage_section() {
+  _tui_usage_flush
+  printf '\n%b\n' "${BOLD}${1}:${RESET}"
+}
+
+tui_usage_text() {
+  printf '  %s\n' "$1"
+}
+
+# tui_usage_item <name> <args> <description>
+tui_usage_item() {
+  _TUI_USAGE_ROWS+=("${1}${_TUI_USAGE_SEP}${2}${_TUI_USAGE_SEP}${3}")
+}
+
+tui_usage_hint() {
+  _tui_usage_flush
+  printf '\n%b\n' "${DIM}${1}${RESET}"
+}
+
+tui_usage_end() {
+  _tui_usage_flush
   echo
+}
+
+# Padding stays outside the colour escapes, as in _tui_collapse.
+_tui_usage_flush() {
+  ((${#_TUI_USAGE_ROWS[@]} > 0)) || return 0
+
+  local row name args desc w_name=0 w_args=0
+  for row in "${_TUI_USAGE_ROWS[@]}"; do
+    IFS="$_TUI_USAGE_SEP" read -r name args desc <<<"$row"
+    ((${#name} > w_name)) && w_name=${#name}
+    ((${#args} > w_args)) && w_args=${#args}
+  done
+
+  for row in "${_TUI_USAGE_ROWS[@]}"; do
+    IFS="$_TUI_USAGE_SEP" read -r name args desc <<<"$row"
+    printf '  %b%*s  ' "${CYAN}${name}${RESET}" "$((w_name - ${#name}))" ""
+    if [[ -n "$args" ]]; then
+      printf '%b%*s  ' "${DIM}${args}${RESET}" "$((w_args - ${#args}))" ""
+    elif ((w_args > 0)); then
+      printf '%*s' "$((w_args + 2))" ""
+    fi
+    printf '%s\n' "$desc"
+  done
+
+  _TUI_USAGE_ROWS=()
 }
 
 _tui_header_edge() {
@@ -127,6 +187,74 @@ _tui_header_row() {
   [[ "$style" == "bold" ]] && styled="${BOLD}${text}${RESET}"
 
   printf '%b\n' "${BOLD}${GREEN}│${RESET}${styled}${pad}${BOLD}${GREEN}│${RESET}"
+}
+
+# tui_table <title> <footer> <header> <row>...
+# Header and rows are tab-separated columns, drawn in the wizard header's box.
+tui_table() {
+  local -r title="$1" footer="$2" header="$3"
+  shift 3
+  local -a rows=("$@") widths=()
+  local cols width line i
+  local -a cells
+  cols="$(tput cols 2>/dev/null || printf '%s\n' "$DEFAULT_TERM_COLS")"
+  width=$((cols - 1))
+
+  for line in "$header" ${rows[@]+"${rows[@]}"}; do
+    IFS=$'\t' read -ra cells <<<"$line"
+    for i in "${!cells[@]}"; do
+      ((${#cells[i]} > ${widths[i]:-0})) && widths[i]=${#cells[i]}
+    done
+  done
+
+  _tui_header_edge '╭' '╮' "$title" "$width"
+  _tui_header_row '' '' "$width"
+  _tui_table_columns "$header" "${widths[@]}"
+  _tui_header_row dim "  ${REPLY}" "$width"
+  for line in ${rows[@]+"${rows[@]}"}; do
+    _tui_table_columns "${line#*$'\t'}" "${widths[@]:1}"
+    _tui_table_row "${line%%$'\t'*}" "$((widths[0] + 2))" "$REPLY" "$width"
+  done
+  _tui_header_row '' '' "$width"
+  _tui_header_edge '╰' '╯' "$footer" "$width"
+}
+
+# Pads every column but the last to its width plus a two-space gutter; REPLY.
+_tui_table_columns() {
+  local -a cells
+  IFS=$'\t' read -ra cells <<<"$1"
+  shift
+  local -a widths=("$@")
+  local i last=$((${#cells[@]} - 1)) padded
+  REPLY=""
+  for i in "${!cells[@]}"; do
+    if ((i == last)); then
+      REPLY+="${cells[i]}"
+    else
+      printf -v padded '%-*s' "$((widths[i] + 2))" "${cells[i]}"
+      REPLY+="$padded"
+    fi
+  done
+}
+
+# The name in cyan, as the wizard shows an answer; a malformed entry in red.
+# Padding stays outside the colour escapes, as in _tui_collapse.
+_tui_table_row() {
+  local -r name="$1" name_width="$2" rest="$3" width="$4"
+  local -r inner=$((width - 2))
+  local gap pad
+  printf -v gap '%*s' "$((name_width - ${#name}))" ''
+  local -r text="  ${name}${gap}${rest}"
+
+  if ((${#text} > inner)); then
+    _tui_header_row '' "$text" "$width"
+    return
+  fi
+
+  local colour="$CYAN"
+  [[ "$name" == "[error]" ]] && colour="$RED"
+  printf -v pad '%*s' "$((inner - ${#text}))" ''
+  printf '%b\n' "${BOLD}${GREEN}│${RESET}  ${colour}${name}${RESET}${gap}${rest}${pad}${BOLD}${GREEN}│${RESET}"
 }
 
 tui_name_is_usable() {

@@ -7,7 +7,22 @@ setup() {
 @test "scaffold with no arguments prints usage and fails" {
   run scaffold
   [ "$status" -eq 1 ]
-  [[ "$output" == *"usage:"* ]]
+  [[ "$output" == *"Usage:"* ]]
+}
+
+@test "scaffold --help draws the banner on a terminal and stays plain when piped" {
+  command -v script >/dev/null || skip "script(1) not available"
+
+  run script -qec "stty cols 100; scaffold --help" /dev/null
+  assert_ok
+  [[ "$output" == *"╭"*"Scaffold"*"╮"* ]]
+  [[ "$output" == *"Commands:"*"publish"*"Flags:"* ]]
+
+  run scaffold --help
+  assert_ok
+  [[ "$output" == *"Usage:"* ]]
+  [[ "$output" != *"╭"* ]]
+  [[ "$output" != *$'\033'* ]]
 }
 
 @test "scaffold rejects an unknown command" {
@@ -110,6 +125,18 @@ setup() {
   [[ "$output" == *"sample"* ]]
   [[ "$output" == *"[error]"* ]]
   [[ "$output" == *"bad"* ]]
+}
+
+@test "scaffold list on a terminal draws boxed tables, and keeps broken rows" {
+  command -v script >/dev/null || skip "script(1) not available"
+
+  run script -qec "stty cols 80; '${SCAFFOLD_ROOT}/tests/fixtures/broken-adapters/scaffold' list" /dev/null
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"╭"*"Adapters"*"╮"* ]]
+  [[ "$output" == *"NAME"*"ROLE"*"TIER"* ]]
+  [[ "$output" == *"[error]"*"bad"* ]]
+  [[ "$output" == *"╭"*"Services"*"╮"* ]]
+  [[ "$output" != *$'\t'* ]]
 }
 
 @test "scaffold lint accepts every adapter that ships" {
@@ -226,7 +253,7 @@ setup() {
   # the failure would look like a timeout rather than an error.
   run bash -c "printf '' | '${SCAFFOLD_ROOT}/scaffold'"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"usage:"* ]]
+  [[ "$output" == *"Usage:"* ]]
   [[ "$output" != *"What are you building"* ]]
 }
 

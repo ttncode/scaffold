@@ -38,20 +38,43 @@ REQUIRED_TOOLS=(git mise jq yq)
 
 SCAFFOLD_SERVICES=()
 
+# On a terminal, the banner and colours; piped or on the error path, plain text.
 usage() {
-  cat <<'EOF'
-usage:
-  scaffold                    interactive wizard (needs a terminal)
-  scaffold new <name> [--web <adapter>] [--api <adapter>] [--app <adapter>]
-                      [--db <service>] [--cache <service>]
-  scaffold add <dir> --adapter <adapter>
-  scaffold update [dir] [--dry-run]
-  scaffold publish [dir] [--public | --private] [--no-protect] [--dry-run]
-  scaffold list [--adapters] [--services]
-  scaffold lint
-  scaffold -h, --help
-  scaffold -v, --version
-EOF
+  if [[ -t 1 ]]; then
+    tui_banner
+  else
+    local BOLD="" DIM="" CYAN="" RESET=""
+  fi
+
+  tui_usage_section "Usage"
+  tui_usage_text "scaffold <command> [args]"
+  tui_usage_text "scaffold                   the interactive wizard (needs a terminal)"
+
+  tui_usage_section "Options"
+  tui_usage_item "-h, --help" "" "Show help"
+  tui_usage_item "-v, --version" "" "Show version"
+
+  tui_usage_section "Commands"
+  tui_usage_item new "<name>" "Generate and commit a project"
+  tui_usage_item add "<dir>" "Add an app to an existing project and stage it"
+  tui_usage_item update "[dir]" "Apply toolbox changes since the project was generated; never commits"
+  tui_usage_item publish "[dir]" "Create the GitHub repository and apply its settings"
+  tui_usage_item list "" "Print adapters with role and tier, services with kind"
+  tui_usage_item lint "" "Check every adapter and service against the contract"
+
+  tui_usage_section "Flags"
+  tui_usage_item new "--web, --api, --app <adapter>" "Add an app in that role"
+  tui_usage_item new "--db <service>" "The database: mysql with --api or --app, otherwise none"
+  tui_usage_item new "--cache <service>" "The cache: none unless given"
+  tui_usage_item add "--adapter <adapter>" "The new app's adapter (required)"
+  tui_usage_item update "--dry-run" "Print the patch instead of applying it"
+  tui_usage_item publish "--public, --private" "The repository's visibility (default private)"
+  tui_usage_item publish "--no-protect" "Leave main unprotected"
+  tui_usage_item publish "--dry-run" "Print what would change on GitHub"
+  tui_usage_item list "--adapters, --services" "Print only one of them"
+
+  tui_usage_hint "Run 'scaffold list' for the adapters and services to name."
+  tui_usage_end
 }
 
 # jq and yq are pinned in this toolbox's mise.toml. `mise env -C`, not
@@ -169,12 +192,40 @@ cmd_list() {
     want_services=1
   fi
 
-  LIST_ROWS=()
-  ((want_adapters == 1)) && { collect_adapter_rows || status=1; }
-  ((want_services == 1)) && { collect_service_rows || status=1; }
+  # Piped or captured, the rows stay tab-separated: the wizard, scripts and
+  # workflows parse them.
+  if [[ ! -t 1 ]]; then
+    LIST_ROWS=()
+    ((want_adapters == 1)) && { collect_adapter_rows || status=1; }
+    ((want_services == 1)) && { collect_service_rows || status=1; }
+    printf '%s\n' ${LIST_ROWS[@]+"${LIST_ROWS[@]}"} | sort
+    return "$status"
+  fi
 
-  printf '%s\n' ${LIST_ROWS[@]+"${LIST_ROWS[@]}"} | sort
+  if ((want_adapters == 1)); then
+    LIST_ROWS=()
+    collect_adapter_rows || status=1
+    print_list_table Adapters adapter $'NAME\tROLE\tTIER'
+  fi
+  ((want_adapters == 1 && want_services == 1)) && echo
+  if ((want_services == 1)); then
+    LIST_ROWS=()
+    collect_service_rows || status=1
+    # A service has no tier column to show.
+    LIST_ROWS=(${LIST_ROWS[@]+"${LIST_ROWS[@]%$'\t'-}"})
+    print_list_table Services service $'NAME\tKIND'
+  fi
   return "$status"
+}
+
+# print_list_table <title> <noun> <header>: LIST_ROWS, sorted, in a box.
+print_list_table() {
+  local -r title="$1" noun="$2" header="$3"
+  local -a rows=()
+  ((${#LIST_ROWS[@]} == 0)) || mapfile -t rows < <(printf '%s\n' "${LIST_ROWS[@]}" | sort)
+  local footer="${#rows[@]} ${noun}"
+  ((${#rows[@]} == 1)) || footer+="s"
+  tui_table "$title" "$footer" "$header" ${rows[@]+"${rows[@]}"}
 }
 
 cmd_lint() {
@@ -465,7 +516,7 @@ parse_add_flags() {
 }
 
 cmd_add() {
-  (($# >= 3)) || die "usage: scaffold add <dir> --adapter <adapter>"
+  (($# >= 3)) || die "add requires a directory and an adapter: scaffold add <dir> --adapter <adapter>"
 
   local -r rel="$1"
   shift
@@ -971,7 +1022,7 @@ main() {
     list) cmd_list "$@" ;;
     lint) cmd_lint "$@" ;;
     -h | --help) usage ;;
-    *) die "unknown command: ${command}" ;;
+    *) die "unknown command: ${command} (run: scaffold --help)" ;;
   esac
 }
 
