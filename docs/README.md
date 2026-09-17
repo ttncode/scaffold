@@ -94,9 +94,10 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 
 | When | Read |
 | --- | --- |
-| Day one | This page, then [01-toolchain](tour/01-toolchain.md) through [03-ci](tour/03-ci.md) |
-| First week | [04-guardrails](tour/04-guardrails.md) through [09-wizard](tour/09-wizard.md); ADR-0001, ADR-0003, ADR-0011 |
-| On demand | The [runbook](runbook/) that names the situation |
+| Day one | This page; [first-project-walkthrough](runbook/first-project-walkthrough.md); [01-toolchain](tour/01-toolchain.md), [02-task-contract](tour/02-task-contract.md), [03-ci](tour/03-ci.md) |
+| First week | [04-guardrails](tour/04-guardrails.md), [05-release](tour/05-release.md), [06-docs-site](tour/06-docs-site.md), [07-containers](tour/07-containers.md), [08-adapters](tour/08-adapters.md), [09-wizard](tour/09-wizard.md); [ADR-0001](decisions/0001-use-mise-tasks-as-the-task-runner.md), [ADR-0003](decisions/0003-adapter-overlay-instead-of-vendored-presets.md), [ADR-0011](decisions/0011-task-contract-names-follow-immich.md) |
+| On demand | The runbook that names the situation: [add-an-adapter](runbook/add-an-adapter.md), [bump-a-toolchain-version](runbook/bump-a-toolchain-version.md), [ci-is-red](runbook/ci-is-red.md), [cut-a-release](runbook/cut-a-release.md), [publish-a-project](runbook/publish-a-project.md), [rotate-a-leaked-secret](runbook/rotate-a-leaked-secret.md), [sync-with-upstream-immich](runbook/sync-with-upstream-immich.md), [update-a-project](runbook/update-a-project.md) |
+| Why a choice was made | [decisions/](decisions/); where borrowed code came from: [PROVENANCE](PROVENANCE.md) |
 | Before a project's first push | [publish-a-project](runbook/publish-a-project.md) |
 | When the toolbox changed under an existing project | [update-a-project](runbook/update-a-project.md) |
 
