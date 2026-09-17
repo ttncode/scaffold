@@ -1,58 +1,51 @@
 # Bump a toolchain version
 
-## 1. Find where the version is pinned
+When: a pinned tool needs a new version, in the toolbox or in what it generates.
 
-- This toolbox's own tools (`bats`, `shellcheck`, `yq`, `jq`): `mise.toml`
-  at the repository root.
-- What ships into every generated project (`node`, `pnpm`, `lefthook`,
-  `gitleaks`): `common/mise.root.toml`.
-- One adapter's own language (`php`'s Composer, or the pinned Node used by
-  `laravel-inertia`'s build step): that adapter's own `mise.toml`, e.g.
-  `adapters/laravel-api/mise.toml`.
-- `flask`'s python is the exception, and searching the `[tools]` blocks for
-  it finds nothing: `adapters/flask/mise.toml` pins `uv` only, and the
-  interpreter is pinned in `adapters/flask/.python-version`, the file uv
-  reads. Bumping it means editing that file and the `--python` argument in
-  `adapters/flask/adapter.env`, which sets `requires-python` at generation.
+## Steps
 
-## 2. Edit the version
+1. Find the pin.
 
-Change the version string for the tool in question. Leave everything else
-in the `[tools]` block alone.
+   | Tool | Pinned in |
+   | --- | --- |
+   | This toolbox's tools: `bats`, `shellcheck`, `shfmt`, `yq`, `jq`, `zizmor`, `rush`, `lefthook`, `gitleaks` | `mise.toml` |
+   | Every generated project: `node`, `pnpm`, `lefthook`, `gitleaks` | `common/mise.root.toml` |
+   | One adapter's toolchain, e.g. composer for `laravel-api`, node for `laravel-inertia` | `adapters/<name>/mise.toml` |
+   | `flask`'s python | `adapters/flask/.python-version` and the `--python` argument in `adapters/flask/adapter.env` |
+   | php | Not pinned: system php, checked by each Laravel adapter's `install` task (ADR-0016) |
 
-## 3. Re-resolve the lock
+2. Edit the version string. Leave the rest of the `[tools]` block alone.
 
-```bash
-mise install
-```
+3. `lefthook` and `gitleaks` are pinned twice. Change `mise.toml` and `common/mise.root.toml` together.
 
-This rewrites `mise.lock` (for this toolbox's own tools) with the newly
-resolved version and checksum. `mise.lock` itself is tracked, here and in
-every generated project (docs/tour/01-toolchain.md) — what a `common/`-
-level bump has *no* local file for is a pre-built one: `common/` ships no
-`mise.lock` template, because a generated project doesn't have one until
-its own first `mise install` creates it. From that point on it's a normal
-tracked file, same as this toolbox's — there's just nothing sitting in
-`common/` for this step to re-lock right now.
+4. Re-resolve this toolbox's lock.
 
-## 4. Verify
+   ```bash
+   mise install
+   mise lock
+   ```
+
+   `common/` ships no `mise.lock`. `scaffold new` runs `mise lock` in each new project (`lock_toolchains` in `lib/project.sh`).
+
+## Verify
 
 ```bash
+git diff mise.lock
 mise run checklist
 ```
 
-For a `common/`-level bump specifically, also generate a throwaway project
-and run its own checklist, since nothing in this repository's own suite
-exercises `common/mise.root.toml` end to end the way a real generation
-does:
+For a `common/` or adapter bump, also generate a project and run its checklist:
 
 ```bash
-./scaffold new /tmp/probe --api nestjs && cd /tmp/probe && mise run checklist
+./scaffold new ../probe --api nestjs
+(cd ../probe && mise run checklist)
 ```
 
-## Done when
+Delete the probe project afterwards.
 
-`mise run checklist` passes here, the probe project's own checklist
-passes, and `mise.lock` (if this toolbox's own tools changed) reflects the
-new version — check with `git diff mise.lock`. It's tracked, same as a
-generated project's own (see docs/tour/01-toolchain.md).
+## If it fails
+
+| Symptom | Fix |
+| --- | --- |
+| A generated project warns `could not lock the toolchain` | Run `mise lock` in that project, then commit `mise.lock` |
+| `laravel-api` fails `install` with `requires system php >= 8.3.0` | Install php 8.3 or newer on the host; mise cannot (ADR-0016) |

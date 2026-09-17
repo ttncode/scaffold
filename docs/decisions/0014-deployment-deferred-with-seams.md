@@ -2,7 +2,7 @@
 
 Status: Accepted
 Date: 2026-08-27
-Superseded in part by 0021 (seams 1 and 4)
+Superseded in part by 0021 (seams 1 and 4) and ADR-0022 (seam 1's single `app` service)
 
 ## Context
 
@@ -53,6 +53,13 @@ deploy target plugs into later without restructuring anything above it:
    reusable release workflow will carry a `deploy` job that does nothing
    until a client sets that variable.
 
+> **Amended 2026-09-17.** Seams 1 and 4 name one `app` service and a
+> postgres `database`. Since ADR-0022, `compose.yaml` runs one service per
+> application, each on `ghcr.io/<owner>/<project>-<app>`. Since ADR-0019 and
+> ADR-0020, the `database` service and its healthcheck come from the selected
+> service's `compose.fragment.yaml` (`pg_isready` for postgres), and only an
+> `api` or `app` service waits on it.
+
 **Update, 2026-09-06 (0021).** Seams 1 and 4 as written above are now
 false, and the record stays rather than being rewritten: seam 4's premise
 was that php-fpm speaks FastCGI and no HTTP check is possible, so no check
@@ -82,6 +89,9 @@ adapter still fills in a body rather than restructuring anything, and
 `install.sh` is the one deploy mechanism that exists today: a human runs it,
 by hand, on the target host, after cloning nothing more than the two files a
 release publishes (`compose.yaml`, `example.env`).
+
+> **Amended 2026-09-17.** A release publishes three files: `app-release.yml`'s
+> `assets` job uploads `compose.yaml`, `example.env` and `install.sh`.
 
 **Update, 2026-09-07.** "The one deploy mechanism that exists today" held
 only for a public project. Measured against a real private repository, a

@@ -20,6 +20,10 @@ one per entrypoint — that only name the reusable workflow and pass its
 inputs. Projects reference `you/.github` by the moving tag `v1`, not a
 commit or a fixed minor version.
 
+> **Amended 2026-09-17.** `you/.github` now has six `workflow_call` files.
+> The sixth, `app-targets.yml`, resolves the image matrix for `app-build.yml`
+> and `app-release.yml` (ADR-0022). No call site in `common/` names it.
+
 ## Consequences
 
 - A fix to CI reaches every project that calls `v1` the next time it runs,

@@ -1,116 +1,88 @@
 # Add an adapter
 
-Time: about one session. Tier B when the smoke test lands; Tier A when a
-real project depends on it.
+When: a framework needs to be generated that `scaffold list --adapters` does not show.
 
-## 1. Create the directory
+## Steps
 
-```bash
-mkdir -p adapters/<name>
-```
+1. Create the directory.
 
-## 2. Write `adapter.env`
+   ```bash
+   mkdir -p adapters/<name>
+   ```
 
-```bash
-ADAPTER_NAME="<name>"
-ADAPTER_ROLE="api"          # web, api, or app
-ADAPTER_TIER="B"
-ADAPTER_LANGUAGE="go"       # "typescript" opts into packages/types
-ADAPTER_GENERATOR='<the framework's own generator, writing into "$APP_DIR">'
-                            # no generator? the package manager's project
-                            # init: adapters/flask uses `uv init --bare`
-# ADAPTER_POST_GENERATE='<one-time fixup for a real generator bug>'
-```
+2. Write `adapters/<name>/adapter.env`. `adapters/flask/adapter.env` is a complete example.
 
-`ADAPTER_POST_GENERATE` is optional — most adapters omit it. It's a
-one-time shell command run right after the generator, for fixups the
-generator itself gets wrong: `adapters/nestjs/adapter.env` sets it to
-un-await `bootstrap()` and run prettier once. Only reach for it once
-you've hit a real generator bug — it's a patch, not a default step.
+   ```bash
+   ADAPTER_NAME="<name>"
+   ADAPTER_ROLE="api"                 # web, api or app
+   ADAPTER_TIER="B"                   # A, B or C (ADR-0012)
+   ADAPTER_LANGUAGE="go"              # "typescript" opts into the shared pnpm workspace
+   ADAPTER_FAMILY="<family>"          # which service driver wires it (ADR-0019)
+   ADAPTER_GENERATOR='<the framework generator, writing into "$APP_DIR">'
+   ADAPTER_LIVENESS_PATH="/health/live"
+   ADAPTER_READINESS_PATH="/health/ready"   # required for api and app, omitted for web
+   # ADAPTER_POST_GENERATE='<one-time fixup after the generator>'
+   ```
 
-The exception is a stack whose generator writes only a manifest: there the
-dependencies are ordinary setup rather than a fixup, and `adapters/flask`
-uses this field to `uv add` them. Either way it ends in a `grep` that fails
-loudly, so a generator that reports success while writing nothing becomes a
-build failure rather than an `ImportError` at container start.
+   | Field | Rule |
+   | --- | --- |
+   | Required | `ADAPTER_NAME`, `ADAPTER_ROLE`, `ADAPTER_FAMILY`, `ADAPTER_GENERATOR`, `ADAPTER_LIVENESS_PATH` (`REQUIRED_ADAPTER_VARS` in `lib/contract.sh`) |
+   | No generator | Use the package manager's init: `adapters/flask` runs `uv init --bare` |
+   | `ADAPTER_POST_GENERATE` | Optional. For a generator bug (`adapters/nestjs`) or a manifest-only generator (`adapters/flask` runs `uv add`). End it with a `grep` that fails when nothing was written |
 
-## 3. Write `mise.toml`
+3. Write `adapters/<name>/mise.toml` with all nine contract tasks (`CONTRACT_TASKS` in `lib/contract.sh`).
+   - Pin the language in a local `[tools]` block, never at the project root. Where the language's own tool owns the pin, pin that tool: `adapters/flask` pins `uv`, and `adapters/flask/.python-version` pins python.
+   - `format`, `lint` and `check` must not write; `scaffold lint` rejects `--write`, `--fix` and similar flags in them.
 
-All nine contract tasks. Declare the language in a local `[tools]` block so
-it never reaches the project root — or, where the language's own tooling
-owns the pin, declare the tool and let it read that pin (`adapters/flask`
-pins `uv` and leaves python to `.python-version`). `format`, `lint`, and
-`check` must not write.
+4. Write the overlay files. Every file in the directory is copied into the app except `adapter.env` and `lefthook.fragment.yml` (ADR-0003).
 
-## 4. Write `Dockerfile`, `.env.example`, `lefthook.fragment.yml`
+   | File | Rule |
+   | --- | --- |
+   | `Dockerfile` | Multi-stage, base images pinned by digest, `EXPOSE 8080`, a `HEALTHCHECK` that probes `ADAPTER_LIVENESS_PATH`, never copies a `.env` (`tests/compose.bats`) |
+   | `Dockerfile.workspace` | TypeScript only: the variant built from the workspace root |
+   | `.dockerignore` | Required by `tests/compose.bats` |
+   | `.env.example` | The app's own variables |
+   | `lefthook.fragment.yml` | Hooks merged into the project's `lefthook.yml`; `{}` for none |
 
-The Dockerfile is multi-stage. Add a `HEALTHCHECK` only if you can make it
-fail on a real broken state — a check that always passes is worse than no
-check (see docs/tour/07). It must never copy a `.env` file. An adapter with
-no extra git hook ships `{}` as its fragment.
+5. For an `api` or `app` role, add `services/<service>/drivers/<family>.sh` to every service, unless the family already has drivers.
 
-## 5. Verify
+6. Copy `tests/new-laravel-api.bats` to `tests/new-<name>.bats` and change the adapter name. Keep the assertion that the language never reaches the project's root `mise.toml`.
+
+## Verify
 
 ```bash
 ./scaffold lint
-./scaffold new /tmp/probe --api <name>
-cd /tmp/probe && mise run "//apps/api:checklist"
+./scaffold new ../probe --api <name>
+(cd ../probe && mise run //apps/api:checklist)
+bats tests/new-<name>.bats
+./scaffold list --adapters
 ```
 
-(the project root's own `mise run checklist` also runs this once
-`register_config_root` picks it up — see `lib/manifest.sh` — but the
-`//apps/api:` prefix runs only the new app, without waiting on every other
-config root along with it.)
+- `scaffold lint` prints nothing and exits 0.
+- `scaffold list --adapters` shows the adapter with its tier.
 
-If `ADAPTER_LANGUAGE="typescript"`, that alone doesn't prove the thing
-that has actually broken before: a *second* typescript app sharing the
-same workspace. That happens on two different code paths, and only one
-still carries a known, open gap.
-
-**Via `scaffold new`** (both requested together — no known gap):
+For a TypeScript adapter, also check a second TypeScript app in the same workspace, both ways:
 
 ```bash
-./scaffold new /tmp/probe2 --api <name> --web nextjs
+./scaffold new ../probe2 --api <name> --web nextjs
+./scaffold new ../probe3 --api nestjs
+toolbox="$PWD"
+(cd ../probe3 && "$toolbox/scaffold" add apps/<name> --adapter <name>)
+find ../probe3 -name pnpm-lock.yaml -not -path '*/node_modules/*'   # exactly one, at the root
+test -f ../probe3/packages/types/package.json && echo "types package: ok"
+grep confirmModulesPurge ../probe3/pnpm-workspace.yaml             # no match
 ```
 
-**Via `scaffold add`** (joining a workspace that's already installed —
-`cmd_add` relaxes `confirmModulesPurge` in `pnpm-workspace.yaml` then
-strips the line back out by blind text match; if the caller had already
-added that exact line themselves, on purpose, this silently deletes it
-too — known, not fixed, see `restore_pnpm_workspace` in `lib/pnpm.sh`
-and ADR-0017's Consequences):
+Delete the probe projects afterwards.
 
-```bash
-./scaffold new /tmp/probe3 --api nestjs
-cd /tmp/probe3 && scaffold add apps/<name> --adapter <name>
-```
+## Promote to Tier A
 
-Either way, confirm the workspace itself, not just a green checklist —
-this is the part that broke:
+Set `ADAPTER_TIER="A"` in `adapter.env`. `scripts/adapter-matrix.sh` reads tiers through `scaffold list`, so `.github/workflows/adapters.yml` needs no edit (ADR-0012).
 
-```bash
-find /tmp/probe3 -name pnpm-lock.yaml -not -path '*/node_modules/*'
-test -f /tmp/probe3/packages/types/package.json && echo "types package: ok"
-grep confirmModulesPurge /tmp/probe3/pnpm-workspace.yaml   # expect no match
-```
+## If it fails
 
-The first command must list exactly one lockfile, at the project root.
-
-## 6. Add the smoke test
-
-Copy `tests/new-laravel-api.bats`, change the adapter name, and keep the
-assertion that the language never appears in the project's root
-`mise.toml`.
-
-## 7. Promote to Tier A
-
-Change `ADAPTER_TIER` to `A` in `adapter.env`. Nothing in
-`.github/workflows/adapters.yml` names an adapter directly — it reads tiers
-from `scripts/adapter-matrix.sh`, which reads `ADAPTER_TIER` for every
-adapter via `scaffold list` — so this one-line edit is the whole promotion
-(ADR-0012).
-
-## Done when
-
-`scaffold lint` is silent, `bats tests/new-<name>.bats` passes, and
-`scaffold list` shows the adapter with the intended tier.
+| Symptom | Fix |
+| --- | --- |
+| `scaffold lint` names a missing driver | Step 5: add `drivers/<family>.sh` to that service |
+| `scaffold lint` says a read-only task writes | Remove the writing flag from `format`, `lint` or `check` |
+| A caller's own `confirmModulesPurge: false` line vanished after `scaffold add` | Known gap: `restore_pnpm_workspace` in `lib/pnpm.sh` strips it by text match (ADR-0017). Add it back |

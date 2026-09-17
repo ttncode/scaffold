@@ -26,6 +26,10 @@ its own directory changes plus weekly — 25 minutes is far past what anyone
 will wait on before pushing. Tier C has no automated verification and is
 allowed to rot.
 
+> **Amended 2026-09-17.** `flask` joined Tier A (`adapters/flask/adapter.env`).
+> Tier B also runs on a manual `workflow_dispatch` of
+> `.github/workflows/adapters.yml` (`scripts/adapter-matrix.sh`).
+
 Tier membership lives in one place: each adapter's own `ADAPTER_TIER`
 (`adapter.env`). Workflows read it (`scripts/adapter-matrix.sh`, backed by
 `scaffold list`) rather than repeating the adapter list in YAML, so the tier

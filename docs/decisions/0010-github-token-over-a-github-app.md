@@ -2,6 +2,7 @@
 
 Status: Accepted
 Date: 2026-08-28
+Superseded in part by ADR-0024 (the Release Please token)
 
 ## Context
 
@@ -22,6 +23,14 @@ defend against.
 Use the built-in `GITHUB_TOKEN` everywhere, scoped down per job with
 `permissions:` (every workflow starts `permissions: {}` and grants only what
 that job needs — `contents: read`, `packages: write`, and so on).
+
+> **Amended 2026-09-17.** One exception exists. `app-release.yml`'s
+> `release-please` job mints a GitHub App token when the `RELEASE_APP_ID` and
+> `RELEASE_APP_PRIVATE_KEY` secrets are set, and falls back to `GITHUB_TOKEN`
+> when they are not. `common/.github/workflows/release.yml` passes both, and
+> `scaffold publish` sets them from the environment (ADR-0024). A pull request
+> opened with `GITHUB_TOKEN` starts no workflow, so its checks wait for
+> approval. Every other job still uses `GITHUB_TOKEN`.
 
 ## Consequences
 

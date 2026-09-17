@@ -27,7 +27,7 @@ and both were hit in one afternoon while testing this toolbox:
   setting that caused it. The runbook calls this call "required, not
   optional", in bold, which is the same admission.
 
-ADR-0004 names a third: branch protection is the only one of the four
+`docs/tour/04-guardrails.md` names a third: branch protection is the only one of the four
 guardrails that is a repository setting rather than a file, and the one most
 likely to be skipped because nothing in the project records whether it was
 applied.

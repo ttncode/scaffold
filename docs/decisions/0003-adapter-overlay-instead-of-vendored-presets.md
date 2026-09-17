@@ -12,6 +12,11 @@ application per stack.
 
 Invoke each framework's own generator and overlay four files.
 
+> **Amended 2026-09-17.** `copy_adapter_files` in `lib/adapter.sh` overlays
+> every file in the adapter directory except `adapter.env` and
+> `lefthook.fragment.yml` (`ADAPTER_INTERNAL_FILES`). Four is the minimum
+> `scaffold lint` requires (`REQUIRED_ADAPTER_FILES` in `lib/contract.sh`).
+
 **Amendment, 2026-09-06 (0021).** The boundary was "an adapter overlays
 configuration, it never writes application code." It narrows to: no
 application code except the health routes 0021's deploy gate requires — one

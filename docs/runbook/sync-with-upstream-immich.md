@@ -1,49 +1,49 @@
 # Sync with upstream immich
 
-`.github/workflows/provenance.yml` runs `scripts/check-provenance.sh`
-monthly against the commit pinned in `UPSTREAM`, and opens an issue titled
-"upstream drift detected" when a `verbatim` row in `docs/PROVENANCE.md` no
-longer matches. A `DRIFTED` row is not itself a failure — leaving it
-`DRIFTED` is.
+When: moving the pinned immich commit forward, or after `.github/workflows/provenance.yml` opens an issue titled "upstream drift detected".
 
-## 1. Read the diff
+`scripts/check-provenance.sh` diffs every `verbatim` row of `docs/PROVENANCE.md` against the commit pinned in `UPSTREAM`, read from a local clone. It never fetches. `DRIFTED` means the file here differs from that commit.
 
-The issue body is `check-provenance.sh`'s own output: which file, and the
-diff against the pinned commit. Decide which of three responses applies —
-there is no fourth.
+## Steps
 
-## 2. Pull the change in
+1. Update the local clone. The default path is `~/workspace/playground/immich`; set `SCAFFOLD_UPSTREAM_CLONE` for another.
 
-If upstream's edit is one this project should have too (a real bug fix, a
-security update), apply it here and leave the row `verbatim`. Re-run the
-check to confirm it now reports `ok`.
+   ```bash
+   git -C ~/workspace/playground/immich fetch origin
+   ```
+
+2. To move the pin, write the new commit into `UPSTREAM` as `immich-app/immich@<commit>`. Skip this step when answering a drift issue.
+
+3. Run the check.
+
+   ```bash
+   ./scripts/check-provenance.sh
+   ```
+
+4. Resolve every `DRIFTED` row with one of three answers.
+
+   | Answer | When | Do |
+   | --- | --- | --- |
+   | Take upstream | Upstream's version is one this project wants | `git -C <clone> show <commit>:<upstream path> > <file>`; the row stays `verbatim` |
+   | Accept the divergence | This project differs on purpose | Change the row to `adapted` and write the reason in its Notes |
+   | Not derived | The resemblance was coincidence, checked with `diff` | Change the row to `original` and remove its upstream path; record the check as the "Out of scope, checked and rejected as rows" section does |
+
+5. Run the check again until it exits 0, then commit `UPSTREAM`, `docs/PROVENANCE.md` and any copied file together.
+
+## Verify
 
 ```bash
-SCAFFOLD_UPSTREAM_CLONE=/path/to/immich ./scripts/check-provenance.sh
+./scripts/check-provenance.sh; echo "exit $?"      # "0 drifted, 0 missing, 0 errors", exit 0
+bats tests/provenance.bats
 ```
 
-## 3. Accept the divergence
+## If it fails
 
-If this project deliberately differs (the usual case — most `verbatim`
-files stay that way specifically because they *shouldn't* diverge, but a
-change here can still be a considered "no"), reclassify the row `adapted`
-in `docs/PROVENANCE.md` and record the reason next to it, same as every
-other `adapted` row already does.
-
-## 4. Reclassify as never having been a real comparison
-
-Rare: if the resemblance to upstream was coincidental rather than derived,
-reclassify `original` and remove the "Upstream path" claim. Verify with
-`diff` first — `docs/PROVENANCE.md`'s own "Out of scope, checked and
-rejected as rows" section is the model for how to record that check.
-
-## 5. Bump `UPSTREAM`
-
-Once every drifted row is resolved, update `UPSTREAM` to the commit you
-diffed against, so the next monthly run starts from here, not from the
-older pin.
-
-## Done when
-
-`scripts/check-provenance.sh` exits 0, and every row that changed
-classification this round says why in `docs/PROVENANCE.md`, not just what.
+| Symptom | Fix |
+| --- | --- |
+| `no local clone at <path>` | Clone immich there, or set `SCAFFOLD_UPSTREAM_CLONE` |
+| `<commit> is not a commit in <clone>` | Step 1: fetch the clone |
+| `UPSTREAM (…) is not of the form owner/repo@commit` | Fix the `UPSTREAM` line |
+| `MISSING <file>` | A `verbatim` row names a file that no longer exists here. Remove or correct the row |
+| `ERROR <file>: could not read <path>` | The upstream path moved at the new commit. Correct the row's upstream path |
+| `no verbatim rows found` | The table format broke; `check_verbatim_rows` reads rows starting with a backticked path |

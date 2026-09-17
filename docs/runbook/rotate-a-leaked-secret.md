@@ -1,46 +1,46 @@
 # Rotate a leaked secret
 
-gitleaks runs at `pre-commit` locally (`common/lefthook.yml`) and again in
-CI, so most leaks never reach a pushed commit. This runbook is for the one
-that does anyway — a hook bypassed with `--no-verify`, or a secret that
-predates the hook being installed.
+When: a secret reached a pushed commit, past gitleaks at `pre-commit` (`common/lefthook.yml`) and in CI.
 
-Rotate first, rewrite history second. A rotated secret makes every leaked
-copy worthless immediately, including ones already cloned or cached
-somewhere history rewriting can't reach; rewriting history first, with the
-old secret still valid, leaves a window where anyone who already has the
-commit still has a working credential.
+Rotate first, rewrite history second: a rotated secret makes every copy worthless, including clones history rewriting cannot reach.
 
-## 1. Rotate the credential
+## Steps
 
-The database password is the one this toolbox generates for you
-(`install.sh`'s `generate_service_passwords`): change `DB_PASSWORD` in the
-affected host's `.env` to a new value and restart the stack —
-`docker compose up -d` picks up the new value without touching the
-`database` volume's existing data. For any other leaked credential (a
-third-party API key, a registry token), rotate it at the provider first.
+1. Rotate the credential.
+   - A third-party key or token: revoke and reissue it at the provider.
+   - A service password from `install.sh` (`DB_PASSWORD`, `REDIS_PASSWORD`): change it inside the running service first. The database images read `DB_PASSWORD` only when their volume is empty, so editing `.env` alone locks the apps out.
 
-## 2. Confirm the new credential works
+     ```bash
+     cd app
+     docker compose exec database psql -U app -d app -c "ALTER USER app PASSWORD '<new>'"   # postgres
+     docker compose exec database mysql -uroot -p -e "ALTER USER 'app'@'%' IDENTIFIED BY '<new>'; ALTER USER 'root'@'%' IDENTIFIED BY '<new>'; ALTER USER 'root'@'localhost' IDENTIFIED BY '<new>'"   # mysql
+     docker compose exec database mongosh -u app -p --authenticationDatabase admin --eval "db.getSiblingDB('admin').changeUserPassword('app', '<new>')"   # mongodb
+     ```
 
-Restart the affected service and verify it comes up healthy against the
-new value before touching git history — there's no reason to rewrite
-history for a secret that turned out not to matter yet, or to discover the
-new credential is wrong only after history is already rewritten.
+     `redis` reads `REDIS_PASSWORD` on every start and needs no command.
 
-## 3. Remove the secret from history
+2. Put the new value in `.env` and restart.
 
-Only now: `git filter-repo` (or the BFG Repo-Cleaner) to strip the commit
-that introduced it, then force-push the rewritten history and have every
-collaborator re-clone rather than merge.
+   ```bash
+   docker compose up -d
+   ```
 
-## 4. Add a gitleaks rule if this shape wasn't caught
+3. Remove the secret from history with `git filter-repo` or BFG Repo-Cleaner, force-push, and have every collaborator re-clone.
 
-If gitleaks didn't flag the leak (a secret shape it doesn't recognize by
-default), that's the real gap — a rotated secret fixes this one incident,
-but the same shape leaks again the next time someone bypasses the hook.
+4. If gitleaks did not flag the leak, add a rule for that secret's shape, or the next bypassed hook leaks it again.
 
-## Done when
+## Verify
 
-The old credential no longer works anywhere, the new one is confirmed
-live, and the leaked commit is gone from every remaining clone of the
-repository.
+```bash
+docker compose ps                     # every service healthy
+mise run secrets                      # in the project: gitleaks over the whole history
+```
+
+- The old credential is refused wherever it was used.
+
+## If it fails
+
+| Symptom | Fix |
+| --- | --- |
+| Apps fail to connect after the restart | The password inside the database was not changed. Run the step 1 command with the old password, or restore the old `.env` value and repeat step 1 |
+| `mise run secrets` still reports the secret | History still holds it. Repeat step 3 |

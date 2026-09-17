@@ -76,6 +76,12 @@ whether it clears the immediate failure:
   `allowBuilds: { esbuild: true }` entry for the identical reason, kept in
   sync by hand since the two files serve different projects and are never
   both present at once.
+
+  > **Amended 2026-09-17.** `common/pnpm-workspace.yaml` is no longer deleted.
+  > For a project that is not all-typescript, `keep_apps_standalone` in
+  > `lib/pnpm.sh` removes only its `packages:` key and keeps `allowBuilds`.
+  > `join_typescript_workspace` deletes the `docs` pair instead.
+
 - **`confirmModulesPurge` does not ship in `common/pnpm-workspace.yaml`.**
   It is set instead as `env = { npm_config_confirm_modules_purge = "false" }`
   on the `install` and `ci-unit` mise tasks, in every adapter's
@@ -90,6 +96,11 @@ whether it clears the immediate failure:
   ambient environment variables to the tool it launches — a fact this
   decision had to design around, not rely on, for `record_release_age_exceptions`
   below).
+
+  > **Amended 2026-09-17.** Only the pnpm-based files set it:
+  > `adapters/nestjs/mise.toml`, `adapters/nextjs/mise.toml`,
+  > `common/packages-types/mise.toml` and `common/docs/mise.toml`.
+
 - **`minimumReleaseAge: 0` does not ship anywhere, ever.** Lowering it
   permanently, silently, for every client project this toolbox will ever
   generate is exactly the outcome this decision exists to prevent — a
@@ -179,6 +190,13 @@ whether it clears the immediate failure:
   relaxation ships to the client on every *successful* `scaffold add`;
   without `cmd_add_cleanup`'s strip, it survives every *failed* one.
 
+  > **Amended 2026-09-17.** `relax_pnpm_workspace` in `lib/pnpm.sh` appends
+  > three lines, `PNPM_RELAXATIONS`: `confirmModulesPurge: false`,
+  > `frozenLockfile: false` and `minimumReleaseAge: 0`. Both sites strip them
+  > with `restore_pnpm_workspace`: on success from `settle_added_app`, before
+  > `trap - EXIT`; on failure from `cmd_add_cleanup`. The known gap below
+  > applies to all three lines.
+
   **Known gap, not fixed as part of this decision**: both removal sites
   match the line blindly (`sed -i
   '/^confirmModulesPurge: false$/d'`), with no way to tell "the line
@@ -204,6 +222,11 @@ whether it clears the immediate failure:
   app joining the workspace gets the same lockfile reconciliation and
   minimum-release-age recording the first round of apps got from
   `scaffold new`.
+
+  > **Amended 2026-09-17.** Only an app joining a shared workspace
+  > (`joins_shared_workspace`) gets `sync_workspace_lockfile`. A standalone
+  > app gets `record_release_age_exceptions` alone
+  > (`reconcile_standalone_app`).
 
 ## Alternatives considered
 
