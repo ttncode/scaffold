@@ -97,6 +97,8 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 | Day one | This page, then [01-toolchain](tour/01-toolchain.md) through [03-ci](tour/03-ci.md) |
 | First week | [04-guardrails](tour/04-guardrails.md) through [09-wizard](tour/09-wizard.md); ADR-0001, ADR-0003, ADR-0011 |
 | On demand | The [runbook](runbook/) that names the situation |
+| Before a project's first push | [publish-a-project](runbook/publish-a-project.md) |
+| When the toolbox changed under an existing project | [update-a-project](runbook/update-a-project.md) |
 
 ## Diagrams
 

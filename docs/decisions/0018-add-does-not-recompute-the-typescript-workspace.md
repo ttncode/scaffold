@@ -13,6 +13,11 @@ every requested adapter's `ADAPTER_LANGUAGE` is `typescript`,
 (`rm -rf "${target}/packages-types" "${target}/pnpm-workspace.yaml"`) —
 see `scaffold`'s `cmd_new`.
 
+> **Amended 2026-09-17.** The decision now lives in `settle_workspace_shape`
+> in `scaffold`. A mixed project loses `packages-types`, but keeps
+> `pnpm-workspace.yaml` without its `packages:` key (`keep_apps_standalone`
+> in `lib/pnpm.sh`).
+
 `scaffold add` installs one more adapter into a project that already made
 that decision. Its choice of adapter can contradict the inputs the
 decision was originally made from in either direction:
@@ -86,6 +91,11 @@ retroactively when an added adapter happens to be typescript.
   the new app participates in the existing workspace's install/lockfile
   the next time someone runs `pnpm install`, with no extra step from
   `scaffold add`.
+
+  > **Amended 2026-09-17.** `scaffold add` does run the install. A typescript
+  > app joining a shared workspace gets `reconcile_shared_workspace`
+  > (`sync_workspace_lockfile`, then `record_release_age_exceptions`), and the
+  > file gains and loses `PNPM_RELAXATIONS` during the call (ADR-0017).
 
 ## Alternatives considered
 

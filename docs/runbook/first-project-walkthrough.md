@@ -1,351 +1,158 @@
 # Walk through a first project
 
-A scripted run of everything a new engineer does between cloning this toolbox
-and shipping a release from a project it generated. Follow it in order on a
-machine that has never run the toolbox, and record where it goes wrong — the
-purpose is to find the rough steps, not to prove they are smooth.
-
-Each step states what to expect. A step that does something other than what is
-written here is a finding, even when it still works.
-
-## 0. Prerequisites
-
-`git` and `mise` installed. A GitHub account, and `gh auth login` completed.
-Docker only matters for step 10.
-
-## 1. Clone and install
-
-```sh
-git clone https://github.com/ttncode/scaffold.git
-cd scaffold
-mise install
-```
-
-Expect: mise installs jq, yq, bats, shellcheck, zizmor and rush, and prints no
-prompt. A prompt about trusting the config means step 1 is a finding — the
-README does not mention one.
-
-## 2. Prove the toolbox runs
-
-```sh
-./scaffold list
-./scaffold lint
-```
-
-Expect: `list` prints eight rows now, not four — every adapter and every
-service, as name, second column, tier. The second column is the adapter's
-role (`api`, `app`, `web`) or the service's kind (`database`, `cache`); a
-service carries no tier, so its third column reads `-` — tiers (ADR-0012)
-measure verification cost for adapters, and a service's own manifest names
-no such thing (ADR-0019). `list --adapters` or `list --services` narrows to
-one half. `lint` still prints nothing and exits 0. Anything else stops the
-walkthrough here.
-
-## 3. Try the wizard
-
-```sh
-./scaffold
-```
-
-Run this in an actual terminal. Expect an interactive wizard: a name prompt,
-then shape (`web+api`, `app`, `api`, `web`), then one to four more screens
-depending on the shape. Type `demo-app` at the name prompt; at each menu
-after that, typing a letter jumps the highlight to the first option that
-starts with it — arrows work too, and either way Enter takes the highlighted
-option. Reach `web+api`, `nextjs`, `laravel-api`, `postgres`, `redis` that
-way, then `n` at "Generate this project?" to stop at the summary without
-generating anything. Expect the line above the prompt to read:
-
-```
-scaffold new demo-app --web nextjs --api laravel-api --db postgres --cache redis
-```
-
-That is the command step 5 runs, argument order aside — reaching it by menu
-first is how a first-time user is meant to find it. See
-docs/tour/09-wizard.md for the question logic and its known limits.
-
-Piped, redirected, or run from a script — a closed stdin, not a terminal —
-`scaffold` with no arguments takes none of this and prints usage and exits 1,
-same as before:
-
-```sh
-printf '' | ./scaffold
-```
-
-## 4. Make it callable from anywhere
-
-```sh
-ln -s "$PWD/scaffold" ~/.local/bin/scaffold
-cd ~/some/other/directory
-scaffold list
-```
-
-Expect: the same output as step 2. A report of a missing tool means
-`load_toolchain_env` could not read this toolbox's mise environment — check
-`mise env -C <toolbox>` by hand. A later `scaffold new relative-name` that
-lands inside the toolbox rather than in the current directory is a finding:
-nothing in `scaffold` may change directory before resolving the target.
-
-## 5. Generate a project
-
-```sh
-cd ~/playground
-scaffold new demo-app --api laravel-api --web nextjs --db postgres --cache redis
-```
-
-Expect: two generators run, then `created …/demo-app`. Expect a warning naming
-the GitHub account it detected. Expect it to take several minutes.
-
-Then read what it made before doing anything else:
-
-```sh
-cd demo-app
-git log --oneline           # one commit, "feat: scaffold project"
-cat mise.toml               # [monorepo] config_roots = apps/web, apps/api, docs
-                             # [vars] database = "postgres", cache = "redis"
-ls .github/workflows        # five call sites
-grep -l database compose*.yaml    # all three: compose.yaml, .dev.yaml, .test.yaml
-cat example.env             # DB_PASSWORD and REDIS_PASSWORD, appended for the services chosen
-cat apps/api/.env.example   # DB_CONNECTION=pgsql and REDIS_* — the driver's own variables
-```
-
-## 6. Run what CI will run, before pushing
-
-```sh
-mise run //docs:ci-unit
-mise run //apps/web:ci-unit
-mise run //apps/api:ci-unit
-```
-
-Expect: all three pass. This is the same command CI issues per config root.
-
-Now check the harder thing — that they pass on a machine that has none of your
-local state:
-
-```sh
-mv apps/api/.env /tmp/env-aside
-mv apps/web/.next /tmp/next-aside 2>/dev/null
-mise run //apps/api:ci-unit && mise run //apps/web:ci-unit
-mv /tmp/env-aside apps/api/.env
-```
-
-Expect: still pass. A failure here is a real finding — it means a check depends
-on a file that is not committed, and CI will fail where you succeeded.
-
-Which files those are depends on the adapter, and this is the step where
-guessing costs you a red pull request. Move aside everything the app's
-`.gitignore` excludes that some task writes, not just the two named above.
-For `laravel-inertia` that is `apps/app/resources/js/actions`,
-`apps/app/resources/js/routes` and `apps/app/public/build` — the first two
-are written by the vite build's wayfinder plugin and compiled against by
-`types:check`, the third is the vite manifest, without which every test that
-renders an inertia page returns 500. Running the checks with those in place
-is not the same experiment as CI runs.
-
-A `nestjs` app's `check` and `build` also depend on a `prisma` task now
-(`prisma generate` first, when the project has a database). Moving its `.env`
-aside the same way still passes — `prisma generate` only parses the schema,
-it does not need `DATABASE_URL` to resolve. Nothing here uses `nestjs` yet;
-this matters again once step 11 adds one.
-
-## 7. Install the hooks and make a commit
-
-```sh
-mise exec -- lefthook install
-git checkout -b feat/health
-```
-
-`lefthook` is pinned in the generated project's own `mise.toml`, not on your
-PATH — bare `lefthook install` works only if your shell profile already runs
-`mise activate`, which step 0's prerequisites do not ask for.
-
-Add a small feature with a test — for `laravel-api`, a `/health` route in
-`apps/api/routes/web.php` and a `HealthTest` beside the other feature tests.
-
-```sh
-mise run //apps/api:ci-unit
-git add -A
-git commit -m "feat(api): add a health endpoint"
-```
-
-Expect: pre-commit runs pint and gitleaks; commit-msg runs commitlint. Then
-prove the gate works:
-
-```sh
-git commit --allow-empty -m "added a health thing"
-```
-
-Expect: rejected, naming the convention.
-
-## 8. Push and open a pull request
-
-```sh
-git checkout main
-scaffold publish
-```
-
-Expect: it creates the ttncode/demo-app repository — the one the project's own
-`compose.yaml`, `install.sh` and workflows already name — pushes `main`,
-allows Actions to open pull requests, and protects `main`. It says what it did
-and what it skipped. `scaffold publish --dry-run` prints that list without
-doing any of it. See
-[ADR-0024](../decisions/0024-publishing-a-project-is-part-of-generating-it.md).
-
-Expect this step to take about ninety seconds. The push runs the pre-push
-hook, which runs the whole checklist — every config root's `ci-unit` and
-`build`. It looks like a hang and is not.
-
-Expect a warning about `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY` unless both
-are in your environment, and, on a free account with a private repository, a
-warning that `main` could not be protected — rulesets need GitHub Pro there.
-Both are findings to act on, not failures.
-
-```sh
-git checkout feat/health
-git push -u origin feat/health
-gh pr create --fill
-gh pr checks --watch
-```
-
-The first `gh pr checks --watch` usually exits 1 straight away with `no checks
-reported on the 'feat/health' branch`. Nothing is wrong: GitHub has not
-registered the check runs yet, and `--watch` does not wait for a first one to
-appear. Give it twenty seconds and issue it again.
-
-Expect: `CI / ci / ci (apps/api)` runs, because `apps/api` changed. Expect
-`CI / ci / changes` to skip roots that did not. Expect `commitlint` to run —
-it only ever runs on a pull request. Expect every check green, including `security / codeql`,
-`security / gitleaks` and `security / zizmor` — on a private repository those
-three each need something the workflow grants them explicitly, so a failure
-there is a finding, not the normal state. How many checks there are depends on
-the project: six named jobs plus one `ci (<root>)` for each config root the
-commit touched, so this project has seven and an api-only one has six.
-
-Allowing Actions to open pull requests is required, not optional: without it
-Release Please cannot open its pull request later, and the failure appears
-several steps away — as "GitHub Actions is not permitted to create or approve
-pull requests", on the release job. `scaffold publish` sets it every time it
-runs, including against a repository that already exists.
-
-## 9. Merge, and let the release happen
-
-```sh
-gh pr merge --squash --delete-branch
-gh run list --limit 5
-```
-
-Expect: five workflows on `main`, all green. Expect Release Please to open
-`chore(main): release 0.2.0` — `feat:` moves the minor version.
-
-If that pull request's checks sit at `Action required`, the repository has no
-`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`; a pull request opened with
-`GITHUB_TOKEN` starts no workflow. Merging it directly still releases.
-
-Those runs do not stay amber. Once the approval window passes, or once the
-squash merge deletes the head branch, they end as `failure`, and `gh run view`
-explains them with `This run likely failed because of a workflow file issue`.
-There is no workflow file issue. Expect to be left with three red runs in the
-history that the release did not depend on and that say nothing true about
-your project.
-
-```sh
-gh pr merge <number> --squash
-gh release list
-```
-
-Expect: `v0.2.0`, and the image tagged `0.2.0`, `0.2`, `latest`, `sha-…`.
-
-## 10. Run it
-
-```sh
-git checkout main
-git pull
-./install.sh
-```
-
-Expect: it downloads the release assets and starts the stack. `RepoUrl` and
-`compose.yaml`'s image already name the ttncode/demo-app repository step 8
-created: `scaffold new` wrote both from the GitHub owner it resolved and this
-project's own directory name, the same pair it wrote into `build.yml` and
-`release.yml`.
-
-Check that they agree, because a repository renamed after generation breaks
-the assumption and this is where it would show:
-
-```sh
-grep -n 'image: ghcr' compose.yaml .github/workflows/build.yml
-grep -n '^RepoUrl=' install.sh
-```
-
-Expect: one owner and one project name across all three. If the repository
-was renamed, edit them here and cut another release — `install.sh`
-re-downloads `compose.yaml` on every run, so editing the deployed copy is
-undone the next time it runs.
-
-This project is private (step 8's `--private`), so `install.sh` needs one
-more thing: a personal access token scoped `repo` and `read:packages`, and
-`jq` on the host to parse the release JSON only the token path reads. A
-private release's browser download URL returns 404 even with a token
-attached, so `install.sh` switches to the GitHub API endpoint instead of
-only adding a header — an operator who tries the old URL with a token and
-still sees 404 would otherwise conclude the token is wrong.
-
-```sh
-GITHUB_TOKEN=ghp_... bash install.sh
-curl -fsS http://localhost:8080/api/health/live
-```
-
-Expect: `install.sh` downloads `compose.yaml` and `example.env` from
-`v0.2.1` through that API endpoint, generates passwords, signs in to
-`ghcr.io`, starts the stack, runs the migration task, and prints one line per
-application — `web is running on http://localhost:8080`, `api is running on
-http://localhost:8081`. The curl returns `200`.
-
-Every application in the project is published and running, each on its own
-port (ADR-0022) — `WEB_PORT` and `API_PORT` in `.env`, printed one per line
-when `install.sh` finishes. `nextjs` ships no readiness route, because the
-`web` role takes no database driver and there is nothing for one to query;
-curl the api's instead, `curl -fsS http://localhost:8081/health/ready`,
-which returns `200`. See ADR-0021 for both routes.
-
-```sh
-docker compose -f app/compose.yaml down -v
-```
-
-## 11. Add a second application to the existing project
-
-```sh
-cd ~/playground/demo-app
-scaffold add apps/worker --adapter nestjs
-git status
-```
-
-Expect: `apps/worker` exists, `mise.toml` gained a config root, `ci.yml`'s
-`roots:` gained an entry, and `lefthook.yml` and `pnpm-lock.yaml` also
-changed. Expect the changes to be left uncommitted for review.
-
-Two of those are conditional, and a diff that does not show them is not a
-finding. `pnpm-workspace.yaml` changes only when the new app needs an
-`allowBuilds` or `minimumReleaseAgeExclude` entry the project does not
-already carry — adding a second `nestjs` app to a project that already has
-one leaves it untouched, because `apps/*` already matched and prisma was
-already decided. And `lefthook.yml` changes without gaining a hook: `nestjs`
-contributes none, since prettier in the common layer already covers
-typescript sources.
-
-The new application is wired to the database and cache this project already
-recorded, not asked again: `apps/worker/.env.example` names a `DATABASE_URL`
-and `REDIS_URL` for the same services `mise.toml`'s `[vars]` already records,
-not whatever nestjs would default to on its own. `scaffold` cannot change a
-project's database after generation (ADR-0019) — reading it back on `add` is
-how a later application still ends up on the one already running.
+When: an engineer is new to the toolbox, or a change to it needs an end-to-end run. Follow the steps in order on a clean machine.
+
+A step that does something other than its **Expect** is a finding, even when it still works. Record the step number, what was expected and what happened.
+
+## Steps
+
+1. **Prerequisites.** `git`, `mise`, `gh` with `gh auth login` done. Docker for step 10.
+
+2. **Clone and install.**
+
+   ```sh
+   git clone https://github.com/ttncode/scaffold.git
+   cd scaffold
+   mise install
+   export PATH="$PWD:$PATH"
+   ```
+
+   Expect: mise installs `bats`, `shellcheck`, `shfmt`, `yq`, `jq`, `zizmor`, `rush`, `lefthook` and `gitleaks` without a prompt. Put the clone on `PATH`; a symlink to `scaffold` does not work.
+
+3. **Prove the toolbox runs.**
+
+   ```sh
+   scaffold list
+   scaffold lint
+   printf '' | scaffold; echo "exit $?"
+   ```
+
+   Expect: `list` prints one row per adapter and service: name, role or kind, tier (`-` for a service). `lint` prints nothing. With no terminal, `scaffold` prints usage and exits 1.
+
+4. **Try the wizard.** In a real terminal:
+
+   ```sh
+   scaffold
+   ```
+
+   Type `demo-app`, then pick `web+api`, `nextjs`, `laravel-api`, `postgres`, `redis`. Typing a letter jumps to the first option starting with it; Enter takes it. Answer `n` at "Generate this project?".
+   Expect: `scaffold new demo-app --web nextjs --api laravel-api --db postgres --cache redis` above the prompt, and nothing generated ([09-wizard](../tour/09-wizard.md)).
+
+5. **Generate a project.** Outside the toolbox:
+
+   ```sh
+   cd ~/playground
+   scaffold new demo-app --web nextjs --api laravel-api --db postgres --cache redis
+   cd demo-app
+   ```
+
+   Expect: a warning naming the detected GitHub owner, several minutes of generators, then `created …/demo-app` and the next steps. Then:
+
+   | Command | Expect |
+   | --- | --- |
+   | `git log --oneline` | One commit, `feat: scaffold project` |
+   | `cat mise.toml` | `config_roots` with `apps/api`, `apps/web`, `docs`; `[vars]` `database = "postgres"`, `cache = "redis"`, `image` |
+   | `cat .scaffold.toml` | The toolbox version and `"apps/web" = "nextjs"`, `"apps/api" = "laravel-api"` |
+   | `ls .github/workflows` | `build.yml`, `ci.yml`, `docs.yml`, `release.yml`, `security.yml` |
+   | `grep -l database compose*.yaml` | `compose.yaml`, `compose.dev.yaml`, `compose.test.yaml` |
+   | `cat example.env` | `WEB_PORT=8080`, `API_PORT=8081`, `DB_PASSWORD`, `REDIS_PASSWORD` |
+   | `cat apps/api/.env.example` | `DB_CONNECTION=pgsql` and `REDIS_*` |
+
+6. **Run what CI runs.**
+
+   ```sh
+   mise install && mise exec -- lefthook install
+   mise run //docs:ci-unit
+   mise run //apps/web:ci-unit
+   mise run //apps/api:ci-unit
+   ```
+
+   Expect: all pass. `lefthook` is pinned in the project, not on `PATH`, hence `mise exec`.
+
+   Then repeat with local state moved aside: everything the app's `.gitignore` excludes that a task writes. A failure here fails CI too.
+
+   | Adapter | Move aside |
+   | --- | --- |
+   | `laravel-api` | `apps/api/.env` |
+   | `nextjs` | `apps/web/.next` |
+   | `laravel-inertia` | `apps/app/.env`, `apps/app/resources/js/actions`, `apps/app/resources/js/routes`, `apps/app/public/build` |
+
+7. **Commit through the hooks.**
+
+   ```sh
+   git checkout -b feat/health
+   # add a /health route in apps/api/routes/web.php and a HealthTest beside the other feature tests
+   mise run //apps/api:ci-unit
+   git add -A && git commit -m "feat(api): add a health endpoint"
+   git commit --allow-empty -m "added a health thing"
+   ```
+
+   Expect: `pre-commit` runs prettier, pint and gitleaks; `commit-msg` runs commitlint. The second commit is rejected.
+
+8. **Publish and open a pull request.**
+
+   ```sh
+   git checkout main
+   scaffold publish
+   git checkout feat/health
+   git push -u origin feat/health
+   gh pr create --fill
+   gh pr checks --watch
+   ```
+
+   Expect: `scaffold publish` creates the private repository, pushes `main` and applies the settings ([publish-a-project](publish-a-project.md)). The push runs `pre-push`, the whole `checklist`, so it takes minutes.
+
+   Expect these checks: `changes`, `ci (apps/api)`, `commitlint`, `codeql`, `zizmor`, `gitleaks`, and the docs `build`. A root the commit did not touch gets no `ci (<root>)`. If `gh pr checks --watch` exits at once with `no checks reported`, run it again after a few seconds.
+
+9. **Merge and release.**
+
+   ```sh
+   gh pr merge --squash --delete-branch
+   gh run list --limit 5
+   ```
+
+   Expect: every workflow on `main` green, and a Release Please pull request. Merge it and follow [cut-a-release](cut-a-release.md).
+
+10. **Run the release.** The repository is private, so `install.sh` needs a token with `repo` and `read:packages`, and `jq` on the host.
+
+    ```sh
+    GITHUB_TOKEN=<token> bash install.sh
+    curl -fsS http://localhost:8080/api/health/live
+    curl -fsS http://localhost:8081/health/ready
+    docker compose -f app/compose.yaml down -v
+    ```
+
+    Expect: `install.sh` creates an `app` directory, downloads `compose.yaml` and `example.env` from the latest release, generates passwords, signs in to `ghcr.io`, starts the stack, runs `migrate`, then prints `web is running on http://localhost:8080` and `api is running on http://localhost:8081`. Both curls succeed. `nextjs` has no readiness route (ADR-0021).
+
+    The owner and name must agree in three places; a repository renamed after generation breaks them:
+
+    ```sh
+    grep -n '^image' mise.toml
+    grep -n 'ghcr.io' compose.yaml
+    grep -n '^RepoUrl=' install.sh
+    ```
+
+11. **Add an application.**
+
+    ```sh
+    scaffold add apps/worker --adapter nestjs
+    git status
+    ```
+
+    Expect: `apps/worker` staged. Unstaged edits to `mise.toml` (a config root), `ci.yml` (`roots:`), `build.yml` and `release.yml` (`images:`), `compose.yaml` (a `worker` service), `example.env` (`WORKER_PORT`), `.scaffold.toml` and `lefthook.yml`. `pnpm-workspace.yaml` changes only when it gains a new `allowBuilds` or `minimumReleaseAgeExclude` entry.
+
+    Expect `apps/worker/.env.example` to name `DATABASE_URL` and `REDIS_URL`: `scaffold add` reads `[vars]` instead of asking (ADR-0019).
+
+12. **Clean up.** Delete `~/playground/demo-app`, and the GitHub repository if it was a trial.
+
+## Verify
+
+- Every step matched its Expect, or each difference is recorded as a finding.
 
 ## What counts as a finding
 
 - A step that needs a command this page does not give
 - An error message that does not say what to do next
 - A check that passes locally and fails in CI, or the reverse
-- Anything that required reading the source to get past
-- Any wait longer than the step led you to expect
-
-Record each one with the step number, what was expected, and what happened.
+- Anything that needed reading the source to get past
+- A wait longer than the step said

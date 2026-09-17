@@ -1,50 +1,48 @@
 # CI is red
 
-CI calls exactly one of the nine contract tasks per failing step (ADR-0011).
-Find the task name in the failed step's log, then look here.
+When: a check is red on a generated project or on this toolbox.
 
-| Task | What failing usually means | Where to look |
+## Steps
+
+1. Read the failing job's name and find it in the tables below.
+2. Reproduce with the command in the table, on a clean clone.
+3. Fix the cause in the file the task names: the app's `mise.toml`, the source file, the test. Do not edit the workflow to hide what the task caught.
+4. Before calling it done, ask what else reaches the code you changed. A fix checked only against the one repro that prompted it has missed adjacent paths four times in this project's history.
+
+### A generated project
+
+`ci (<root>)` runs `mise run //<root>:ci-unit` in each config root the change touched; `ci-unit` runs `install`, `format`, `lint`, `check` and `test` in that order (ADR-0011).
+
+| Job, or `ci-unit` step | Usually means | Reproduce |
 | --- | --- | --- |
-| `install` | Lockfile out of sync with the manifest, or a supply-chain guard tripped (a fresh `minimumReleaseAge` violation, an unapproved native build). | The dependency you (or a dependency's dependency) just bumped; ADR-0017. |
-| `format` | Someone committed unformatted code, or ran `format-fix` locally without committing the result. | `git diff` after running the adapter's own `format-fix` task. |
-| `format-fix` | Should never run in CI — it writes. If you see it here, the pipeline is miswired. | `common/.github/workflows/ci.yml` / the reusable `app-ci.yml` call. |
-| `lint` | A real lint violation, or the lint config itself changed underneath the code. | The step's own output names the file and rule. |
-| `check` | A type error, or (Laravel) `phpstan` found something real. | The step's own output; `check` never modifies files, so re-running it locally reproduces exactly what CI saw. |
-| `test` | A real test failure, or a test that depends on state a fresh checkout doesn't have. | Re-run the same task locally against a clean clone before assuming CI is wrong. |
-| `build` | The app doesn't compile, or a build-time dependency (an env var, a generated file) is missing in CI that exists locally. | Diff what CI's environment provides against your own. |
-| `ci-unit` | An aggregate of `install`/`format`/`lint`/`check`/`test` — read which sub-step actually failed; the aggregate name alone doesn't say. | The step's full log, not just its final line. |
-| `checklist` | Same as `ci-unit`, plus `build` — this is what `pre-push` runs locally, so a red `checklist` in CI after a clean local run usually means an environment difference, not a code difference. | Compare the CI runner's toolchain (`mise ls` in the job log, if captured) against local `mise ls`. |
+| `install` | Lockfile out of sync, or a supply-chain guard: a too-fresh dependency, an unapproved native build (ADR-0017) | `mise run //<root>:install` |
+| `format` | Unformatted code was committed | `mise run //<root>:format-fix`, then commit the diff |
+| `lint` | A real lint violation, or the lint config changed | `mise run //<root>:lint` |
+| `check` | A type error, or `phpstan` on Laravel | `mise run //<root>:check`; it never writes, so it repeats what CI saw |
+| `test` | A failing test, or a test that needs a file a fresh checkout lacks | Move aside what `.gitignore` excludes, then `mise run //<root>:test` |
+| `changes` | The path filter failed; it runs only on a pull request | The job log |
+| `commitlint` | A commit in the pull request is not a Conventional Commit; runs only on a pull request | Reword the commit |
+| `codeql`, `zizmor`, `gitleaks` | A security finding; `gitleaks` runs `mise run secrets` | `mise run secrets` for gitleaks; the job log for the others |
+| `build` (Build workflow), `image` (Release workflow) | The Docker image does not build | `docker build -f <dockerfile> <context>`, with the `context` and `dockerfile` from `images:` in the project's `build.yml` |
 
-Outside the nine tasks: a red `zizmor` job means a workflow file itself has
-a static-analysis finding (untrusted input interpolated into a `run:`
-block is the common one — see `.github/workflows/adapters.yml`'s own
-`env:`-first pattern for the fix). A red `provenance` job's `self-test`
-means `scripts/check-provenance.sh` itself regressed, not that upstream
-drifted; its `check` job means upstream actually moved — see
-`docs/runbook/sync-with-upstream-immich.md`.
+`build` is not part of `ci-unit`. Locally it runs inside `checklist`, which `pre-push` runs.
 
-- `tests/contract.bats` fails with "<file> runs an adapter generator to completion", or the toolbox's `unit` job hits its 5-minute timeout: that `test-unit` suite runs an adapter generator. Move it to `test-integration` in `mise.toml`.
+### This toolbox
 
-## Before you call a fix done
+| Job | Usually means | Reproduce |
+| --- | --- | --- |
+| `unit` | `lint` or `test-unit` failed | `mise run ci-unit` |
+| `unit`, 5-minute timeout, or `tests/contract.bats` fails with "<file> runs an adapter generator to completion" | A `test-unit` suite runs an adapter generator | Move that suite to `test-integration` in `mise.toml` |
+| `integration` | A suite that generates a real project failed | `mise run test-runner`, which sets `CI` as a runner does |
+| `zizmor` | A workflow finding; the common one is untrusted input interpolated into `run:` | `mise exec -- zizmor .github/workflows/`; pass the value through `env:` as `.github/workflows/adapters.yml` does |
+| `pull-request-body` | The pull request body lost a `##` heading of `.github/pull_request_template.md` | Restore the template's headings |
+| `self-test` (Provenance) | `scripts/check-provenance.sh` itself regressed | `bats tests/provenance.bats` |
+| `check` (Provenance) | A `verbatim` file no longer matches the commit pinned in `UPSTREAM` | `docs/runbook/sync-with-upstream-immich.md` |
+| `smoke`, `smoke-tier-b`, `deploy`, `deploy-tier-b`, `deploy-multi-app` (Adapters) | An adapter's generator or image broke | `bats tests/new-<adapter>.bats`, or `./scripts/deploy-check.sh <adapter>` |
+| `compose` (Adapters) | A compose file, Dockerfile or `install.sh` invariant broke | `bats tests/compose.bats` |
+| `services` (Adapters) | One adapter, database and cache combination does not generate or pass its checklist | `./scaffold new ../demo --api <adapter> --db <db> --cache <cache>`, then `mise run //apps/api:checklist` in it |
 
-This project's own history has four separate fixes that each stopped the
-exact failure that motivated them and each still missed an adjacent path
-the same input space allowed: a cleanup trap in `common/install.sh` that
-covered a signal landing mid-function but missed two plain `return` paths
-out of the same function; a workflow `if:` in `provenance.yml` that
-covered the outcome it checked but missed GitHub's implicit `success()`
-gate; a tier default in `lib/adapter.sh`'s `load_adapter` that covered a
-stripped `ADAPTER_TIER` field but missed a missing `adapter.env` file
-entirely; and a job condition in `provenance.yml` that covered a pull
-request but missed a manual `workflow_dispatch` run. Four unrelated
-mechanisms, the same shape every time: verified against the one repro that
-motivated the fix, not against the full input space the fix now lives
-inside. Before marking a red-CI fix done, ask what else can reach the code
-you just changed — not just whether today's repro now passes.
+## Verify
 
-## Done when
-
-The failing step's log names a real cause you can point at, not just a
-red X — and the fix lands as a task-scoped change (the adapter's `mise.toml`,
-the file `lint`/`check` complained about), never as a workflow edit that
-papers over what the task actually caught.
+- The failing job is green on a re-run of the fixed commit.
+- The fix is in a task, a source file or a test, not in a workflow that skips the failing step.

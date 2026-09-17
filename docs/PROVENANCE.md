@@ -42,7 +42,7 @@ Excluded, and why:
   both resolve exactly one upstream clone. Its provenance travels with the
   files instead, in that directory's own `NOTICE` — source repository, commit,
   file-by-file origin and licence — which is what a reader who finds the
-  directory will actually look at. `docs/public/logo.png` comes from the same
+  directory will actually look at. `common/docs/public/logo.png` comes from the same
   repository and the same `NOTICE` covers it.
 - **`docs/decisions/`** (this repository's own, at the root — not
   `common/docs/decisions/`, which ships and is covered below). This is this
@@ -67,7 +67,7 @@ Excluded, and why:
 | `common/compose.test.yaml` | — | original | no `docker-compose.test.yml` exists upstream. Same shape as `compose.dev.yaml` (its sibling in this repo, not an upstream file) with `tmpfs` storage so CI starts from an empty database every run. |
 | `common/example.env` | `docker/example.env` | adapted | one image's variables instead of immich's per-service set; same "copy to `.env` and edit" framing and a placeholder `DB_PASSWORD` an operator must change (ADR-0014). |
 | `common/install.sh` | `install.sh` | adapted | one image instead of several; never overwrites an existing `.env`; generates the database password from `/dev/urandom` instead of asking the operator to supply one. Rationale recorded inline in the file. |
-| `common/.github/workflows/build.yml`, `ci.yml`, `docs.yml`, `release.yml`, `security.yml` | `.github/workflows/test.yml`, `docker.yml`, `docs-build.yml`, `codeql-analysis.yml`, `static_analysis.yml` | adapted | immich's per-repository workflows collapsed into five thin call sites that each delegate to `you/.github` (ADR-0005); `GITHUB_TOKEN` instead of a minted GitHub App token (ADR-0010); one docs workflow instead of three (ADR-0009); build and release split so an ordinary merge never waits on the standing release PR (ADR-0015). |
+| `common/.github/workflows/build.yml`, `ci.yml`, `docs.yml`, `release.yml`, `security.yml` | `.github/workflows/test.yml`, `docker.yml`, `docs-build.yml`, `codeql-analysis.yml`, `static_analysis.yml` | adapted | immich's per-repository workflows collapsed into five thin call sites that each delegate to `you/.github` (ADR-0005); `GITHUB_TOKEN` instead of a minted GitHub App token, except Release Please's optional app token (ADR-0010); one docs workflow instead of three (ADR-0009); build and release split so an ordinary merge never waits on the standing release PR (ADR-0015). |
 | `common/docs/` | `docs/` | adapted | VitePress instead of Docusaurus; one docs workflow instead of three (ADR-0009). `common/docs/scripts/check-adrs.mjs` and `check-paths.mjs` have no upstream equivalent — immich has no ADR process — and are original, not adapted. |
 | `common/lefthook.yml` | — | original | immich runs no git hooks (ADR-0007). |
 | `common/.gitignore`, `common/CODEOWNERS`, `common/CONTRIBUTING.md`, `common/README.md`, `common/SECURITY.md`, `common/commitlint.config.js`, `common/.git-blame-ignore-revs`, `common/release-please-config.json`, `common/.release-please-manifest.json`, `common/mise.root.toml`, `common/pnpm-workspace.yaml`, `common/AGENTS.md`, `common/packages-types/` | (various — e.g. `.gitignore`, `CODEOWNERS`, `CONTRIBUTING.md`, `README.md`, `pnpm-workspace.yaml`) | original | conventional files any GitHub/pnpm project carries. Checked against immich's own copies of each — `diff` shows no shared content beyond the two both being, say, a `.gitignore` — so these were written for this project, not adapted from immich's. |

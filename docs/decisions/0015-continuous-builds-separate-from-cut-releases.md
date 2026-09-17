@@ -22,6 +22,11 @@ Split publishing into two reusable workflows that never gate each other:
   'true'` — i.e. only on the merge that closes a release PR — and publish
   semver tags (`1.4.0`, `1.4`) plus `latest`.
 
+> **Amended 2026-09-17.** `app-build.yml`'s `build` job and `app-release.yml`'s
+> `image` job also require `needs.targets.outputs.matrix != '[]'`: a project
+> with no application builds nothing. The release `image` job also publishes
+> `sha-<commit>`. Each job builds one image per application (ADR-0022).
+
 Both call sites (`common/.github/workflows/build.yml` and `release.yml`)
 are separate files with separate triggers, not two jobs in one workflow, so
 one failing does not block the other from being invoked at all.

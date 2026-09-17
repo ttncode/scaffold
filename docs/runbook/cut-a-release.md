@@ -1,56 +1,52 @@
 # Cut a release
 
-This applies to a generated project (Release Please, `common/release-please-config.json`),
-not to this toolbox itself, which has no release process of its own.
+When: a generated project should ship a version. This toolbox has no release process; its tags are manual (`CONTRIBUTING.md`).
 
-## 0. Once per repository: let Actions open pull requests
+![Release flow](../diagrams/release-flow.svg)
 
-Release Please works by opening a pull request, and a new repository
-forbids that by default — the run fails with `GitHub Actions is not
-permitted to create or approve pull requests` after it has already
-pushed its branch, so the symptom appears late and looks like a
-permissions bug in the workflow. It is a repository setting:
+## Steps
+
+1. Once per repository, run `scaffold publish`. It allows Actions to open pull requests, which Release Please needs, and sets the release app secrets when they are in the environment ([publish-a-project](publish-a-project.md)).
+
+2. Merge Conventional Commits to `main`. `feat:` and `fix:` move the version; `docs:` and `chore:` do not (`common/release-please-config.json`).
+
+3. Wait for Release Please. `release.yml` runs on every push to `main` and keeps one pull request, `chore(main): release <version>`, with the changelog.
+
+   ```bash
+   gh pr list --search "release in:title"
+   ```
+
+4. Review the changelog against what shipped, then merge the pull request.
+
+   ```bash
+   gh pr merge <number> --squash
+   ```
+
+   Merging it is the release. Only on that merge, `app-release.yml`'s jobs:
+
+   | Job | Publishes |
+   | --- | --- |
+   | `image` | Every application's image, tagged `<version>`, `<major>.<minor>`, `latest`, `sha-<commit>` |
+   | `assets` | `compose.yaml`, `example.env`, `install.sh` on the GitHub Release |
+   | `deploy` | Nothing: it runs only when `vars.DEPLOY_TARGET` is set, and then fails, since no deploy adapter exists (ADR-0014) |
+
+## Verify
 
 ```bash
-gh api -X PUT "repos/<owner>/<repo>/actions/permissions/workflow" \
-  -f default_workflow_permissions=read \
-  -F can_approve_pull_request_reviews=true
+gh release list --limit 1
+gh release view <tag> --json assets --jq '.assets[].name'
+gh run list --workflow release.yml --limit 1
 ```
 
-Or Settings → Actions → General → Workflow permissions → *Allow GitHub
-Actions to create and approve pull requests*.
+- The release lists `compose.yaml`, `example.env` and `install.sh`.
+- `ghcr.io/<owner>/<project>-<app>:<version>` exists for every application.
+- A host that runs `install.sh` pulls the new version ([first-project-walkthrough](first-project-walkthrough.md)).
 
-## 1. Merge conventional commits to `main`
+## If it fails
 
-Every commit must already be a Conventional Commit — enforced at
-`commit-msg` by lefthook and commitlint, and again in CI. `feat:` and
-`fix:` commits are what move the version; `chore:`/`docs:` do not.
-
-## 2. Let Release Please open (or update) its release PR
-
-`common/.github/workflows/release.yml` runs on every push to `main` and
-maintains one standing pull request with the next version's changelog,
-computed from the commits merged since the last release.
-
-## 3. Review the release PR
-
-Check the generated changelog against what actually shipped. This is the
-only manual step in the whole flow.
-
-## 4. Merge it
-
-Merging the release PR is the release. `release.yml`'s image and asset
-jobs only run `if: needs.release-please.outputs.released == 'true'` —
-i.e. only on this specific merge — and publish the version tags
-(`1.4.0` and `1.4`, for example) plus `latest`.
-
-## 5. Confirm the image published
-
-Check the workflow run for `release.yml` succeeded, then confirm the new
-tag exists in the registry a client's `compose.yaml` points at.
-
-## Done when
-
-The GitHub Release exists, the semver and `latest` image tags are
-published, and a client pinning `IMAGE_TAG` to the new version (or to
-`latest`) can pull it.
+| Symptom | Fix |
+| --- | --- |
+| `GitHub Actions is not permitted to create or approve pull requests` | Run `scaffold publish` in the project |
+| Checks on the release pull request sit at `Action required` | No `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`. Merge anyway, or set them with `scaffold publish` |
+| No release pull request after a merge | The merged commits are only `docs:` or `chore:` |
+| `image` skipped | `images:` in the project's `release.yml` is `"[]"`. Copy the entries from `build.yml`, which `scaffold new` and `scaffold add` write to both |

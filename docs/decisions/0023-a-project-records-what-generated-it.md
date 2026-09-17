@@ -68,6 +68,11 @@ comment change. After the patch, `sync_ci_roots` runs and the build targets are
 rebuilt from the manifest — only when the array actually came back empty, so a
 project whose targets survived is untouched.
 
+> **Amended 2026-09-17.** `common/.github/workflows/ci.yml` carries
+> `roots: '["docs"]'`, not `roots: '[]'`, so a verbatim patch checks only
+> `docs`. `resync_derived_files` in `lib/update.sh` runs `sync_ci_roots` on
+> every update and rebuilds the image targets only when `images` is `"[]"`.
+
 **It refuses a dirty working tree**, because `git diff` afterwards is the only
 review this gets and it has to show one run's changes alone. It never commits.
 
