@@ -135,9 +135,9 @@ update_patch() {
 }
 
 # The CI matrix and build targets are computed, so the patch brings their
-# template form (`roots: '[]'`, `images: "[]"`), which builds nothing. Re-derived
-# rather than excluded, which would drop every other change to those files; and
-# only when empty, so correct targets are never rewritten.
+# template form (`roots: '["docs"]'`, `images: "[]"`), which covers no app.
+# Re-derived rather than excluded, which would drop every other change to those
+# files; images only when empty, so correct targets are never rewritten.
 resync_derived_files() {
   local -r project="$1"
   local rel

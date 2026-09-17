@@ -223,7 +223,7 @@ _project() {
   GH_SCENARIO=plan-limit run scaffold publish "$PROJECT"
   assert_ok
   [[ "$output" == *"main is unprotected"* ]]
-  [[ "$output" == *"ADR-0004"* ]]
+  [[ "$output" == *"ADR-0024"* ]]
 }
 
 @test "--no-protect asks nothing about rulesets" {
