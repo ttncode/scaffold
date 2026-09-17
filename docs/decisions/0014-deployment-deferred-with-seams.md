@@ -2,7 +2,7 @@
 
 Status: Accepted
 Date: 2026-08-27
-Superseded in part by 0021 (seams 1 and 4) and ADR-0022 (seam 1's single `app` service)
+Superseded in part by 0021 (seams 1 and 4) and 0022 (seam 1's single `app` service)
 
 ## Context
 
@@ -55,8 +55,8 @@ deploy target plugs into later without restructuring anything above it:
 
 > **Amended 2026-09-17.** Seams 1 and 4 name one `app` service and a
 > postgres `database`. Since ADR-0022, `compose.yaml` runs one service per
-> application, each on `ghcr.io/<owner>/<project>-<app>`. Since ADR-0019 and
-> ADR-0020, the `database` service and its healthcheck come from the selected
+> application, each on `ghcr.io/<owner>/<project>-<app>`. Since ADR-0019, the
+> `database` service and its healthcheck come from the selected
 > service's `compose.fragment.yaml` (`pg_isready` for postgres), and only an
 > `api` or `app` service waits on it.
 
