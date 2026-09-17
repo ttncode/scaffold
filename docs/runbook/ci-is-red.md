@@ -7,7 +7,7 @@ When: a check is red on a generated project or on this toolbox.
 1. Read the failing job's name and find it in the tables below.
 2. Reproduce with the command in the table, on a clean clone.
 3. Fix the cause in the file the task names: the app's `mise.toml`, the source file, the test. Do not edit the workflow to hide what the task caught.
-4. Before calling it done, ask what else reaches the code you changed. A fix checked only against the one repro that prompted it has missed adjacent paths four times in this project's history.
+4. Before calling it done, ask what else reaches the code you changed.
 
 ### A generated project
 

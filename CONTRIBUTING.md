@@ -65,7 +65,7 @@ A new adapter family is the same check from the other side: every service needs 
 | Change | Reaches an existing project |
 | --- | --- |
 | `common/` or an adapter | When someone runs `scaffold update` in it ([ADR-0023](docs/decisions/0023-a-project-records-what-generated-it.md)) |
-| A reusable workflow in *you/.github* | On its next run, once `v1` moves (ADR-0005) |
+| A reusable workflow in *you/.github* | On its next run, once `v1` moves ([ADR-0005](docs/decisions/0005-share-ci-through-reusable-workflows.md)) |
 
 ## Commits and versions
 

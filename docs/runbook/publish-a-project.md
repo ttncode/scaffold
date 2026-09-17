@@ -47,7 +47,7 @@ When: a project from `scaffold new` has no GitHub repository yet, or its reposit
 | Create `<owner>/<project>` and push `main` | `create_repo` | `cmd_publish`: skipped when the repository exists |
 | Allow Actions to open pull requests | `allow_actions_to_open_pull_requests` | Never skipped |
 | Secret scanning and push protection | `enable_secret_scanning` | `apply_repo_settings`: warns when the plan lacks it |
-| Ruleset `main`: pull request required, no force-push, no deletion | `protect_main` | `protect_main_branch`: skipped on `--no-protect` or an existing ruleset named `main` (`main_is_protected`); warns when the plan lacks it |
+| Ruleset `main`: pull request required, no force-push, no deletion | `protect_main` | `apply_repo_settings`: skipped on `--no-protect`. `protect_main_branch`: skipped when a ruleset named `main` exists (`main_is_protected`); warns when the plan lacks it |
 | Set `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` | `set_release_secrets` | `apply_repo_settings`: warns when either variable is unset |
 
 `<owner>/<project>` is read from `[vars] image` in the project's `mise.toml` (`repo_slug`). There is no flag to change it.
