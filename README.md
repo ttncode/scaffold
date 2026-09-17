@@ -57,6 +57,8 @@ A database or cache is a directory under `services/`, not an adapter ([ADR-0019]
 | `--db` | `mysql`, `postgres`, `mongodb`, `none` | `mysql` with `--api` or `--app`, otherwise `none` ([ADR-0020](docs/decisions/0020-database-default-is-derived-from-requested-adapters.md)) |
 | `--cache` | `redis`, `none` | `none` |
 
+No DynamoDB: `compose.yaml` ships with every release for a client to run (ADR-0014), and the only DynamoDB that fits a compose file is an emulator with no production counterpart.
+
 ## Documentation
 
 - [Start here](docs/README.md) — what the toolbox is, map, commands, glossary, [reading path](docs/README.md#reading-path)

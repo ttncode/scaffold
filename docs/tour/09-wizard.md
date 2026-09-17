@@ -4,7 +4,7 @@
 
 1. `scaffold` with no arguments opens the wizard only when stdin is a terminal (`[[ -t 0 ]]` in `main`); otherwise it prints usage and exits 1, so scripts and CI never hang.
 2. Action: `new`; `update` and `publish` are offered only inside a scaffold project. A single option skips the screen.
-3. For `new`: name, then shape (`web+api`, `app`, `api`, `web`), then one question per role and service. `web` asks no database (ADR-0020).
+3. For `new`: name, then shape (`web+api`, `app`, `api`, `web`), then one question per role and service. `web` asks only for its adapter: no database or cache (ADR-0020).
 4. Options come from `scaffold list`, so a new adapter or service appears without editing the wizard.
 5. It prints the equivalent `scaffold new` command and asks `[y/N]` before running it. No back navigation: Esc or Ctrl-C exits.
 

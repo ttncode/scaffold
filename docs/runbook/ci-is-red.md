@@ -23,7 +23,7 @@ means `scripts/check-provenance.sh` itself regressed, not that upstream
 drifted; its `check` job means upstream actually moved — see
 `docs/runbook/sync-with-upstream-immich.md`.
 
-- The toolbox's own `unit` job runs long: a `test-unit` suite now runs an adapter generator. `tests/contract.bats` names it; move it to `test-integration` in `mise.toml`.
+- `tests/contract.bats` fails with "<file> runs an adapter generator to completion", or the toolbox's `unit` job hits its 5-minute timeout: that `test-unit` suite runs an adapter generator. Move it to `test-integration` in `mise.toml`.
 
 ## Before you call a fix done
 
