@@ -110,6 +110,7 @@ with no production counterpart in a self-hosted stack.
 
 ## Documentation
 
+- [Start here](docs/README.md) — what the toolbox is, map, commands, glossary
 - [Tour](docs/tour/) — how the pieces fit, nine pages
 - [Decisions](docs/decisions/) — why they fit that way
 - [Runbooks](docs/runbook/) — what to do when something specific happens
