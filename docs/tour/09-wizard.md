@@ -64,10 +64,9 @@ The second project from the same answers is scripted rather than clicked.
 - `tests/wizard.bats` — the pure functions get direct tests; one pty test
   drives the real screens with a scripted key sequence and asserts only on
   the command line it prints at the end, not on frames.
-- `docs/superpowers/specs/2026-09-04-interactive-wizard-design.md` for the
-  full design, including its known limit: no back navigation (Ctrl-C and
-  re-run). The other limit that design records — a `web+api` project building
-  only one image — is gone; see ADR-0022.
+- The wizard's known limit: no back navigation (Ctrl-C and re-run). The other
+  limit it once had — a `web+api` project building only one image — is gone;
+  see ADR-0022.
 
 ## Delete test
 
