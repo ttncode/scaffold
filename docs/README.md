@@ -16,7 +16,7 @@
 | `scaffold` | Entry point: `main()` dispatches to one `cmd_*` function per command |
 | `lib/` | Libraries `scaffold` sources into one shell, listed below |
 | `adapters/` | One directory per framework: `adapter.env`, overlay files, a `lefthook.fragment.yml` |
-| `services/` | One directory per database or cache: `service.env`, compose fragments, `drivers/` |
+| `services/` | One directory per database or cache: `service.env`, compose fragments, `drivers/`; `services/shared` is not a service but the driver bodies those `drivers/` source |
 | `common/` | Copied into every new project, then rendered |
 | `docs/` | This documentation: tour, decisions, runbooks, provenance, diagrams |
 | `tests/` | bats suites and their fixtures |
@@ -63,10 +63,11 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 | `scaffold new <name>` | `--web`, `--api`, `--app <adapter>`; `--db`, `--cache <service>` | Generates and commits a project | [ADR-0020](decisions/0020-database-default-is-derived-from-requested-adapters.md) |
 | `scaffold add <dir>` | `--adapter <adapter>` | Adds an app to an existing project and stages it | [ADR-0018](decisions/0018-add-does-not-recompute-the-typescript-workspace.md) |
 | `scaffold update [dir]` | `--dry-run` | Applies toolbox changes since the commit in `.scaffold.toml`; never commits | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
-| `scaffold publish [dir]` | `--public`, `--no-protect`, `--dry-run` | Creates the GitHub repository and applies its settings | [ADR-0024](decisions/0024-publishing-a-project-is-part-of-generating-it.md) |
+| `scaffold publish [dir]` | `--public`, `--private` (default), `--no-protect`, `--dry-run` | Creates the GitHub repository and applies its settings | [ADR-0024](decisions/0024-publishing-a-project-is-part-of-generating-it.md) |
 | `scaffold list` | `--adapters`, `--services` | Prints adapters with role and tier, services with kind | [ADR-0012](decisions/0012-tiered-adapter-support.md) |
 | `scaffold lint` | none | Checks every adapter and service against the contract | [ADR-0011](decisions/0011-task-contract-names-follow-immich.md) |
-| `scaffold --version` | none | `git describe` of this toolbox, `-dirty` for uncommitted edits | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
+| `scaffold --version` | also `-v` | `git describe` of this toolbox, `-dirty` for uncommitted edits | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
+| `scaffold --help` | also `-h` | Prints usage | none |
 
 ## Glossary
 
@@ -81,7 +82,8 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 | task contract | The nine tasks every app implements: `install` … `checklist` | `lib/contract.sh` |
 | overlay | Copying an adapter's files over the generator's output | [ADR-0003](decisions/0003-adapter-overlay-instead-of-vendored-presets.md) |
 | splice anchor | The `# @SERVICE_SETUP@` line in an adapter Dockerfile, replaced by the drivers' setup block | `adapters/nestjs/Dockerfile` |
-| manifest (`.scaffold.toml`) | The toolbox commit and the adapter behind each app, read by `scaffold update` | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
+| manifest | `config_roots` in the project's root `mise.toml`: recorded once, the CI matrix is derived from it | `lib/manifest.sh`, [ADR-0013](decisions/0013-config-roots-is-the-manifest.md) |
+| `.scaffold.toml` | What generated the project: the toolbox commit and the adapter behind each app, read by `scaffold update` | [ADR-0023](decisions/0023-a-project-records-what-generated-it.md) |
 
 ## Reading path
 
