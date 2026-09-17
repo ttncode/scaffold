@@ -27,10 +27,14 @@ and both were hit in one afternoon while testing this toolbox:
   setting that caused it. The runbook calls this call "required, not
   optional", in bold, which is the same admission.
 
-`docs/tour/04-guardrails.md` names a third: branch protection is the only one of the four
+ADR-0004 names a third: branch protection is the only one of the four
 guardrails that is a repository setting rather than a file, and the one most
 likely to be skipped because nothing in the project records whether it was
 applied.
+
+> **Amended 2026-09-17.** ADR-0004 lists no guardrails. The four layers — git
+> hooks, CI, Renovate and the ruleset — are listed in
+> `docs/tour/04-guardrails.md`.
 
 A runbook step that is required, has no in-repo trace, and fails somewhere
 else is a step that should not be a runbook step.

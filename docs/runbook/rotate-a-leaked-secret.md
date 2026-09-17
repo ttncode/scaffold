@@ -23,6 +23,7 @@ Rotate first, rewrite history second: a rotated secret makes every copy worthles
 
    ```bash
    docker compose up -d
+   docker compose ps          # every service healthy before step 3 rewrites history
    ```
 
 3. Remove the secret from history with `git filter-repo` or BFG Repo-Cleaner, force-push, and have every collaborator re-clone.

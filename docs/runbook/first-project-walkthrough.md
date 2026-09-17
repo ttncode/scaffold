@@ -113,6 +113,8 @@ A step that does something other than its **Expect** is a finding, even when it 
 
    Expect: every workflow on `main` green, and a Release Please pull request. Merge it and follow [cut-a-release](cut-a-release.md).
 
+   Without `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`, that pull request's checks sit at `Action required`, then expire red; `gh run view` reports `This run likely failed because of a workflow file issue`. There is no workflow file issue, and merging it still releases.
+
 10. **Run the release.** The repository is private, so `install.sh` needs a token with `repo` and `read:packages`, and `jq` on the host.
 
     ```sh
@@ -131,6 +133,8 @@ A step that does something other than its **Expect** is a finding, even when it 
     grep -n 'ghcr.io' compose.yaml
     grep -n '^RepoUrl=' install.sh
     ```
+
+    Expect: one owner and one project name across all three. If the repository was renamed, edit these files in the project and cut another release: `install.sh` re-downloads `compose.yaml` on every run, overwriting any edit to the deployed copy.
 
 11. **Add an application.**
 

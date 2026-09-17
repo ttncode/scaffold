@@ -42,13 +42,13 @@ When: a project from `scaffold new` has no GitHub repository yet, or its reposit
 
 ## What it does
 
-| Step | Function in `lib/publish.sh` | Skipped when |
+| Step | Does it (`lib/publish.sh`) | Skips or warns (`scaffold`) |
 | --- | --- | --- |
-| Create `<owner>/<project>` and push `main` | `create_repo` | The repository exists |
-| Allow Actions to open pull requests | `allow_actions_to_open_pull_requests` | Never |
-| Secret scanning and push protection | `enable_secret_scanning` | The plan lacks it: warning |
-| Ruleset `main`: pull request required, no force-push, no deletion | `protect_main` | `--no-protect`, a ruleset named `main` exists, or the plan lacks it: warning |
-| Set `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` | `set_release_secrets` | Either variable is unset: warning |
+| Create `<owner>/<project>` and push `main` | `create_repo` | `cmd_publish`: skipped when the repository exists |
+| Allow Actions to open pull requests | `allow_actions_to_open_pull_requests` | Never skipped |
+| Secret scanning and push protection | `enable_secret_scanning` | `apply_repo_settings`: warns when the plan lacks it |
+| Ruleset `main`: pull request required, no force-push, no deletion | `protect_main` | `protect_main_branch`: skipped on `--no-protect` or an existing ruleset named `main` (`main_is_protected`); warns when the plan lacks it |
+| Set `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` | `set_release_secrets` | `apply_repo_settings`: warns when either variable is unset |
 
 `<owner>/<project>` is read from `[vars] image` in the project's `mise.toml` (`repo_slug`). There is no flag to change it.
 
@@ -71,4 +71,4 @@ scaffold publish --dry-run                                     # "would leave â€
 | `could not finish creating` | The repository may exist half-made. Check it on GitHub, then run again |
 | Warning `main is unprotected` | A free account's private repository cannot use rulesets. Make it public or upgrade, then run again |
 | Warning `no secret scanning` | A private repository needs Advanced Security. The CI gitleaks scan still runs |
-| Warning `no RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY` | Checks on the release pull request sit at `Action required`, then expire red. Merging it still releases. To fix, export both and run again |
+| Warning `no RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY` | Checks on the release pull request sit at `Action required`, then expire red, and `gh run view` reports `This run likely failed because of a workflow file issue`. There is no workflow file issue. Merging it still releases. To fix, export both and run again |
