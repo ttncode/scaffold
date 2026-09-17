@@ -17,6 +17,7 @@
 | `adapters/nestjs/adapter.env` | Every field: name, role, tier, language, family, generator, post-generate, health paths |
 | `lib/adapter.sh` | `load_adapter`, `role_path`, `apply_adapter`: generate, overlay, post-generate, drivers, config root, lefthook fragment |
 | `lib/service.sh` | `apply_service_drivers`, `apply_service_dockerfile`, `write_env_lines` |
+| `services/redis/drivers/nest.sh` | Installs the cache packages and writes `REDIS_URL`; registering `CacheModule` is left to the developer |
 | `services/shared/nest.sh` | The Prisma driver body: Prisma 6, `allowBuilds` for its install scripts (ADR-0017) |
 | `scripts/adapter-matrix.sh` | Tier A and B CI matrices from `scaffold list --adapters` (ADR-0012) |
 | `docs/runbook/add-an-adapter.md` | The steps to add one |
