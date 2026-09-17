@@ -6,7 +6,7 @@ monorepo_root = true
 database = "@DATABASE@"
 cache = "@CACHE@"
 
-# apps/web publishes as <image>-web (ADR-0022). `scaffold add`, compose.yaml
+# apps/web publishes as <image>-web (toolbox ADR-0022). `scaffold add`, compose.yaml
 # and the build workflows must all name this one string.
 image = "ghcr.io/you/@PROJECT_NAME@"
 
