@@ -119,6 +119,8 @@ set_release_secrets() {
 
   gh secret set RELEASE_APP_ID --repo "$slug" --body "$RELEASE_APP_ID" >/dev/null ||
     die "could not set RELEASE_APP_ID on ${slug}"
-  gh secret set RELEASE_APP_PRIVATE_KEY --repo "$slug" --body "$RELEASE_APP_PRIVATE_KEY" >/dev/null ||
+  # On stdin: argv is visible to every user on the host.
+  printf '%s' "$RELEASE_APP_PRIVATE_KEY" |
+    gh secret set RELEASE_APP_PRIVATE_KEY --repo "$slug" >/dev/null ||
     die "could not set RELEASE_APP_PRIVATE_KEY on ${slug}"
 }

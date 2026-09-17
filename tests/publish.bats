@@ -32,7 +32,9 @@ case "$1 $2" in
     [ "${GH_SCENARIO}" = absent ] && exit 1
     printf '{"name":"demo"}\n'; exit 0 ;;
   "repo create") exit 0 ;;
-  "secret set") exit 0 ;;
+  "secret set")
+    [[ "$*" == *--body* ]] || cat >>"${GH_LOG}.stdin"
+    exit 0 ;;
 esac
 
 # `gh api repos/<slug>/rulesets` with no -X is the listing; with -X POST it is
@@ -250,6 +252,19 @@ _project() {
   assert_ok
   run grep -c 'secret set' "$GH_LOG"
   [ "$output" = 2 ]
+}
+
+@test "the release app private key reaches gh on stdin, never on argv" {
+  _stub_gh
+  _project
+
+  GH_SCENARIO=exists RELEASE_APP_ID=1 RELEASE_APP_PRIVATE_KEY=k3y-s3cret \
+    run scaffold publish "$PROJECT"
+  assert_ok
+  run grep -c 'k3y-s3cret' "$GH_LOG"
+  [ "$output" = 0 ]
+  run cat "${GH_LOG}.stdin"
+  [[ "$output" == *k3y-s3cret* ]]
 }
 
 @test "the ruleset it posts is valid json and carries the three rules" {
