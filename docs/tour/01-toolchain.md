@@ -2,42 +2,24 @@
 
 ## What it does
 
-`mise.toml` pins every language and tool the project uses, and `mise.lock`
-records the resolved versions. `mise install` reproduces them exactly on any
-machine — this repository's own toolchain (`bats`, `shellcheck`, `yq`, `jq`)
-and, in a generated project, `common/mise.root.toml`'s (`node`, `pnpm`,
-`lefthook`, `gitleaks`).
+- `mise.toml` pins every tool; `[settings] lockfile = true` makes `mise.lock` record the resolved versions.
+- `mise install` reproduces them on any machine.
+- The toolbox pins its own tools (`bats`, `shellcheck`, `shfmt`, `jq`, `yq`, …).
+- A generated project's root pins `node`, `pnpm`, `lefthook`, `gitleaks`; an app's own `mise.toml` adds only what it needs beyond those.
 
 ## Read this
 
-- `mise.toml` — this toolbox's own tools, plus `[settings] lockfile = true`.
-- `common/mise.root.toml` — the template rendered into a generated project's
-  root `mise.toml`. Notice what it does *not* pin: no language runtime for
-  any adapter.
-- `adapters/laravel-api/mise.toml` — a language declared in a local
-  `[tools]` block so it never reaches the project root (see 08 — Adapters).
-- `adapters/flask/mise.toml` — the same rule with the pin somewhere else
-  again: it declares `uv` and no python, because uv resolves its own managed
-  interpreter and would install a mise-pinned one only to ignore it.
-  `adapters/flask/.python-version` is the file uv actually reads.
-- Upstream for comparison: immich's own root
-  `https://github.com/immich-app/immich/blob/351be95/mise.toml`, which pins
-  every service's language in one place — the opposite of this project's
-  per-adapter split, and the reason ADR-0011 exists.
+| File | Why |
+| --- | --- |
+| `mise.toml` | The toolbox's tools and its `lockfile = true` |
+| `common/mise.root.toml` | Rendered into a generated project's root `mise.toml` |
+| `adapters/laravel-inertia/mise.toml` | App-local `[tools]`: composer and node; php comes from the system (ADR-0016) |
+| `adapters/flask/mise.toml` | Pins `uv`, not python: uv installs the version in `adapters/flask/.python-version` |
 
 ## Delete test
 
-`mise.lock` is tracked here (added in `08468e7`, task 1 — confirm
-yourself with `git ls-files --error-unmatch mise.lock`) and in every
-generated project (`common/mise.root.toml` sets `lockfile = true` too, and
-`common/.gitignore` does not exclude it). Delete it and nothing breaks
-today: `mise install` still resolves something. Three months later a
-client's machine resolves a newer Node than the one this project was built
-and tested against, `pnpm install` behaves slightly differently, and the
-build fails with nothing in the error pointing at a version mismatch.
-`[settings] lockfile = true` is what turns the pin into something real
-rather than decorative: without it, "pinned" only means "pinned until the
-next machine resolves it differently."
+Delete `mise.lock` and `mise install` still succeeds.
+What is lost is each tool's recorded backend, download URL and checksum per platform, so nothing checks a download against the one tested.
 
 ## Try it
 

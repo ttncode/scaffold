@@ -2,38 +2,26 @@
 
 ## What it does
 
-`common/docs/` is not a side project — it's a config root (ADR-0013),
-registered in `common/mise.root.toml`'s `config_roots` alongside every app.
-That means its `check` and `build` tasks run in CI exactly like an app's
-`test` and `build` do: a broken VitePress build, a dead internal link, or a
-malformed ADR fails the pipeline the same way a failing unit test would.
+- `common/docs/` is a VitePress site and a config root: `docs` is listed in `config_roots` in `common/mise.root.toml` (ADR-0013).
+- CI runs its contract tasks like any app's, so a broken path, a malformed ADR or a failed build fails the pipeline.
+- One docs workflow, not immich's three (ADR-0009).
 
 ## Read this
 
-- `common/docs/mise.toml` — `check` runs two structural scripts before
-  `build` ever runs VitePress.
-- `common/docs/scripts/check-paths.mjs` — every backticked path-looking
-  string in the generated project's own Markdown must resolve to a real
-  file.
-- `common/docs/scripts/check-adrs.mjs` — every ADR under
-  `common/docs/decisions/` needs `Context`, `Decision`, `Consequences`,
-  and `Alternatives considered`, a valid `Status`, and a non-duplicate
-  number.
-- ADR-0009 for one docs workflow instead of immich's three, ADR-0001 for
-  why `mise` tasks are the mechanism at all.
+| File | Why |
+| --- | --- |
+| `common/docs/mise.toml` | `lint` runs `check-paths.mjs`; `check` runs `check-paths.mjs` and `check-adrs.mjs`; `build` runs VitePress |
+| `common/docs/scripts/check-paths.mjs` | Every backticked path in the project's Markdown must exist |
+| `common/docs/scripts/check-adrs.mjs` | Every ADR has `Context`, `Decision`, `Consequences`, `Alternatives considered`, a valid `Status`, a unique number |
+| `common/.github/workflows/docs.yml` | The docs call site |
 
 ## Delete test
 
-Delete `common/docs/scripts/check-paths.mjs` and nothing breaks today —
-`check` still runs `check-adrs.mjs` and reports success. Months later,
-someone renames a directory the docs reference, the reference goes stale,
-and the only signal is a reader hitting a dead link in the published site —
-exactly the "documentation that CI does not verify is wrong within six
-months" comment in `common/docs/mise.toml` describes. The check exists
-specifically because that failure mode has no other detector.
+Remove `node scripts/check-adrs.mjs` from `check` in `common/docs/mise.toml`.
+An ADR missing a required section then passes CI.
 
 ## Try it
 
 ```bash
-node common/docs/scripts/check-adrs.mjs && echo "all ADRs valid"
+grep -n -A1 '^\[tasks' common/docs/mise.toml
 ```

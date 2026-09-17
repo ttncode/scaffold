@@ -2,96 +2,32 @@
 
 ## What it does
 
-An adapter is an overlay, not a vendored application: `scaffold` invokes a
-framework's own generator (`create-next-app`, `nest new`, `composer
-create-project`) and then copies its own files on top of the result. Where a
-framework ships no generator, the package manager's project init stands in —
-`flask` runs `uv init --bare`, which writes a `pyproject.toml` and nothing
-else, and the overlay supplies the application itself.
-`lib/lint.sh` requires four of them — `adapter.env`, `mise.toml`,
-`Dockerfile`, `.env.example` — and an adapter may ship more: `nextjs` adds
-`next.config.ts` and `.prettierignore`, `laravel-api` adds `phpstan.neon`
-and a `docker/` directory. `adapter.env` is the one exception to the copy:
-it is sourced, never written into the app.
+- An adapter runs a framework's own generator (`ADAPTER_GENERATOR`), then overlays its files on the output (ADR-0003).
+- Required files: `adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`; `adapter.env` and `lefthook.fragment.yml` are read, never copied.
+- `ADAPTER_ROLE` (`web`, `api`, `app`) picks the directory: `apps/web`, `apps/api`, `apps/app`.
+- For an `api` or `app` adapter, each selected service's `drivers/<family>.sh` runs, keyed on `ADAPTER_FAMILY`, and its Dockerfile block replaces the `# @SERVICE_SETUP@` anchor.
+- A `web` adapter takes no driver; the anchor is removed.
 
-The overlay is small by construction — tens of lines per adapter, not a
-generated application kept in sync by hand. Run `scaffold list` for what
-ships today rather than trusting a figure written here, which goes stale
-the first time an adapter gains a file.
-
-Every Dockerfile that can take a database or cache ships a
-`# @SERVICE_SETUP@` anchor comment. Once the generator and any
-`ADAPTER_POST_GENERATE` have settled the package manager's state,
-`apply_adapter` calls `apply_service_drivers`, which runs each selected
-service's `drivers/<family>.sh` — keyed on `ADAPTER_FAMILY`, not the
-adapter's own name, because the two Laravel adapters need identical wiring
-— and concatenates every driver's `service_driver_dockerfile` output in
-place of the anchor. A driver is expected to do two things: install
-whatever the framework needs to reach the service (a composer package, a
-pnpm package, a Prisma schema) and write the connection variables into
-`.env.example` with `write_env_lines`, never a bare append, since a driver
-runs against an `.env.example` the adapter already shipped. `nextjs`'s
-Dockerfile ships the anchor like every other adapter's — `tests/service.bats`
-requires it on all of them — but `ADAPTER_ROLE=web` takes no driver at all,
-so `apply_adapter` calls `apply_service_dockerfile` with an empty block, which
-removes the anchor outright rather than replacing it. A Dockerfile that
-ships the anchor unreplaced fails to build.
+![Code layers](../diagrams/code-layers.svg)
 
 ## Read this
 
-- `adapters/nestjs/adapter.env` — `ADAPTER_NAME`, `ADAPTER_ROLE`,
-  `ADAPTER_TIER`, `ADAPTER_LANGUAGE`, `ADAPTER_FAMILY`, `ADAPTER_GENERATOR`,
-  and the optional `ADAPTER_POST_GENERATE` for one-time fixups the
-  generator itself gets wrong.
-- `lib/adapter.sh` — `load_adapter` (reads `adapter.env` into the shell),
-  `role_path` (the only place a role maps to a directory — web, api, and
-  app roles land under apps/web, apps/api, and apps/app in a *generated*
-  project), `apply_adapter` (runs the generator, overlays every file the adapter
-  ships except `adapter.env`, merges the lefthook fragment, then runs the
-  service drivers described above).
-- `services/shared/nest.sh` — the Prisma driver body every `nest`-family
-  database service sources. Pinned to Prisma major 6, not `@latest`:
-  major 7 drops the datasource `url` field this driver writes, in favor of
-  a `prisma.config.ts` adapter — a bigger change than a driver that only
-  ever writes `datasource` and `generator` blocks should force on every
-  service. The same file sets `allowBuilds` for `prisma`, `@prisma/engines`
-  and `@prisma/client` in the project's `pnpm-workspace.yaml`: none of the
-  three ships a pure-JS fallback for its install-time binary fetch, and
-  pnpm blocks an unapproved postinstall build by default
-  (`ERR_PNPM_IGNORED_BUILDS`) — the same guard ADR-0017 already names for
-  `unrs-resolver` and `esbuild`.
-- `services/shared/laravel.sh` writes `DB_HOST=localhost`, not the compose
-  service name `database`: `.env.example` describes `mise run dev` (the app
-  running on the host), which reaches the database through
-  `compose.dev.yaml`'s published port, not the compose network.
-- `services/mongodb/drivers/laravel.sh` — `composer config platform.ext-mongodb
-  1.21.0` has to stay the version `service_driver_dockerfile`'s `pecl install
-  mongodb` actually builds a few lines below; pecl carries no version pin of
-  its own, so a newer extension release moves the image out from under this
-  number with nothing here to notice.
-- `services/redis/drivers/nest.sh` installs the cache packages and writes
-  `REDIS_URL`; it registers no NestJS module. Wiring `CacheModule` to it is
-  left to the developer, the same way every adapter's own generator leaves
-  the rest of the framework's setup.
-- ADR-0003 for the overlay decision itself, ADR-0012 for how tiers decide
-  what CI actually runs, ADR-0018 for why adding a second adapter later
-  never retroactively rewires the shared TypeScript workspace, and
-  ADR-0019 for why `services/` is a category of its own rather than a kind
-  of adapter.
+| File | Why |
+| --- | --- |
+| `adapters/nestjs/adapter.env` | Every field: name, role, tier, language, family, generator, post-generate, health paths |
+| `lib/adapter.sh` | `load_adapter`, `role_path`, `apply_adapter`: generate, overlay, post-generate, drivers, config root, lefthook fragment |
+| `lib/service.sh` | `apply_service_drivers`, `apply_service_dockerfile`, `write_env_lines` |
+| `services/shared/nest.sh` | The Prisma driver body: Prisma 6, `allowBuilds` for its install scripts (ADR-0017) |
+| `scripts/adapter-matrix.sh` | Tier A and B CI matrices from `scaffold list --adapters` (ADR-0012) |
+| `docs/runbook/add-an-adapter.md` | The steps to add one |
 
 ## Delete test
 
-Delete an adapter's `adapter.env` and `scaffold lint` catches it
-immediately — `lint_adapters` checks for all four required files on every
-run. The quieter failure is a typo inside a field that still parses: set
-`ADAPTER_TIER` to an unrecognised value and, before the fix this project
-had to make, the adapter simply vanished from every CI matrix with exit 0
-— no adapters.yml job ever mentioned it again, and nothing pointed at
-`adapter.env` as the place to look. `scripts/adapter-matrix.sh`'s
-`assert_known_tiers` now fails loudly, by name, on exactly that case.
+Delete an adapter's `adapter.env` and `scaffold lint` reports `missing file adapter.env`.
+Set `ADAPTER_TIER` to an unknown value and `scripts/adapter-matrix.sh` fails, naming the adapter.
 
 ## Try it
 
 ```bash
-./scaffold list
+./scaffold list --adapters
 ```
