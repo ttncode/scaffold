@@ -45,7 +45,7 @@ main_is_protected() {
   grep -qx main <<<"$rulesets"
 }
 
-# ADR-0004. No required status checks: their names (`ci (apps/api)`) differ per
+# ADR-0024. No required status checks: their names (`ci (apps/api)`) differ per
 # project and change with every application added. A free account's private
 # repository answers 403 "Upgrade to GitHub Pro".
 protect_main() {

@@ -46,10 +46,11 @@ usage:
                       [--db <service>] [--cache <service>]
   scaffold add <dir> --adapter <adapter>
   scaffold update [dir] [--dry-run]
-  scaffold publish [dir] [--public] [--no-protect] [--dry-run]
+  scaffold publish [dir] [--public | --private] [--no-protect] [--dry-run]
   scaffold list [--adapters] [--services]
   scaffold lint
-  scaffold --version
+  scaffold -h, --help
+  scaffold -v, --version
 EOF
 }
 
@@ -678,7 +679,7 @@ protect_main_branch() {
   protect_main "$slug" || status=$?
   case "$status" in
     0) log "protected main: pull request required, no force-push, no deletion" ;;
-    "$PUBLISH_UNSUPPORTED") warn "main is unprotected: this account's plan does not allow rulesets on a private repository. Make it public, or upgrade, then run this again — ADR-0004 counts branch protection as one of four guardrails, and it is the only one that is not a file" ;;
+    "$PUBLISH_UNSUPPORTED") warn "main is unprotected: this account's plan does not allow rulesets on a private repository. Make it public, or upgrade, then run this again — branch protection is the only guardrail that is not a file (ADR-0024)" ;;
     *) die "could not protect main on ${slug}" ;;
   esac
 }
