@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 888" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="scaffold-new-title scaffold-new-desc">
+  <title id="scaffold-new-title">What scaffold new does</title>
+  <desc id="scaffold-new-desc">Flowchart of scaffold new: parse flags and services, copy and render common, add services, install each adapter app, join one pnpm workspace or keep apps standalone, register image targets, then lock the toolchain and commit.</desc>
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+  <path d="M360,88 V120" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M360,176 V208" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M360,264 V296" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M360,352 V384" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M360,440 V472" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <path d="M280,512 H228 Q220,512 220,520 V600" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M440,512 H492 Q500,512 500,520 V600" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M220,656 V692 Q220,700 228,700 H356" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M500,656 V692 Q500,700 492,700 H364" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+  <path d="M360,704 V744" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="238" y="492" width="28" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="252" y="501" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">YES</text>
+  <rect x="458" y="492" width="20" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="468" y="501" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NO</text>
+  <rect x="368" y="718" width="124" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="372" y="727" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">REGISTER_IMAGE_TARGET</text>
+  <path d="M532,236 H520" fill="none" stroke="rgba(45,49,66,0.40)" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="536" y="228" fill="#2d3142" font-size="14" font-style="italic" font-family="'Instrument Serif', serif">trap armed: a failure</text>
+  <text x="536" y="244" fill="#2d3142" font-size="14" font-style="italic" font-family="'Instrument Serif', serif">removes &lt;name&gt;</text>
+  <rect x="200" y="40" width="320" height="48" rx="24" fill="#f5f5f5"/>
+  <rect x="200" y="40" width="320" height="48" rx="24" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+  <text x="360" y="68" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">scaffold new &lt;name&gt;</text>
+  <rect x="200" y="120" width="320" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="200" y="120" width="320" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="360" y="148" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Parse flags, pick services</text>
+  <text x="360" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">parse_new_flags · resolve_service_selection</text>
+  <rect x="200" y="208" width="320" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="200" y="208" width="320" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="360" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Copy common/ and render it</text>
+  <text x="360" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">init_project · init_scaffold_manifest</text>
+  <rect x="200" y="296" width="320" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="200" y="296" width="320" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="360" y="324" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Add the database and cache</text>
+  <text x="360" y="340" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">record_services · assemble_compose</text>
+  <rect x="200" y="384" width="320" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="200" y="384" width="320" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="360" y="412" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Install each app</text>
+  <text x="360" y="428" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">add_app_service · apply_adapter</text>
+  <polygon points="360,472 440,512 360,552 280,512" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="360" y="509" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Every app</text>
+  <text x="360" y="523" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TypeScript?</text>
+  <rect x="100" y="600" width="240" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="100" y="600" width="240" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="220" y="628" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">One pnpm workspace</text>
+  <text x="220" y="644" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">join_typescript_workspace</text>
+  <rect x="380" y="600" width="240" height="56" rx="6" fill="#f5f5f5"/>
+  <rect x="380" y="600" width="240" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="500" y="628" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Apps stay standalone</text>
+  <text x="500" y="644" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">keep_apps_standalone</text>
+  <circle cx="360" cy="700" r="4" fill="#2d3142"/>
+  <rect x="200" y="744" width="320" height="56" rx="28" fill="#f5f5f5"/>
+  <rect x="200" y="744" width="320" height="56" rx="28" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+  <text x="360" y="772" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Lock and commit</text>
+  <text x="360" y="788" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">finalize_project</text>
+  <line x1="40" y1="832" x2="680" y2="832" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <text x="40" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+  <rect x="40" y="860" width="24" height="12" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+  <text x="72" y="870" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Start / end</text>
+  <rect x="220" y="860" width="24" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="252" y="870" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Step</text>
+  <polygon points="400,866 412,860 424,866 412,872" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="432" y="870" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Decision</text>
+</svg>
