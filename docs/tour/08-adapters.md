@@ -3,7 +3,7 @@
 ## What it does
 
 - An adapter runs a framework's own generator (`ADAPTER_GENERATOR`), then overlays its files on the output (ADR-0003).
-- Required files: `adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`; `adapter.env` and `lefthook.fragment.yml` are read, never copied.
+- Required files: `adapter.env`, `mise.toml`, `Dockerfile`, `.env.example`; `adapter.env`, `lefthook.fragment.yml` and `example.env.fragment` are read, never copied.
 - `ADAPTER_ROLE` (`web`, `api`, `app`) picks the directory: `apps/web`, `apps/api`, `apps/app`.
 - For an `api` or `app` adapter, each selected service's `drivers/<family>.sh` runs, keyed on `ADAPTER_FAMILY`, and its Dockerfile block replaces the `# @SERVICE_SETUP@` anchor.
 - A `web` adapter takes no driver; the anchor is removed.

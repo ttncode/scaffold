@@ -58,3 +58,20 @@ teardown() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"adapter vite-react has role web"* ]]
 }
+
+@test "the deployed stack's env lists API_URL for the web app" {
+  scaffold new "$PROJECT" --web vite-react
+  # compose feeds every container from the root .env, which install.sh builds
+  # from example.env; apps/web/.env.example reaches no container.
+  run grep -c '^API_URL=' "${PROJECT}/example.env"
+  [ "$output" = "1" ]
+  [ ! -e "${PROJECT}/apps/web/example.env.fragment" ]
+}
+
+@test "the caddy runtime keeps a stale index.html out of browser caches" {
+  scaffold new "$PROJECT" --web vite-react
+  # a heuristically cached index.html asks for hashed assets a later deploy
+  # removed, and the SPA fallback answers them with HTML: a blank page.
+  run grep -c 'Cache-Control no-cache' "${PROJECT}/apps/web/Caddyfile"
+  [ "$output" = "1" ]
+}

@@ -18,6 +18,11 @@
 	}
 
 	handle {
+		# Hashed assets may cache; anything else must revalidate, or a browser
+		# holding an old index.html asks for assets a deploy removed and the
+		# fallback below answers them with HTML.
+		@revalidate not path /assets/*
+		header @revalidate Cache-Control no-cache
 		root * /srv
 		try_files {path} /index.html
 		file_server

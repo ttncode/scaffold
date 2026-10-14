@@ -4,7 +4,7 @@
 APPS_DIR="apps"
 
 # Sourced or merged by name, so never copied verbatim into the application.
-ADAPTER_INTERNAL_FILES=(adapter.env lefthook.fragment.yml)
+ADAPTER_INTERNAL_FILES=(adapter.env lefthook.fragment.yml example.env.fragment)
 
 # Cleared on every load, or a stale value is read as the next adapter's own.
 ADAPTER_OPTIONAL_VARS=(

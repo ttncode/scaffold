@@ -208,6 +208,11 @@ add_app_service() {
   merge_compose_fragment "$file" "$fragment" "the ${key} service"
 
   printf '\n%s=%s\n' "$port_var" "$port" >>"${project}/${EXAMPLE_ENV_FILE}"
+  # The root .env is what compose hands the container; an app's own
+  # .env.example reaches no deployed stack.
+  if [[ -f "${ADAPTER_DIR}/example.env.fragment" ]]; then
+    cat "${ADAPTER_DIR}/example.env.fragment" >>"${project}/${EXAMPLE_ENV_FILE}"
+  fi
 
   depend_on_project_services "$project" "$key" "$role"
 }
