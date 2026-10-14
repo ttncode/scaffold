@@ -128,8 +128,8 @@ set parameters and source it, as `services/shared/nest.sh` does.
 | --- | --- | --- | --- | --- |
 | postgres | `drizzle-orm` `pg`; dev `drizzle-kit` `@types/pg` | ``await db().execute(sql`select 1`)`` | `DATABASE_URL`, same override-then-compose shape as `services/postgres/drivers/nest.sh`, `database:5432` | `command: ["node", "dist/db/migrate.js"]` |
 | mysql | `drizzle-orm` `mysql2`; dev `drizzle-kit` | same | same shape, `mysql://`, `database:3306` | same |
-| redis | `redis` | `await (await cache()).ping()` | `REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@cache:6379}` | none |
-| mongodb | `mongodb` | `await (await mongo()).db().command({ ping: 1 })` | `DATABASE_URL` with `authSource=admin` | none: no schema |
+| redis | `redis` | `await pingCache()`: a short-lived connection per probe (`reconnectStrategy: false`, 2 s timeout), so a down cache answers 503 instead of hanging on node-redis's offline queue | `REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@cache:6379}` | none |
+| mongodb | `mongodb` | `await mongo().db().command({ ping: 1 })` on one `MongoClient` per process, `serverSelectionTimeoutMS: 2000` | `DATABASE_URL` with `authSource=admin` | `command: ["node", "dist/db/migrate.js"]`: a ping, the seam for indexes. Not empty: `common/install.sh` refuses a database with no migrate service |
 
 The Drizzle body writes:
 
@@ -146,7 +146,7 @@ The Drizzle body writes:
   so `migrate()` succeeds on a fresh project and `drizzle-kit generate` appends.
 - `DATABASE_URL` into `.env.example` through `write_env_lines`.
 
-The redis and mongodb drivers write a lazily connected client module
+The redis and mongodb drivers write a client module
 (`src/cache.ts`, `src/db/mongo.ts`) the same way. Each driver splices the
 import at `// @DB_CLIENT@` (or `// @CACHE_CLIENT@`) and the probe at its probe
 anchor, removes the no-database throw only for a database, and asserts the
