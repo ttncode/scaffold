@@ -75,6 +75,7 @@ Each adapter's tier is `ADAPTER_TIER` in its `adapter.env` ([ADR-0012](docs/deci
 | Adapter | Role | Tier |
 | --- | --- | --- |
 | `nextjs` | web | A |
+| `vite-react` | web | A |
 | `nestjs` | api | A |
 | `laravel-api` | api | A |
 | `flask` | api | A |
