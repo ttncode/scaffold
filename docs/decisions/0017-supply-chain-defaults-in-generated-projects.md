@@ -83,7 +83,7 @@ whether it clears the immediate failure:
   > `join_typescript_workspace` deletes the `docs` pair instead.
 
 - **`confirmModulesPurge` does not ship in `common/pnpm-workspace.yaml`.**
-  It is set instead as `env = { npm_config_confirm_modules_purge = "false" }`
+  It is set instead as `env = { pnpm_config_confirm_modules_purge = "false" }`
   on the `install` and `ci-unit` mise tasks, in every adapter's
   `mise.toml` and in `common/packages-types/mise.toml`. Scoped this way it
   unblocks only the unattended contract tasks; a developer running
@@ -261,3 +261,9 @@ whether it clears the immediate failure:
   requirement of a dead-link check failing the build (`ignoreDeadLinks:
   false`); trading that away to dodge one `allowBuilds` line is not a good
   trade.
+
+> **Amended 2026-10-15.** pnpm 11 no longer reads `npm_config_*` environment
+> variables, only `pnpm_config_*`. Every override this toolbox sets through the
+> environment now uses that prefix; under the old one, `CI=true`'s frozen
+> lockfile failed the second app of `scaffold new --web vite-react --api nestjs`.
+> `tests/contract.bats` rejects an `npm_config_` variable.

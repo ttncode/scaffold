@@ -1,7 +1,7 @@
 [tasks.install]
 # The first frozen install after this package joins the workspace relinks
 # node_modules, and pnpm must not stop to ask.
-env = { npm_config_confirm_modules_purge = "false" }
+env = { pnpm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 
 [tasks.format]
@@ -24,7 +24,7 @@ run = "true"
 
 [tasks.ci-unit]
 # same reason as :install's env above — ci-unit calls :install too.
-env = { npm_config_confirm_modules_purge = "false" }
+env = { pnpm_config_confirm_modules_purge = "false" }
 run = [{ task = ":install" }, { task = ":format" }, { task = ":check" }]
 
 [tasks.checklist]

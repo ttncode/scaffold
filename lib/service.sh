@@ -393,7 +393,7 @@ migrate_service_block() {
 # inside, and a driver's unchecked failure would vanish.
 #
 # Tools go in by PATH, not `mise exec -C`, which resolves PATH from scratch and
-# loses yq. The npm_config_* pair is apply_adapter's.
+# loses yq. The pnpm_config_* pair is apply_adapter's.
 run_driver_apply() {
   local -r app="$1" project="$2" family="$3" service="$4" driver="$5"
   local pnpm_bin node_bin uv_bin=""
@@ -415,7 +415,7 @@ run_driver_apply() {
   step "wiring ${service} into $(app_service_key "$app")"
   run_quietly "wiring ${service} into $(app_service_key "$app") (the ${family} driver)" \
     env PATH="${uv_bin:+${uv_bin}:}${pnpm_bin}:${node_bin}:${PATH}" \
-    npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+    pnpm_config_frozen_lockfile=false pnpm_config_verify_deps_before_run=false \
     SCAFFOLD_PROJECT_ROOT="$project" \
     bash -euo pipefail -c "$driver_script" _ "$app" "$driver"
 }

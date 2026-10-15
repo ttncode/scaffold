@@ -1,6 +1,6 @@
 [tasks.install]
 # A frozen install that relinks node_modules must not stop to ask (toolbox ADR-0017).
-env = { npm_config_confirm_modules_purge = "false" }
+env = { pnpm_config_confirm_modules_purge = "false" }
 run = "pnpm install --frozen-lockfile"
 
 [tasks.format]
@@ -24,7 +24,7 @@ run = "true"
 run = "pnpm exec vitepress build ."
 
 [tasks.ci-unit]
-env = { npm_config_confirm_modules_purge = "false" }
+env = { pnpm_config_confirm_modules_purge = "false" }
 run = [
   { task = ":install" },
   { task = ":format" },
