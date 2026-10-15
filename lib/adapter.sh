@@ -162,7 +162,7 @@ generate_adapter_app() {
 
   step "generating ${rel} with ${name} (a framework generator, this takes a few minutes)"
   run_quietly "generating ${rel} with ${name}" \
-    env APP_DIR="$(basename "$dest")" npm_config_frozen_lockfile=false \
+    env APP_DIR="$(basename "$dest")" pnpm_config_frozen_lockfile=false \
     bash -c "$ADAPTER_TOOLCHAIN_SCRIPT" _ "$parent" "$ADAPTER_GENERATOR"
 }
 
@@ -175,7 +175,7 @@ configure_adapter_app() {
 
   step "configuring ${rel}"
   run_quietly "configuring ${rel} after its generator ran" \
-    env npm_config_frozen_lockfile=false npm_config_verify_deps_before_run=false \
+    env pnpm_config_frozen_lockfile=false pnpm_config_verify_deps_before_run=false \
     bash -c "$ADAPTER_TOOLCHAIN_SCRIPT" _ "$dest" "$ADAPTER_POST_GENERATE"
 }
 

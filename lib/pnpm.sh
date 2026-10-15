@@ -12,7 +12,7 @@ RELEASE_AGE_BLOCK_START="# too fresh at generation time"
 RELEASE_AGE_BLOCK_END="# end minimumReleaseAgeExclude"
 
 # Relaxed while a generator runs inside an installed workspace, and stripped on
-# both of cmd_add's exit paths. In the file, not the environment: npm_config_*
+# both of cmd_add's exit paths. In the file, not the environment: pnpm_config_*
 # does not survive a generator's nested pnpm processes.
 #   confirmModulesPurge  relinking the shared node_modules otherwise wants a TTY
 #   frozenLockfile       CI=true turns it on, and the generator adds dependencies

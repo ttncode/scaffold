@@ -310,3 +310,14 @@ setup() {
     false
   }
 }
+
+@test "no pnpm setting is passed through an npm_config_ variable" {
+  # pnpm 11 reads only pnpm_config_*; an npm_config_ override is silently
+  # ignored, and CI=true's frozen lockfile then fails the second app of a
+  # `scaffold new`.
+  run git -C "$SCAFFOLD_ROOT" grep -nE '(^|[^p])npm_config_' -- scaffold lib adapters common services
+  [ "$status" -ne 0 ] || {
+    echo "$output"
+    false
+  }
+}
