@@ -218,6 +218,15 @@ actually ran the image.
 - **A readiness route is application code a client may delete.** Nothing
   detects that later. The gate tests generated projects, not a client's
   repository six months on.
+- **Every application container sees the whole `.env`.** Each app service
+  and `migrate` take `env_file: .env` (`lib/service.sh`), so a web container
+  holds `DB_PASSWORD`, `REDIS_PASSWORD` and any secret a project adds later,
+  and a compromised web tier hands over the database credentials. Accepted
+  2026-10-16: `env_file` is what carries `APP_KEY` and `DB_*` to Laravel,
+  `API_URL` to vite-react's Caddyfile, a secret a project adds without
+  touching `compose.yaml`, and an operator's own `DATABASE_URL` override.
+  The narrow fix, when it is wanted: drop `env_file` from the `web` role only,
+  with each web adapter declaring the variables it reads in `environment:`.
 
 ## Alternatives considered
 
