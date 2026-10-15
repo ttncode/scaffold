@@ -1,4 +1,4 @@
-# php comes from the system (ADR-0016); node builds the vite assets.
+# php comes from the system (toolbox ADR-0016); node builds the vite assets.
 [tools]
 "ubi:composer/composer" = "2.10.2"
 node = "24.15.0"

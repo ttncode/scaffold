@@ -14,7 +14,7 @@ jobs:
       issues: write
       packages: write
       pull-requests: write
-    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (toolbox ADR-0005).
     uses: you/.github/.github/workflows/app-release.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     # Without an app token, checks on the release PR sit at "Action required"
     # and expire red. Named, not `inherit`: the callee reads only these two.
@@ -22,5 +22,6 @@ jobs:
       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
     with:
-      # {image, context, dockerfile} per application, written by scaffold (ADR-0022).
+      # {image, context, dockerfile} per application, written by scaffold
+      # (toolbox ADR-0022).
       images: "[]"

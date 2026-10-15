@@ -129,3 +129,50 @@ teardown() {
   run grep -c 'COPY package.json pnpm-lock.yaml pnpm-workspace.yaml' "${mixed}/apps/web/Dockerfile"
   [ "$output" = "1" ]
 }
+
+@test "a python app under a workspace glob builds from its own directory" {
+  # apps/* matches apps/worker, but pnpm adopts no directory without a
+  # package.json; flask's Dockerfile copies uv.lock from its build context.
+  cd "$PROJECT"
+  run scaffold add apps/worker --adapter flask
+  assert_ok
+
+  run yq -r '.jobs.build.with.images' .github/workflows/build.yml
+  assert_ok
+  run jq -r '.[] | select(.dockerfile == "apps/worker/Dockerfile") | .context' <<<"$output"
+  [ "$output" = apps/worker ] || {
+    echo "context is ${output}"
+    false
+  }
+}
+
+@test "a second backend leaves migrate on the first backend's image" {
+  cd "$PROJECT"
+  local before
+  before="$(yq -r '.services.migrate.image' compose.yaml)"
+  run scaffold add apps/render --adapter nestjs
+  assert_ok
+  run yq -r '.services.migrate.image' compose.yaml
+  [ "$output" = "$before" ] || {
+    echo "migrate moved from ${before} to ${output}"
+    false
+  }
+}
+
+@test "each nest app gets its own dev port, and none falls back to next's 3000" {
+  cd "$PROJECT"
+  run scaffold add apps/render --adapter nestjs
+  assert_ok
+
+  local api render
+  api="$(sed -n 's/^PORT=//p' apps/api/.env.example)"
+  render="$(sed -n 's/^PORT=//p' apps/render/.env.example)"
+  [ -n "$api" ] && [ "$api" != "$render" ] || {
+    echo "api PORT=${api}, render PORT=${render}"
+    false
+  }
+  run grep -c "process.env.PORT ?? ${render})" apps/render/src/main.ts
+  [ "$output" = 1 ]
+  run grep -q '^# render$' apps/render/README.md
+  assert_ok
+}

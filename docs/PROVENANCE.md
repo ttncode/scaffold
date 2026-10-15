@@ -42,8 +42,7 @@ Excluded, and why:
   both resolve exactly one upstream clone. Its provenance travels with the
   files instead, in that directory's own `NOTICE` — source repository, commit,
   file-by-file origin and licence — which is what a reader who finds the
-  directory will actually look at. `common/docs/public/logo.png` comes from the same
-  repository and the same `NOTICE` covers it.
+  directory will actually look at.
 - **`docs/decisions/`** (this repository's own, at the root — not
   `common/docs/decisions/`, which ships and is covered below). This is this
   project's own record, not files copied from upstream.

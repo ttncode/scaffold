@@ -27,3 +27,14 @@ EOF
   [ "$status" -ne 0 ]
   [ ! -e "$ran_marker" ]
 }
+
+@test "only a directory with a package.json is a workspace member" {
+  printf 'packages:\n  - apps/*\n' >"${WORKDIR}/${WORKSPACE_FILE}"
+  mkdir -p "${WORKDIR}/apps/web" "${WORKDIR}/apps/worker"
+  printf '{}\n' >"${WORKDIR}/apps/web/package.json"
+  printf '[project]\n' >"${WORKDIR}/apps/worker/pyproject.toml"
+
+  app_is_workspace_member "$WORKDIR" apps/web
+  run app_is_workspace_member "$WORKDIR" apps/worker
+  [ "$status" -eq 1 ]
+}

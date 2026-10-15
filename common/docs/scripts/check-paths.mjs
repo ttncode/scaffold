@@ -1,6 +1,7 @@
+import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { extname, join, resolve } from "node:path";
+import { basename, extname, join, resolve } from "node:path";
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 // backticked strings that look like repository paths
@@ -14,20 +15,36 @@ const SKIP_DIRS = new Set(["node_modules", ".git", ".vitepress"]);
 // still walks apps/
 const MARKDOWN_SKIP_DIRS = new Set([...SKIP_DIRS, "apps"]);
 
-async function filesMatching(dir, matches, skipDirs = SKIP_DIRS) {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map((entry) => {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        return skipDirs.has(entry.name)
-          ? []
-          : filesMatching(path, matches, skipDirs);
-      }
-      return matches(entry.name) ? [path] : [];
-    }),
-  );
-  return files.flat();
+// what git would commit: scratch notes and build output are not docs
+function listProjectFiles() {
+  try {
+    return execFileSync(
+      "git",
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+      {
+        cwd: PROJECT_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    )
+      .split("\0")
+      .filter(Boolean);
+  } catch (error) {
+    console.error(
+      `check-paths reads the file list from git, and ${PROJECT_ROOT} is not a git checkout: ${error.message}`,
+    );
+    process.exit(1);
+  }
+}
+
+const projectFiles = listProjectFiles();
+
+function filesMatching(matches, skipDirs = SKIP_DIRS) {
+  return projectFiles
+    .filter((path) => !path.split("/").some((part) => skipDirs.has(part)))
+    .filter((path) => matches(basename(path)))
+    .map((path) => join(PROJECT_ROOT, path))
+    .filter((path) => existsSync(path));
 }
 
 function missingPaths(content) {
@@ -52,8 +69,7 @@ function missingAdrReferences(content, shippedNumbers) {
 
 const failures = [];
 
-for (const file of await filesMatching(
-  PROJECT_ROOT,
+for (const file of filesMatching(
   (name) => name.endsWith(".md"),
   MARKDOWN_SKIP_DIRS,
 )) {
@@ -63,7 +79,7 @@ for (const file of await filesMatching(
 }
 
 const shippedNumbers = await shippedAdrNumbers();
-const adrScanFiles = await filesMatching(PROJECT_ROOT, (name) =>
+const adrScanFiles = filesMatching((name) =>
   ADR_SCAN_EXTENSIONS.has(extname(name)),
 );
 for (const file of adrScanFiles) {

@@ -87,10 +87,10 @@ than silently preferring one.
 - `install.sh` reports one URL per application rather than one for the
   project.
 - The migrate service runs the image of the first application whose role
-  takes a database driver. A project with two backends would need a
-  migration story per backend; nothing generates that shape today, and
-  inventing one now would be the speculative work this repository keeps
-  declining.
+  takes a database driver, and a later `scaffold add` leaves it there. A
+  second backend's migrations are its own to run; nothing generates a
+  migration story per backend today, and inventing one now would be the
+  speculative work this repository keeps declining.
 - `v1` in `you/.github` moves, which reaches every generated project at once.
   Accepted under ADR-0005's terms and for the reason recorded there; the
   change is additive to the inputs, and the smoke path was run against a real

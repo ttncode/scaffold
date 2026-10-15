@@ -47,3 +47,18 @@ teardown() {
   run grep "output: 'standalone'" "${PROJECT}/apps/web/next.config.ts"
   assert_ok
 }
+
+@test "tailwind compiles in the web app's build" {
+  # create-next-app wires Tailwind into the next.config.ts the adapter replaces;
+  # without the loader, next build only warns and ships @apply uncompiled.
+  scaffold new "$PROJECT" --web nextjs
+  cd "${PROJECT}/apps/web"
+  printf '.probe { @apply flex; }\n' >>src/app/globals.css
+  run mise exec -- pnpm exec next build
+  assert_ok
+  run grep -l '@apply' .next/static/chunks/*.css
+  [ "$status" -eq 1 ] || {
+    echo "uncompiled @apply in ${output}"
+    false
+  }
+}

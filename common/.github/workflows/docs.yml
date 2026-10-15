@@ -9,5 +9,5 @@ jobs:
     # what app-docs's jobs need; `permissions: {}` above leaves nothing to inherit.
     permissions:
       contents: read
-    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (toolbox ADR-0005).
     uses: you/.github/.github/workflows/app-docs.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]

@@ -14,5 +14,5 @@ jobs:
       security-events: write
       pull-requests: read
       actions: read
-    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (toolbox ADR-0005).
     uses: you/.github/.github/workflows/app-security.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]

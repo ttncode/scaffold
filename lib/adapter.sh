@@ -109,6 +109,30 @@ substitute_workspace_filter() {
   rm -f "${file}.bak"
 }
 
+substitute_app_name() {
+  local -r dest="$1"
+  local -r file="${dest}/README.md"
+
+  [[ -f "$file" ]] || return 0
+
+  sed -i.bak "s|@APP_NAME@|$(basename "$dest")|g" "$file"
+  rm -f "${file}.bak"
+}
+
+# The host port compose allocated this app, so no two dev servers collide.
+assign_app_port() {
+  local -r project="$1" dest="$2" rel="$3"
+  local -r file="${dest}/.env.example"
+  local port
+
+  grep -q '^PORT=' "$file" 2>/dev/null || return 0
+
+  port="$(sed -n "s/^$(app_port_variable "$rel")=//p" "${project}/${EXAMPLE_ENV_FILE}")"
+  [[ -n "$port" ]] || die "no port allocated for ${rel} in ${EXAMPLE_ENV_FILE}"
+  sed -i.bak "s/^PORT=.*/PORT=${port}/" "$file"
+  rm -f "${file}.bak"
+}
+
 # Directories merge rather than replace: the generator already created `src/`,
 # and `cp -R src dest/src` would nest it.
 copy_adapter_files() {
@@ -145,6 +169,8 @@ apply_adapter() {
   assert_workspace_filter_name "$dest"
   copy_adapter_files "$dest"
   substitute_workspace_filter "$dest"
+  substitute_app_name "$dest"
+  assign_app_port "$project" "$dest" "$rel"
   configure_adapter_app "$dest" "$rel"
   wire_adapter_services "$dest" "$project"
 

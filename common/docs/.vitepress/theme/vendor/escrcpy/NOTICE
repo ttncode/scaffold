@@ -12,7 +12,3 @@ Copied at commit 1e87397da0535b825d5e2e87a53e08fa3896f4a9:
 Unmodified. Prettier is told to skip this directory (see docs/.prettierignore)
 so that reformatting can never turn the copy into a derivative work by
 accident.
-
-The project logo at docs/public/logo.png is also escrcpy's. It is a placeholder
-for this project's own mark, not an asset the Apache licence grants: section 6
-withholds trademark rights. Replace it before the docs site is published.

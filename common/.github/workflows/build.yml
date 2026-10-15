@@ -12,8 +12,9 @@ jobs:
     permissions:
       contents: read
       packages: write
-    # `@v1` floats on purpose: one fix reaches every project (ADR-0005).
+    # `@v1` floats on purpose: one fix reaches every project (toolbox ADR-0005).
     uses: you/.github/.github/workflows/app-build.yml@v1 # zizmor: ignore[unpinned-uses,ref-confusion]
     with:
-      # {image, context, dockerfile} per application, written by scaffold (ADR-0022).
+      # {image, context, dockerfile} per application, written by scaffold
+      # (toolbox ADR-0022).
       images: "[]"
