@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: ./.github/actions/use-mise
       - name: Run the unit lane
         run: mise run ci-unit
 
@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: ./.github/actions/use-mise
       - name: Enable corepack
         run: corepack enable
       - name: Setup PHP
@@ -61,7 +61,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: ./.github/actions/use-mise
       # Not common/: its placeholder `uses: you/.github/...` makes ref-confusion
       # error out. tests/workflows.bats checks those call sites structurally.
       - name: Run zizmor

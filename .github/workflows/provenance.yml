@@ -26,7 +26,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: ./.github/actions/use-mise
       - name: Clone upstream immich
         run: git clone --filter=blob:none --no-checkout https://github.com/immich-app/immich.git "${RUNNER_TEMP}/immich"
       - name: Run the provenance self-test
