@@ -103,7 +103,7 @@ Measured on `scaffold new demo --api nestjs --web nextjs --db postgres`: 101 tra
 
 ## Diagrams
 
-Each `.svg` is exported from the `.html` beside it.
+Each `.svg` or `.png` is exported from the `.html` beside it. The README's hero is a `.png`, because GitHub shows README images without their web fonts.
 
 | Diagram | Shows |
 | --- | --- |
@@ -113,3 +113,4 @@ Each `.svg` is exported from the `.html` beside it.
 | [generated-project](diagrams/generated-project.svg) | The tree `scaffold new` produces |
 | [release-flow](diagrams/release-flow.svg) | Continuous builds and cut releases of a generated project |
 | [scaffold-update](diagrams/scaffold-update.svg) | How `scaffold update` patches an existing project |
+| [scaffold-lifecycle](diagrams/scaffold-lifecycle.png) | A client project from generation to a running release (the README hero) |
