@@ -88,6 +88,7 @@ The framework generators take a few minutes. You get a directory with one commit
 | Adapter | Flag | Tier |
 |---|---|---|
 | `nextjs` | `--web` | A |
+| `vite-react` | `--web` | A |
 | `nestjs` | `--api` | A |
 | `laravel-api` | `--api` | A |
 | `flask` | `--api` | A |

@@ -1,0 +1,30 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	handle /health/live {
+		respond "ok" 200
+	}
+
+	# {$API_URL} is read when Caddy loads this file at container start, so one
+	# image serves every environment (ADR-0014). Unset means same origin.
+	handle /config.json {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond `{"apiUrl":"{$API_URL}"}` 200
+	}
+
+	handle {
+		# Hashed assets may cache; anything else must revalidate, or a browser
+		# holding an old index.html asks for assets a deploy removed and the
+		# fallback below answers them with HTML.
+		@revalidate not path /assets/*
+		header @revalidate Cache-Control no-cache
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

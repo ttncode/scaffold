@@ -34,7 +34,7 @@ When: a framework needs to be generated that `scaffold list --adapters` does not
    - Pin the language in a local `[tools]` block, never at the project root. Where the language's own tool owns the pin, pin that tool: `adapters/flask` pins `uv`, and `adapters/flask/.python-version` pins python.
    - `format`, `lint` and `check` must not write; `scaffold lint` rejects `--write`, `--fix` and similar flags in them.
 
-4. Write the overlay files. Every file in the directory is copied into the app except `adapter.env` and `lefthook.fragment.yml` (ADR-0003).
+4. Write the overlay files. Every file in the directory is copied into the app except `adapter.env`, `lefthook.fragment.yml` and `example.env.fragment` (ADR-0003).
 
    | File | Rule |
    | --- | --- |
@@ -43,6 +43,7 @@ When: a framework needs to be generated that `scaffold list --adapters` does not
    | `.dockerignore` | Required by `tests/compose.bats` |
    | `.env.example` | The app's own variables |
    | `lefthook.fragment.yml` | Hooks merged into the project's `lefthook.yml`; `{}` for none |
+| `example.env.fragment` | Optional. Appended to the project's `example.env`, the root `.env` compose hands the container; `adapters/vite-react` declares `API_URL` here |
 
 5. For an `api` or `app` role, add `services/<service>/drivers/<family>.sh` to every service, unless the family already has drivers.
 
