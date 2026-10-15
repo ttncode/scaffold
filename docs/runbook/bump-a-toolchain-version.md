@@ -8,7 +8,7 @@ When: a pinned tool needs a new version, in the toolbox or in what it generates.
 
    | Tool | Pinned in |
    | --- | --- |
-   | This toolbox's tools: `bats`, `shellcheck`, `shfmt`, `yq`, `jq`, `zizmor`, `rush`, `lefthook`, `gitleaks` | `mise.toml` |
+   | This toolbox's tools: `bats`, `shellcheck`, `shfmt`, `yq`, `jq`, `zizmor`, `rush`, `node`, `pnpm`, `lefthook`, `gitleaks` | `mise.toml` |
    | Every generated project: `node`, `pnpm`, `lefthook`, `gitleaks` | `common/mise.root.toml` |
    | One adapter's toolchain, e.g. composer for `laravel-api`, node for `laravel-inertia` | `adapters/<name>/mise.toml` |
    | `flask`'s python | `adapters/flask/.python-version` and the `--python` argument in `adapters/flask/adapter.env` |
@@ -16,7 +16,7 @@ When: a pinned tool needs a new version, in the toolbox or in what it generates.
 
 2. Edit the version string. Leave the rest of the `[tools]` block alone.
 
-3. `lefthook` and `gitleaks` are pinned twice. Change `mise.toml` and `common/mise.root.toml` together.
+3. `node`, `pnpm`, `lefthook` and `gitleaks` are pinned twice. Change `mise.toml` and `common/mise.root.toml` together; `tests/contract.bats` fails when they differ.
 
 4. Re-resolve this toolbox's lock.
 

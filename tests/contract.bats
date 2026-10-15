@@ -294,3 +294,19 @@ setup() {
     false
   }
 }
+
+@test "the toolbox pins every tool a generated project pins, at the same version" {
+  # Unpinned here, a project tool installs lazily inside each test; the unit
+  # lane's parallel jobs then race those installs, and mise 2026.9.11+ fails
+  # the losers with `"pnpm" couldn't exec process`.
+  local tool want got missing=""
+  while IFS= read -r tool; do
+    want="$(yq -p toml -oy ".tools.\"${tool}\"" "${SCAFFOLD_ROOT}/common/mise.root.toml")"
+    got="$(yq -p toml -oy ".tools.\"${tool}\"" "${SCAFFOLD_ROOT}/mise.toml")"
+    [ "$got" = "$want" ] || missing="${missing}${tool}: toolbox ${got}, project ${want}"$'\n'
+  done < <(yq -p toml -oy '.tools | keys | .[]' "${SCAFFOLD_ROOT}/common/mise.root.toml")
+  [ -z "$missing" ] || {
+    printf '%s' "$missing"
+    false
+  }
+}
