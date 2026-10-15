@@ -46,6 +46,8 @@ app_is_workspace_member() {
   local glob
 
   [[ -f "$workspace_file" ]] || return 1
+  # pnpm adopts a matching directory only when it has a package.json.
+  [[ -f "${project}/${rel}/package.json" ]] || return 1
 
   while IFS= read -r glob; do
     [[ -n "$glob" ]] || continue

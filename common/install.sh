@@ -16,7 +16,8 @@ RepoSlug="${RepoSlug%/releases/latest/download}"
 # Matched on the value, not a *_PASSWORD name, so RABBITMQ_DEFAULT_PASS counts.
 PasswordPlaceholder='changeme'
 PasswordBytes=32
-PasswordLength=24
+# Auth and session secrets commonly reject anything shorter.
+PasswordLength=32
 
 # jq, not grep: the uploader's id follows the asset's name, so "the next id
 # after the name" fetches a different, valid object.
@@ -133,7 +134,8 @@ generate_service_passwords() {
     if [[ "$name" == "APP_KEY" ]]; then
       password="base64:$(head -c "$PasswordBytes" /dev/urandom | base64)"
     else
-      password="$(head -c "$PasswordBytes" /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "$PasswordLength")"
+      # Twice the length in bytes: tr drops base64's `+` and `/`.
+      password="$(head -c "$((PasswordLength * 2))" /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "$PasswordLength")"
     fi
     # `|`: a base64 value can contain `/`.
     sed -i.bak "s|^${name}=${PasswordPlaceholder}\$|${name}=${password}|" "$file"
@@ -177,7 +179,7 @@ compose_has_service() {
   grep -qx "$service" <<<"$services"
 }
 
-# ADR-0014 forbids migrations from an entrypoint, so they run here.
+# toolbox ADR-0014 forbids migrations from an entrypoint, so they run here.
 run_migrations() {
   # `config --services` omits a profiled service unless the profile is named.
   if compose_has_service migrate --profile migrate; then
@@ -192,7 +194,8 @@ run_migrations() {
   fi
 }
 
-# ADR-0022: one line per application, from .env, so a changed port shows.
+# toolbox ADR-0022: one line per application, from .env, so a changed port
+# shows.
 print_running_apps() {
   local name port
   while IFS='=' read -r name port; do

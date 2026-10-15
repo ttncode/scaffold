@@ -4,7 +4,7 @@ hero:
   name: "@PROJECT_TITLE@"
   tagline: Project documentation
   image:
-    src: /logo.png
+    src: /logo.svg
     alt: "@PROJECT_TITLE@"
   actions:
     - theme: brand

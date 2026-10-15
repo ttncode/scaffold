@@ -952,3 +952,21 @@ _password_literal_report() {
     false
   }
 }
+
+@test "a second backend leaves migrate on the first one's image" {
+  local project="${BATS_TEST_TMPDIR}/two-backends"
+  mkdir -p "$project"
+  printf 'services:\n  api:\n    image: ghcr.io/acme/demo-api:x\n  render:\n    image: ghcr.io/acme/demo-render:x\n' \
+    >"${project}/compose.yaml"
+
+  apply_service_compose_migrate "$project" api '' 'command: ["migrate"]'
+  apply_service_compose_migrate "$project" render '' 'command: ["other"]'
+
+  run yq -r '.services.migrate.image' "${project}/compose.yaml"
+  [ "$output" = ghcr.io/acme/demo-api:x ] || {
+    echo "migrate runs ${output}"
+    false
+  }
+  run yq -r '.services.migrate.command[0]' "${project}/compose.yaml"
+  [ "$output" = migrate ]
+}

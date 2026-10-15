@@ -56,3 +56,13 @@ setup() {
       done"
   [ -z "$output" ]
 }
+
+@test "a shipped file cites the toolbox's ADRs as the toolbox's" {
+  # A generated project numbers its own ADRs from 0001; a bare ADR-0014 in a
+  # file it owns reads as one of them.
+  run grep -rnP '(?<!toolbox )ADR-\d{4}' "${SCAFFOLD_ROOT}/common" "${SCAFFOLD_ROOT}/adapters"
+  [ "$status" -eq 1 ] || {
+    echo "$output"
+    false
+  }
+}

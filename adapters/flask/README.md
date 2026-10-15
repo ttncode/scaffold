@@ -1,4 +1,4 @@
-# API
+# @APP_NAME@
 
 A Flask application. It implements this project's task contract, so every
 check runs the same way here as in any other config root:

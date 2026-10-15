@@ -232,3 +232,23 @@ EOF
   }
   [[ "$output" == *'apps/api/Dockerfile'* ]]
 }
+
+@test "update carries a binary file's change" {
+  local box from
+  box="$(copy_toolbox)"
+  printf '\x89PNG\r\n\x1a\n\x00old' >"${box}/common/mark.png"
+  git -C "$box" init -q -b main
+  _commit "$box" "before"
+  from="$(git -C "$box" rev-parse HEAD)"
+  printf '\x89PNG\r\n\x1a\n\x00new' >"${box}/common/mark.png"
+  _commit "$box" "after"
+
+  local project="${WORKDIR}/binary"
+  _fixture_project "$project" "$from"
+  printf '\x89PNG\r\n\x1a\n\x00old' >"${project}/mark.png"
+  _commit "$project" "the mark it was generated with"
+
+  run "${box}/scaffold" update "$project"
+  assert_ok
+  cmp -s "${box}/common/mark.png" "${project}/mark.png"
+}

@@ -18,6 +18,9 @@ The comment above the call ("nothing generates that shape") is wrong.
 Proposed fix: keep an existing `migrate` service, so the first backend owns
 migrations. Amend ADR-0022.
 
+Fixed on 2026-10-16 as proposed, with a unit test in `tests/service.bats` and
+an integration test in `tests/add-app.bats`.
+
 ## 2. A TypeScript app added outside the workspace globs loses its lockfile
 
 `joins_shared_workspace` (`scaffold`) checks only that the workspace has

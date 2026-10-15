@@ -93,7 +93,17 @@ EOF
   assert_ok
 }
 
-@test "the vendored theme ships whole: css, licence, notice and logo" {
+@test "the path check skips what git ignores" {
+  mkdir -p "${PROJECT}/.notes"
+  # shellcheck disable=SC2016 # literal markdown backticks, not expanded
+  echo 'See `does/not/exist.md`.' >"${PROJECT}/.notes/todo.md"
+  echo '.notes/' >>"${PROJECT}/.gitignore"
+  cd "${PROJECT}/docs"
+  run node scripts/check-paths.mjs
+  assert_ok
+}
+
+@test "the vendored theme ships whole: css, licence and notice" {
   local vendor="${PROJECT}/docs/.vitepress/theme/vendor/escrcpy" file
   for file in LICENSE NOTICE rainbow.css vars.css; do
     [ -f "${vendor}/${file}" ] || {
@@ -101,7 +111,6 @@ EOF
       false
     }
   done
-  [ -f "${PROJECT}/docs/public/logo.png" ]
   # reformatting the copy would make it a modified file under section 4(b);
   # the exemption is the only thing standing between prettier and that.
   run grep -qx '.vitepress/theme/vendor' "${PROJECT}/docs/.prettierignore"
@@ -120,7 +129,7 @@ EOF
   assert_ok
   run grep -rq 'scrollbar-gutter' docs/.vitepress/dist/assets
   assert_ok
-  run grep -q 'logo.png' docs/.vitepress/dist/index.html
+  run grep -q 'logo.svg' docs/.vitepress/dist/index.html
   assert_ok
 }
 

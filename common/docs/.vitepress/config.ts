@@ -3,10 +3,10 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: '@PROJECT_TITLE@',
   description: 'Project documentation',
-  head: [['link', { rel: 'icon', href: '/logo.png' }]],
+  head: [['link', { rel: 'icon', href: '/logo.svg' }]],
   ignoreDeadLinks: false,
   themeConfig: {
-    logo: '/logo.png',
+    logo: '/logo.svg',
     sidebar: [
       {
         text: 'Guide',

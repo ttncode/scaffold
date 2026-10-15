@@ -77,3 +77,9 @@ teardown() {
   run grep -q '@SERVICE_SETUP@' "${PROJECT}/apps/api/Dockerfile"
   [ "$status" -ne 0 ]
 }
+
+@test "the flask app's README is titled after the app" {
+  scaffold new "$PROJECT" --api flask
+  run head -1 "${PROJECT}/apps/api/README.md"
+  [ "$output" = "# api" ]
+}

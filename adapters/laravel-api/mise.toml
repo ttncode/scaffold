@@ -1,5 +1,5 @@
 # composer only: mise's php backends compile from source and fail, so php comes
-# from the system (ADR-0016).
+# from the system (toolbox ADR-0016).
 [tools]
 "ubi:composer/composer" = "2.10.2"
 

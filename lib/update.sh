@@ -72,7 +72,7 @@ substitute_placeholders() {
   )
   if [[ -n "$rel" ]]; then
     filter="$(app_service_key "$rel")"
-    rules+=(-e "s|@APP_ROOT@|${rel}/|g" -e "s|@APP_FILTER@|${filter}|g")
+    rules+=(-e "s|@APP_ROOT@|${rel}/|g" -e "s|@APP_FILTER@|${filter}|g" -e "s|@APP_NAME@|${filter}|g")
   fi
 
   sed "${rules[@]}"
@@ -81,7 +81,7 @@ substitute_placeholders() {
 common_patch() {
   local -r project="$1"
 
-  git -C "$SCAFFOLD_ROOT" diff "${SCAFFOLD_UPDATE_FROM}..HEAD" -- \
+  git -C "$SCAFFOLD_ROOT" diff --binary "${SCAFFOLD_UPDATE_FROM}..HEAD" -- \
     common/ "${COMMON_PATCH_EXCLUDES[@]}" |
     rewrite_patch_paths 'common/' '' |
     substitute_placeholders "$project"
@@ -109,9 +109,9 @@ adapter_patch() {
   done
 
   {
-    git -C "$SCAFFOLD_ROOT" diff "${SCAFFOLD_UPDATE_FROM}..HEAD" -- \
+    git -C "$SCAFFOLD_ROOT" diff --binary "${SCAFFOLD_UPDATE_FROM}..HEAD" -- \
       "${dir}/" "${excludes[@]}"
-    git -C "$SCAFFOLD_ROOT" diff "${SCAFFOLD_UPDATE_FROM}..HEAD" -- "${dir}/${kept}" |
+    git -C "$SCAFFOLD_ROOT" diff --binary "${SCAFFOLD_UPDATE_FROM}..HEAD" -- "${dir}/${kept}" |
       rewrite_patch_paths "${dir}/${kept}" "${dir}/Dockerfile"
   } |
     rewrite_patch_paths "${dir}/" "${rel}/" |

@@ -1,5 +1,5 @@
-# The stack clients run, attached to every release (ADR-0014). Every variable has
-# a default so the file validates before install.sh writes .env.
+# The stack clients run, attached to every release (toolbox ADR-0021). Every
+# variable has a default so the file validates before install.sh writes .env.
 name: app
 
 services: {}

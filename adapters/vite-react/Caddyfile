@@ -10,7 +10,7 @@
 	}
 
 	# {$API_URL} is read when Caddy loads this file at container start, so one
-	# image serves every environment (ADR-0014). Unset means same origin.
+	# image serves every environment (toolbox ADR-0014). Unset means same origin.
 	handle /config.json {
 		header Content-Type application/json
 		header Cache-Control no-store

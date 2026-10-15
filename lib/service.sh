@@ -360,10 +360,14 @@ apply_service_compose_service() {
 apply_service_compose_migrate() {
   local -r project="$1" service="$2" env_block="$3" command="$4"
   local -r file="${project}/${COMPOSE_FILE}"
-  local image block
+  local image block has_migrate
 
   [[ -n "$command" ]] || return 0
   [[ -f "$file" ]] || die "no ${COMPOSE_FILE} in ${project}"
+  # The first backend owns migrations (ADR-0022).
+  has_migrate="$(yq '.services | has("migrate")' "$file")" ||
+    die "could not read the services out of ${file}"
+  [[ "$has_migrate" == "false" ]] || return 0
 
   image="$(yq ".services.\"${service}\".image" "$file")" ||
     die "could not read ${service}'s image out of ${file}"
@@ -472,7 +476,6 @@ apply_service_drivers() {
   key="$(app_service_key "$app")"
   apply_service_dockerfile "$app" "${block%$'\n'}"
   apply_service_compose_env "$project" "$key" "${env_block%$'\n'}"
-  # Runs the first driven application's image; a second backend would need its
-  # own migrate service, and nothing generates that shape (ADR-0022).
+  # A later backend's migrations are its own to run (ADR-0022).
   apply_service_compose_migrate "$project" "$key" "${env_block%$'\n'}" "${migrate_block%$'\n'}"
 }

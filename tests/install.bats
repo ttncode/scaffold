@@ -219,3 +219,16 @@ INNER_EOF
   run cat d6.log
   [[ "$output" == *"run --rm migrate"* ]]
 }
+
+@test "a generated secret meets the common 32-character minimum" {
+  printf 'DB_PASSWORD=changeme\nAUTH_SECRET=changeme\n' >.env
+  run generate_service_passwords .env
+  assert_ok
+  local name value
+  while IFS='=' read -r name value; do
+    ((${#value} >= 32)) || {
+      echo "${name} is ${#value} characters"
+      false
+    }
+  done <.env
+}
